@@ -89,4 +89,28 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
 
         await _context.SaveChangesAsync();
     }
+
+    public async Task SaveRaceSessionAsync(Guid raceId, Session session)
+    {
+        var existing = await _context.Set<Session>()
+            .Where(s => s.RaceId == raceId && s.SessionType == session.SessionType)
+            .Include(s => s.DriverStandings)
+            .ToListAsync();
+
+        if (existing.Count > 0)
+        {
+            var standings = existing.SelectMany(s => s.DriverStandings).ToList();
+
+            if (standings.Count > 0)
+            {
+                _context.DriverStandings.RemoveRange(standings);
+            }
+
+            _context.Set<Session>().RemoveRange(existing);
+            await _context.SaveChangesAsync();
+        }
+
+        await _context.Set<Session>().AddAsync(session);
+        await _context.SaveChangesAsync();
+    }
 }

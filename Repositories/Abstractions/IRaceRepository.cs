@@ -9,4 +9,5 @@ public interface IRaceRepository : IGenericRepository<Race>
     Task<IEnumerable<Team>> GetEnteredTeamsAsync(Guid raceId);
     Task<IEnumerable<Team>> GetEnteredTeamsWithDriversAsync(Guid raceId);
     Task UpdateRaceTeamsAsync(Guid raceId, IReadOnlyCollection<Guid> teamIds);
+    Task SaveRaceSessionAsync(Guid raceId, Session session);
 }

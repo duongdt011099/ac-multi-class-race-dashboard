@@ -13,4 +13,6 @@ public interface IRaceService
     Task<IEnumerable<TeamModel>> GetRaceTeamsAsync(Guid raceId);
     Task SaveRaceTeamsAsync(Guid raceId, IReadOnlyCollection<Guid> teamIds);
     Task<PresetExportResult> ExportGridPresetAsync(Guid raceId, SessionType sessionType, bool humanClassOnly, string seasonName, string championshipName);
+    Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync();
+    Task<RaceResultImportResult> ImportRaceResultAsync(Guid raceId, string fileName);
 }

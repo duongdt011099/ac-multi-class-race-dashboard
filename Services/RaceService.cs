@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -11,6 +12,11 @@ public class RaceService : IRaceService
     private readonly ISeasonRepository _seasonRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
+
+    private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public RaceService(
         IRaceRepository raceRepository,
@@ -113,14 +119,17 @@ public class RaceService : IRaceService
             SessionType = s.SessionType,
             SessionDate = s.SessionDate,
             DriverStandings = s.DriverStandings
-                .OrderBy(d => d.Position)
+                .OrderBy(d => d.ClassPosition)
                 .Select(d => new DriverStandingModel
                 {
                     Position = d.Position,
-                    DriverName = d.Driver.DriverName,
+                    DriverName = d.DriverName,
                     TeamName = d.TeamName,
+                    TeamClassName = d.TeamClassName,
                     BestLapTimeMs = d.BestLapTimeMs,
-                    Points = d.Points
+                    Points = d.Points,
+                    LapCount = d.LapCount,
+                    ClassPosition = d.ClassPosition
                 })
                 .ToList()
         });
@@ -218,6 +227,236 @@ public class RaceService : IRaceService
         };
     }
 
+    public async Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync()
+    {
+        var config = await _configRepository.GetAsync();
+        var path = config?.RaceResultsPath?.Trim();
+
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return Enumerable.Empty<RaceResultFileModel>();
+        }
+
+        return Directory.GetFiles(path, "*.json")
+            .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
+            .Where(f => TryParseSessionDate(f.FileName, out _))
+            .OrderByDescending(f => f.FileName)
+            .Select(f =>
+            {
+                TryParseSessionDate(f.FileName, out var date);
+                var track = ReadSessionInfo(f.FilePath);
+                return new RaceResultFileModel
+                {
+                    FileName = f.FileName,
+                    SessionDate = date,
+                    Track = track ?? string.Empty
+                };
+            })
+            .Where(f => !string.IsNullOrWhiteSpace(f.Track))
+            .ToList();
+    }
+
+    public async Task<RaceResultImportResult> ImportRaceResultAsync(Guid raceId, string fileName)
+    {
+        var config = await _configRepository.GetAsync();
+        var path = config?.RaceResultsPath?.Trim();
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new InvalidOperationException("Race results path is not configured. Set it on the Game Config page.");
+        }
+
+        var filePath = Path.Combine(path, fileName);
+
+        if (!File.Exists(filePath))
+        {
+            throw new InvalidOperationException($"Result file not found: {fileName}");
+        }
+
+        CmSessionFile? sessionFile;
+
+        try
+        {
+            await using var stream = File.OpenRead(filePath);
+            sessionFile = await JsonSerializer.DeserializeAsync<CmSessionFile>(stream, CaseInsensitiveJson);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"The selected file is not a valid Content Manager session file: {fileName}",
+                ex);
+        }
+
+        if (sessionFile is null || sessionFile.Sessions.Length == 0)
+        {
+            throw new InvalidOperationException("The selected file contains no sessions.");
+        }
+
+        var raceSession = sessionFile.Sessions.FirstOrDefault(s => s is { Type: 3 });
+
+        if (raceSession is null)
+        {
+            throw new InvalidOperationException("The selected file contains no race session to import.");
+        }
+
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        if (race is null)
+        {
+            throw new InvalidOperationException("Race not found.");
+        }
+
+        var pointSetting = await _pointSettingRepository.GetByIdAsync(race.PointSettingId);
+        var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
+
+        var driverByKey = new Dictionary<string, (Driver Driver, Team Team)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var team in teams)
+        {
+            foreach (var driver in team.Drivers.Where(d => d.IsActive))
+            {
+                driverByKey[BuildDriverKey(driver.Car, driver.Skin)] = (driver, team);
+            }
+        }
+
+        var entries = new List<ImportEntry>();
+
+        for (var carIndex = 0; carIndex < sessionFile.Players.Length; carIndex++)
+        {
+            var player = sessionFile.Players[carIndex];
+
+            if (!driverByKey.TryGetValue(BuildDriverKey(player.Car, player.Skin), out var match))
+            {
+                continue;
+            }
+
+            var bestLapMs = (int)(raceSession.BestLaps?
+                .FirstOrDefault(b => b.Car == carIndex && b.Time > 0)?.Time ?? 0);
+
+            var lapCount = raceSession.LapsTotal is { Count: > 0 } && carIndex < raceSession.LapsTotal.Count
+                ? raceSession.LapsTotal[carIndex]
+                : raceSession.LapsCount;
+
+            entries.Add(new ImportEntry
+            {
+                Match = match,
+                BestLapMs = bestLapMs,
+                LapCount = lapCount
+            });
+        }
+
+        var session = new Session
+        {
+            SessionId = Guid.NewGuid(),
+            SessionType = SessionType.Race,
+            SessionDate = TryParseSessionDate(fileName, out var date) ? date : DateTime.Now,
+            RaceId = raceId,
+            Race = race,
+            DriverStandings = new List<DriverStanding>()
+        };
+
+        var ordered = entries
+            .GroupBy(e => e.Match.Team.TeamClass?.TeamClassName?.Trim() ?? string.Empty)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(g =>
+            {
+                var classMatches = g
+                    .OrderByDescending(e => e.LapCount)
+                    .ThenBy(e => e.BestLapMs)
+                    .ToList();
+
+                return classMatches.Select((e, index) => new
+                {
+                    Entry = e,
+                    ClassPosition = index + 1,
+                    TeamClassName = g.Key
+                });
+            })
+            .ToList();
+
+        foreach (var item in ordered)
+        {
+            session.DriverStandings.Add(new DriverStanding
+            {
+                DriverStandingId = Guid.NewGuid(),
+                Driver = item.Entry.Match.Driver,
+                DriverName = item.Entry.Match.Driver.DriverName,
+                OriginalTeamId = item.Entry.Match.Team.TeamId,
+                TeamName = item.Entry.Match.Team.TeamName,
+                TeamClassName = item.TeamClassName,
+                Race = race,
+                Position = item.ClassPosition,
+                ClassPosition = item.ClassPosition,
+                Points = pointSetting?.Config.TryGetValue(item.ClassPosition.ToString(), out var points) == true ? points : 0,
+                BestLapTimeMs = item.Entry.BestLapMs,
+                LapCount = item.Entry.LapCount
+            });
+        }
+
+        await _raceRepository.SaveRaceSessionAsync(raceId, session);
+
+        race.Status = RaceStatus.Finished;
+        await _raceRepository.UpdateAsync(race);
+
+        return new RaceResultImportResult
+        {
+            Imported = session.DriverStandings.Count,
+            Skipped = sessionFile.Players.Length - session.DriverStandings.Count,
+            SessionDate = session.SessionDate,
+            SessionType = session.SessionType
+        };
+    }
+
+    private sealed class ImportEntry
+    {
+        public required (Driver Driver, Team Team) Match { get; set; }
+
+        public int BestLapMs { get; set; }
+
+        public int LapCount { get; set; }
+    }
+
+    private static bool TryParseSessionDate(string fileName, out DateTime date)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+
+        return DateTime.TryParseExact(
+            name,
+            "yyMMdd-HHmmss",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None,
+            out date);
+    }
+
+    private static string? ReadSessionInfo(string filePath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(filePath));
+            var root = document.RootElement;
+
+            if (!root.TryGetProperty("track", out var track))
+            {
+                return null;
+            }
+
+            var hasRace = root.TryGetProperty("sessions", out var sessions) &&
+                sessions.ValueKind == JsonValueKind.Array &&
+                sessions.EnumerateArray().Any(s => s.TryGetProperty("type", out var type) && type.GetInt32() == 3);
+
+            return hasRace ? (track.GetString() ?? string.Empty) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string BuildDriverKey(string car, string skin)
+    {
+        return car + "\u001F" + skin;
+    }
+
     private static string SessionTypeLabel(SessionType sessionType)
     {
         return sessionType switch
@@ -233,5 +472,64 @@ public class RaceService : IRaceService
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(value.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
         return sanitized.Trim();
+    }
+
+    private sealed class CmSessionFile
+    {
+        public string Track { get; set; } = string.Empty;
+
+        public int Number_Of_Sessions { get; set; }
+
+        public CmPlayer[] Players { get; set; } = Array.Empty<CmPlayer>();
+
+        public CmSession[] Sessions { get; set; } = Array.Empty<CmSession>();
+    }
+
+    private sealed class CmPlayer
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Car { get; set; } = string.Empty;
+
+        public string Skin { get; set; } = string.Empty;
+    }
+
+    private sealed class CmSession
+    {
+        public int Event { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public int Type { get; set; }
+
+        public int LapsCount { get; set; }
+
+        public int Duration { get; set; }
+
+        public List<CmLap> Laps { get; set; } = new();
+
+        public List<int> LapsTotal { get; set; } = new();
+
+        public List<CmBestLap> BestLaps { get; set; } = new();
+
+        public List<int>? RaceResult { get; set; }
+    }
+
+    private sealed class CmLap
+    {
+        public int Lap { get; set; }
+
+        public int Car { get; set; }
+
+        public double Time { get; set; }
+    }
+
+    private sealed class CmBestLap
+    {
+        public int Car { get; set; }
+
+        public long Time { get; set; }
+
+        public int Lap { get; set; }
     }
 }
