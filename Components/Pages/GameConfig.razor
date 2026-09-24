@@ -1,0 +1,72 @@
+@page "/gameconfig"
+@rendermode InteractiveServer
+@using MulticlassRace.ViewModels
+@inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject ToastService Toast
+
+<PageTitle>Game Config</PageTitle>
+
+<h1>Game Config</h1>
+
+<ToastHost />
+
+<div class="wec-config">
+    <div class="wec-config__intro">
+        Configure the paths Assetto Corsa and Content Manager use for game files, presets, and race results.
+    </div>
+
+    <div class="wec-form-field">
+        <label for="config-game-path">Game Path</label>
+        <input id="config-game-path" type="text" placeholder="e.g. C:\Program Files (x86)\Steam\steamapps\common\assettocorsa" @bind="config.GamePath" />
+    </div>
+
+    <div class="wec-form-field">
+        <label for="config-preset-path">Preset Path</label>
+        <input id="config-preset-path" type="text" placeholder="e.g. C:\Users\duong\AppData\Local\AcTools Content Manager\Presets" @bind="config.PresetPath" />
+    </div>
+
+    <div class="wec-form-field">
+        <label for="config-results-path">Race Results Path</label>
+        <input id="config-results-path" type="text" placeholder="e.g. ...\out\race_results\0" @bind="config.RaceResultsPath" />
+    </div>
+
+    <div class="wec-config__actions">
+        <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveAsync" disabled="@isSaving">
+            @(isSaving ? "Saving..." : "Save Configuration")
+        </button>
+    </div>
+</div>
+
+@code {
+    private AssettoCorsaGameConfigModel config = new();
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var existing = await ConfigService.GetAsync();
+        if (existing is not null)
+        {
+            config = existing;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var created = await ConfigService.SaveAsync(config);
+            Toast.Show(created ? "Configuration created." : "Configuration saved.");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

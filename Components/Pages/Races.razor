@@ -1,0 +1,852 @@
+@page "/races"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.WebUtilities
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Shared
+@inject MulticlassRace.Services.Abstractions.IRaceService RaceService
+@inject MulticlassRace.Services.Abstractions.IChampionshipService ChampionshipService
+@inject MulticlassRace.Services.Abstractions.ISeasonService SeasonService
+@inject MulticlassRace.Services.Abstractions.ITeamService TeamService
+@inject ToastService Toast
+@inject NavigationManager Nav
+
+<PageTitle>Races</PageTitle>
+
+<h1>Races</h1>
+
+<ToastHost />
+
+<div class="wec-filters">
+    <div class="wec-filters__item">
+        <label for="filter-championship">Championship</label>
+        <select id="filter-championship" value="@selectedChampionshipId" @onchange="HandleChampionshipChanged">
+            <option value="">Select championship...</option>
+            @foreach (var championship in championships ?? Enumerable.Empty<ChampionshipModel>())
+            {
+                <option value="@championship.ChampionshipId">@championship.ChampionshipName</option>
+            }
+        </select>
+    </div>
+
+    @if (!string.IsNullOrEmpty(selectedChampionshipId))
+    {
+        <div class="wec-filters__item">
+            <label for="filter-season">Season</label>
+            <select id="filter-season" value="@selectedSeasonId" @onchange="HandleSeasonChanged">
+                <option value="">Select season...</option>
+                @foreach (var season in seasons)
+                {
+                    <option value="@season.SeasonId">@season.SeasonName</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (selectedChampionship is not null)
+    {
+        <div class="wec-breadcrumb">@selectedChampionship.ChampionshipName @(selectedSeason is not null ? $"› {selectedSeason.SeasonName}" : "")</div>
+    }
+</div>
+
+@if (races is not null)
+{
+    <div class="wec-toolbar">
+        <button type="button" class="wec-toolbar__btn @(hasSeason ? "" : "wec-toolbar__btn--disabled")" @onclick="OpenRaceCreate" disabled="@(!hasSeason)">
+            <i class="bi bi-plus-lg"></i> Add Race
+        </button>
+    </div>
+}
+
+<div class="wec-table-wrapper">
+    <table class="wec-table">
+        <thead>
+            <tr>
+                <th>
+                    <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Race)">
+                        Race
+                        <i class="bi @(sortColumn == SortColumn.Race && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Race ? "" : "wec-table__sort-icon--inactive")"></i>
+                    </button>
+                </th>
+                <th>Country</th>
+                <th>
+                    <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
+                        Status
+                        <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                    </button>
+                </th>
+                <th class="wec-table__actions">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!hasSeason)
+            {
+                <tr>
+                    <td colspan="4" class="wec-empty">Select a championship and a season to view races.</td>
+                </tr>
+            }
+            else if (races is null)
+            {
+                <tr>
+                    <td colspan="4" class="wec-empty">Loading races...</td>
+                </tr>
+            }
+            else if (!DisplayRaces.Any())
+            {
+                <tr>
+                    <td colspan="4" class="wec-empty">No races found. Click Add Race to create one.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var race in DisplayRaces)
+                {
+                    <tr class="wec-row-clickable" title="View sessions" @onclick="() => ViewSessionsAsync(race)">
+                        <td>@race.RaceName</td>
+                        <td>
+                            @{ var countryFlag = Countries.GetFlag(race.Country); }
+                            @if (!string.IsNullOrEmpty(countryFlag))
+                            {
+                                <span class="wec-race-flag-emoji">@countryFlag</span>
+                            }
+                            @(string.IsNullOrWhiteSpace(race.Country) ? "—" : race.Country)
+                        </td>
+                        <td>
+                            <span class="wec-status @StatusClass(race.Status)">
+                                @StatusLabel(race.Status)
+                            </span>
+                        </td>
+                        <td class="wec-table__actions">
+                            <button type="button" class="wec-btn" title="Edit @race.RaceName" @onclick="() => OpenRaceEdit(race)" @onclick:stopPropagation="true">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="wec-btn" title="Delete @race.RaceName" @onclick="() => confirmDeleteRace = race" @onclick:stopPropagation="true">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (editingRace is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>@(isCreatingRace ? "New Race" : "Edit Race")</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelRaceEdit">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-context">
+                    @(selectedChampionship?.ChampionshipName) › @(selectedSeason?.SeasonName)
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="race-name">Race Name</label>
+                    <input id="race-name" type="text" @bind="editingRace.RaceName" />
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="race-country">Country</label>
+                    <select id="race-country" @bind="editingRace.Country">
+                        <option value="">Select country...</option>
+                        @if (!string.IsNullOrEmpty(editingRace.Country) && !Countries.All.Contains(editingRace.Country))
+                        {
+                            <option value="@editingRace.Country">@editingRace.Country</option>
+                        }
+                        @foreach (var country in Countries.All)
+                        {
+                            <option value="@country">@Countries.GetFlag(country) @country</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelRaceEdit">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync" disabled="@isSavingRace">
+                    @(isSavingRace ? "Saving..." : isCreatingRace ? "Create" : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (confirmDeleteRace is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Delete Race</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDeleteRace = null">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <p>Delete @confirmDeleteRace.RaceName? This also removes its sessions and driver standings.</p>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDeleteRace = null">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteRaceAsync" disabled="@isDeletingRace">
+                    @(isDeletingRace ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (viewingSessionsFor is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--wide">
+            <div class="wec-modal__header">
+                <span>Sessions — @viewingSessionsFor.RaceName</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => viewingSessionsFor = null">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-tabs">
+                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "")" @onclick="SetTeamsTab">Teams</button>
+                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Practice)">Practice</button>
+                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Qualifying)">Qualifying</button>
+                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
+                </div>
+
+                @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
+                {
+                    <PresetExporter ExportHandler="@(async human => await ExportGridPresetAsync(human))" />
+                }
+
+                @if (selectedTab == RacePopupTab.Teams)
+                {
+                    <div class="wec-race-teams">
+                        <div class="wec-race-teams__hint">Select the teams entered in this race. Session tabs unlock once at least one team is selected.</div>
+
+                        <div class="wec-race-teams__toolbar">
+                            <div class="wec-race-teams__filter">
+                                <label for="race-teams-class">Class</label>
+                                <select id="race-teams-class" value="@selectedTeamClassFilter" @onchange="HandleTeamClassFilterChanged">
+                                    <option value="">All classes</option>
+                                    @foreach (var cls in ClassNames)
+                                    {
+                                        <option value="@cls">@cls</option>
+                                    }
+                                    @if (HasUncategorized)
+                                    {
+                                        <option value="@UncategorizedKey">Uncategorized</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <label class="wec-race-teams__select-all @(FilteredTeams.Count > 0 ? "" : "wec-disabled")">
+                                <input type="checkbox" checked="@allVisibleSelected" disabled="@(isSavingRaceTeams || FilteredTeams.Count == 0)" @onchange="ToggleAllVisibleAsync" />
+                                <span>@(allVisibleSelected ? "Unselect all visible" : "Select all visible")</span>
+                            </label>
+                        </div>
+
+                        @if (!availableTeams.Any())
+                        {
+                            <div class="wec-empty">No active teams available.</div>
+                        }
+                        else if (!FilteredTeams.Any())
+                        {
+                            <div class="wec-empty">No teams in this class.</div>
+                        }
+                        else
+                        {
+                            <div class="wec-race-teams__list">
+                                @foreach (var team in FilteredTeams)
+                                {
+                                    <label class="wec-race-teams__row @(selectedTeamIds.Contains(team.TeamId) ? "wec-race-teams__row--selected" : "")">
+                                        <input type="checkbox" checked="@selectedTeamIds.Contains(team.TeamId)" disabled="@isSavingRaceTeams" @onchange="() => ToggleRaceTeamAsync(team.TeamId)" />
+                                        @if (!string.IsNullOrWhiteSpace(team.TeamLogo))
+                                        {
+                                            <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
+                                        }
+                                        <span>@team.TeamName</span>
+                                        <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else if (sessionsCache is null)
+                {
+                    <div class="wec-empty wec-empty--block">Loading sessions...</div>
+                }
+                else if (!DisplaySessions.Any())
+                {
+                    <div class="wec-empty wec-empty--block">No @SessionTypeLabel(selectedSessionType) sessions for this race.</div>
+                }
+                else
+                {
+                    @foreach (var session in DisplaySessions)
+                    {
+                        <div class="wec-session-block">
+                            <div class="wec-session-block__date">@session.SessionDate.ToString("ddd, dd MMM yyyy")</div>
+
+                            @if (!session.DriverStandings.Any())
+                            {
+                                <div class="wec-empty">No driver standings recorded for this session.</div>
+                            }
+                            else
+                            {
+                                <table class="wec-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Pos</th>
+                                            <th>Driver</th>
+                                            <th>Team</th>
+                                            <th>Best Lap</th>
+                                            @if (selectedSessionType == SessionType.Race)
+                                            {
+                                                <th>Points</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var standing in session.DriverStandings)
+                                        {
+                                            <tr>
+                                                <td class="wec-table__position">@standing.Position</td>
+                                                <td>@standing.DriverName</td>
+                                                <td>@standing.TeamName</td>
+                                                <td>@FormatLap(standing.BestLapTimeMs)</td>
+                                                @if (selectedSessionType == SessionType.Race)
+                                                {
+                                                    <td>@standing.Points</td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ChampionshipModel>? championships;
+    private string? selectedChampionshipId;
+    private ChampionshipModel? selectedChampionship;
+    private List<SeasonModel> seasons = new();
+    private string? selectedSeasonId;
+    private SeasonModel? selectedSeason;
+    private List<RaceModel>? races;
+    private RaceFormModel? editingRace;
+    private bool isCreatingRace;
+    private bool isSavingRace;
+    private RaceModel? confirmDeleteRace;
+    private bool isDeletingRace;
+    private SortColumn sortColumn = SortColumn.Race;
+    private bool sortDescending;
+    private RaceModel? viewingSessionsFor;
+    private RacePopupTab selectedTab = RacePopupTab.Race;
+    private SessionType selectedSessionType = SessionType.Race;
+    private List<SessionModel>? sessionsCache;
+    private List<TeamModel> availableTeams = new();
+    private HashSet<Guid> selectedTeamIds = new();
+    private bool isSavingRaceTeams;
+    private string selectedTeamClassFilter = "";
+
+    private const string UncategorizedKey = "__uncategorized__";
+
+    private enum RacePopupTab
+    {
+        Teams,
+        Practice,
+        Qualifying,
+        Race
+    }
+
+    private bool hasEnteredTeams => selectedTeamIds.Count > 0;
+
+    private IOrderedEnumerable<string> ClassNames =>
+        availableTeams
+            .Select(t => t.TeamClass)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase);
+
+    private bool HasUncategorized =>
+        availableTeams.Any(t => string.IsNullOrWhiteSpace(t.TeamClass));
+
+    private List<TeamModel> FilteredTeams
+    {
+        get
+        {
+            IEnumerable<TeamModel> teams = selectedTeamClassFilter switch
+            {
+                "" => availableTeams,
+                UncategorizedKey => availableTeams.Where(t => string.IsNullOrWhiteSpace(t.TeamClass)),
+                _ => availableTeams.Where(t => string.Equals(t.TeamClass, selectedTeamClassFilter, StringComparison.OrdinalIgnoreCase))
+            };
+
+            return teams
+                .OrderBy(t => t.TeamName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+    private bool allVisibleSelected =>
+        FilteredTeams.Count > 0 && FilteredTeams.All(t => selectedTeamIds.Contains(t.TeamId));
+
+    private enum SortColumn
+    {
+        Race,
+        Status
+    }
+
+    private bool hasSeason => selectedSeason is not null;
+
+    private IEnumerable<RaceModel> DisplayRaces
+    {
+        get
+        {
+            if (races is null)
+            {
+                return Array.Empty<RaceModel>();
+            }
+
+            return sortColumn switch
+            {
+                SortColumn.Race => sortDescending
+                    ? races.OrderByDescending(r => r.RaceName)
+                    : races.OrderBy(r => r.RaceName),
+                SortColumn.Status => sortDescending
+                    ? races.OrderByDescending(r => r.Status)
+                    : races.OrderBy(r => r.Status),
+                _ => races
+            };
+        }
+    }
+
+    private IEnumerable<SessionModel> DisplaySessions =>
+        sessionsCache is null
+            ? Array.Empty<SessionModel>()
+            : sessionsCache.Where(s => s.SessionType == selectedSessionType);
+
+    protected override async Task OnInitializedAsync()
+    {
+        championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
+
+        var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
+
+        if (query.TryGetValue("championshipId", out var championshipId) &&
+            Guid.TryParse(championshipId.ToString(), out var parsedChampionshipId))
+        {
+            selectedChampionshipId = parsedChampionshipId.ToString();
+            selectedChampionship = championships.FirstOrDefault(c => c.ChampionshipId == parsedChampionshipId);
+            await LoadSeasonsAsync();
+
+            if (query.TryGetValue("seasonId", out var seasonId) &&
+                Guid.TryParse(seasonId.ToString(), out var parsedSeasonId))
+            {
+                selectedSeasonId = parsedSeasonId.ToString();
+                selectedSeason = seasons.FirstOrDefault(s => s.SeasonId == parsedSeasonId);
+            }
+
+            if (hasSeason)
+            {
+                await LoadRacesAsync();
+            }
+        }
+    }
+
+    private void SortBy(SortColumn column)
+    {
+        if (sortColumn == column)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortDescending = false;
+        }
+    }
+
+    private static string StatusLabel(RaceStatus status)
+    {
+        return status switch
+        {
+            RaceStatus.NotStarted => "Not Started",
+            RaceStatus.InProgress => "In Progress",
+            _ => "Finished"
+        };
+    }
+
+    private static string StatusClass(RaceStatus status)
+    {
+        return status switch
+        {
+            RaceStatus.NotStarted => "wec-status--notstarted",
+            RaceStatus.InProgress => "wec-status--inprogress",
+            _ => "wec-status--finished"
+        };
+    }
+
+    private async Task HandleChampionshipChanged(ChangeEventArgs e)
+    {
+        selectedChampionshipId = e.Value?.ToString();
+        selectedSeasonId = null;
+        selectedSeason = null;
+        races = null;
+        seasons = new List<SeasonModel>();
+
+        if (Guid.TryParse(selectedChampionshipId, out var parsedId))
+        {
+            selectedChampionship = championships?.FirstOrDefault(c => c.ChampionshipId == parsedId);
+            await LoadSeasonsAsync();
+        }
+        else
+        {
+            selectedChampionship = null;
+        }
+    }
+
+    private async Task LoadSeasonsAsync()
+    {
+        if (selectedChampionship is null)
+        {
+            seasons = new List<SeasonModel>();
+            return;
+        }
+
+        seasons = (await SeasonService.GetSeasonsByChampionshipAsync(selectedChampionship.ChampionshipId)).ToList();
+    }
+
+    private async Task HandleSeasonChanged(ChangeEventArgs e)
+    {
+        selectedSeasonId = e.Value?.ToString();
+        selectedSeason = null;
+        races = null;
+
+        if (Guid.TryParse(selectedSeasonId, out var parsedId))
+        {
+            selectedSeason = seasons.FirstOrDefault(s => s.SeasonId == parsedId);
+        }
+
+        if (hasSeason)
+        {
+            await LoadRacesAsync();
+        }
+    }
+
+    private async Task LoadRacesAsync()
+    {
+        if (selectedSeason is null)
+        {
+            races = null;
+            return;
+        }
+
+        races = (await RaceService.GetRacesBySeasonAsync(selectedSeason.SeasonId)).ToList();
+    }
+
+    private void OpenRaceCreate()
+    {
+        if (selectedSeason is null)
+        {
+            return;
+        }
+
+        isCreatingRace = true;
+        editingRace = new RaceFormModel
+        {
+            RaceId = Guid.NewGuid(),
+            RaceName = string.Empty,
+            SeasonId = selectedSeason.SeasonId
+        };
+    }
+
+    private void OpenRaceEdit(RaceModel race)
+    {
+        if (selectedSeason is null)
+        {
+            return;
+        }
+
+        isCreatingRace = false;
+        editingRace = new RaceFormModel
+        {
+            RaceId = race.RaceId,
+            RaceName = race.RaceName,
+            Country = race.Country,
+            SeasonId = selectedSeason.SeasonId
+        };
+    }
+
+    private void CancelRaceEdit()
+    {
+        if (isSavingRace)
+        {
+            return;
+        }
+
+        editingRace = null;
+        isCreatingRace = false;
+    }
+
+    private async Task SaveRaceAsync()
+    {
+        if (editingRace is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editingRace.RaceName))
+        {
+            Toast.Show("Race name is required.", isError: true);
+            return;
+        }
+
+        isSavingRace = true;
+
+        try
+        {
+            if (isCreatingRace)
+            {
+                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country);
+            }
+            else
+            {
+                await RaceService.UpdateRaceAsync(editingRace);
+            }
+
+            await LoadRacesAsync();
+            isSavingRace = false;
+            Toast.Show(isCreatingRace ? "Race created." : "Race updated.");
+            CancelRaceEdit();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not save race: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isSavingRace = false;
+        }
+    }
+
+    private async Task DeleteRaceAsync()
+    {
+        if (confirmDeleteRace is null)
+        {
+            return;
+        }
+
+        isDeletingRace = true;
+
+        try
+        {
+            await RaceService.DeleteRaceAsync(confirmDeleteRace.RaceId);
+            var name = confirmDeleteRace.RaceName;
+            confirmDeleteRace = null;
+            await LoadRacesAsync();
+            Toast.Show($"Race '{name}' deleted.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not delete race: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isDeletingRace = false;
+        }
+    }
+
+    private async Task ViewSessionsAsync(RaceModel race)
+    {
+        viewingSessionsFor = race;
+        selectedTeamIds = (await RaceService.GetRaceTeamsAsync(race.RaceId)).Select(t => t.TeamId).ToHashSet();
+        availableTeams = (await TeamService.GetActiveTeamsAsync()).ToList();
+        selectedTeamClassFilter = "";
+        selectedSessionType = SessionType.Race;
+        selectedTab = selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
+        sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
+    }
+
+    private void HandleTeamClassFilterChanged(ChangeEventArgs e)
+    {
+        selectedTeamClassFilter = e.Value?.ToString() ?? "";
+    }
+
+    private async Task ToggleAllVisibleAsync()
+    {
+        if (isSavingRaceTeams || viewingSessionsFor is null || FilteredTeams.Count == 0)
+        {
+            return;
+        }
+
+        var checkAll = !allVisibleSelected;
+        var visibleIds = FilteredTeams.Select(t => t.TeamId).ToList();
+
+        foreach (var teamId in visibleIds)
+        {
+            if (checkAll)
+            {
+                selectedTeamIds.Add(teamId);
+            }
+            else
+            {
+                selectedTeamIds.Remove(teamId);
+            }
+        }
+
+        isSavingRaceTeams = true;
+
+        try
+        {
+            await RaceService.SaveRaceTeamsAsync(viewingSessionsFor.RaceId, selectedTeamIds);
+        }
+        catch
+        {
+            Toast.Show("Failed to update race teams.", isError: true);
+            await ReloadRaceTeamsAsync();
+        }
+        finally
+        {
+            isSavingRaceTeams = false;
+        }
+    }
+
+    private void SetTeamsTab()
+    {
+        selectedTab = RacePopupTab.Teams;
+    }
+
+    private void SetSessionTab(SessionType type)
+    {
+        if (!hasEnteredTeams)
+        {
+            selectedTab = RacePopupTab.Teams;
+            return;
+        }
+
+        selectedTab = type switch
+        {
+            SessionType.Practice => RacePopupTab.Practice,
+            SessionType.Qualifying => RacePopupTab.Qualifying,
+            _ => RacePopupTab.Race
+        };
+        selectedSessionType = type;
+    }
+
+    private async Task ToggleRaceTeamAsync(Guid teamId)
+    {
+        if (isSavingRaceTeams)
+        {
+            return;
+        }
+
+        if (!selectedTeamIds.Add(teamId))
+        {
+            selectedTeamIds.Remove(teamId);
+        }
+
+        isSavingRaceTeams = true;
+
+        try
+        {
+            if (viewingSessionsFor is not null)
+            {
+                await RaceService.SaveRaceTeamsAsync(viewingSessionsFor.RaceId, selectedTeamIds);
+            }
+        }
+        catch
+        {
+            Toast.Show("Failed to update race teams.", isError: true);
+            await ReloadRaceTeamsAsync();
+        }
+        finally
+        {
+            isSavingRaceTeams = false;
+        }
+    }
+
+    private async Task ReloadRaceTeamsAsync()
+    {
+        if (viewingSessionsFor is null)
+        {
+            return;
+        }
+
+        selectedTeamIds = (await RaceService.GetRaceTeamsAsync(viewingSessionsFor.RaceId)).Select(t => t.TeamId).ToHashSet();
+    }
+
+    private async Task<PresetExportResult> ExportGridPresetAsync(bool humanClassOnly)
+    {
+        if (viewingSessionsFor is null)
+        {
+            throw new InvalidOperationException("No race selected.");
+        }
+
+        if (selectedChampionship is null || selectedSeason is null)
+        {
+            throw new InvalidOperationException("No championship or season selected.");
+        }
+
+        var sessionType = selectedTab switch
+        {
+            RacePopupTab.Practice => SessionType.Practice,
+            RacePopupTab.Qualifying => SessionType.Qualifying,
+            _ => SessionType.Race
+        };
+
+        return await RaceService.ExportGridPresetAsync(
+            viewingSessionsFor.RaceId,
+            sessionType,
+            humanClassOnly,
+            selectedSeason.SeasonName,
+            selectedChampionship.ChampionshipName);
+    }
+
+    private string GetClassBadgeClass(string teamClass)
+    {
+        if (string.IsNullOrWhiteSpace(teamClass))
+        {
+            return "wec-badge--default";
+        }
+
+        var normalized = teamClass.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "hypercar" or "h" or "lmh" => "wec-badge--hypercar",
+            "lmp2" => "wec-badge--lmp2",
+            "gt3" or "gts" or "lmgt" => "wec-badge--lmgt3",
+            _ => "wec-badge--default"
+        };
+    }
+
+    private static string SessionTypeLabel(SessionType type)
+    {
+        return type switch
+        {
+            SessionType.Practice => "Practice",
+            SessionType.Qualifying => "Qualifying",
+            _ => "Race"
+        };
+    }
+
+    private static string FormatLap(int bestLapTimeMs)
+    {
+        if (bestLapTimeMs <= 0)
+        {
+            return "—";
+        }
+
+        var time = TimeSpan.FromMilliseconds(bestLapTimeMs);
+        return $"{(int)time.TotalMinutes}:{time.Seconds:00}.{time.Milliseconds:000}";
+    }
+}

@@ -1,0 +1,58 @@
+@implements IDisposable
+@inject ToastService ToastService
+
+@if (toast is not null)
+{
+    <div class="wec-toast @(toast.IsError ? "wec-toast--error" : "")">
+        <span>@toast.Message</span>
+        <button type="button" class="wec-toast__close" aria-label="Dismiss" @onclick="Dismiss">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+}
+
+@code {
+    private ToastMessage? toast;
+    private CancellationTokenSource? dismissCts;
+
+    protected override void OnInitialized()
+    {
+        ToastService.ToastChanged += OnToastChanged;
+    }
+
+    private void OnToastChanged(ToastMessage message)
+    {
+        toast = message;
+        dismissCts?.Cancel();
+        dismissCts = new CancellationTokenSource();
+
+        var cts = dismissCts;
+        _ = AutoDismissAsync(cts.Token);
+        StateHasChanged();
+    }
+
+    private async Task AutoDismissAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(4000, cancellationToken);
+            toast = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Dismiss()
+    {
+        dismissCts?.Cancel();
+        toast = null;
+    }
+
+    public void Dispose()
+    {
+        ToastService.ToastChanged -= OnToastChanged;
+        dismissCts?.Dispose();
+    }
+}

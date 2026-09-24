@@ -1,0 +1,566 @@
+﻿@page "/teams"
+@rendermode InteractiveServer
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@inject MulticlassRace.Services.Abstractions.ITeamService TeamService
+@inject MulticlassRace.Services.Abstractions.ITeamClassService TeamClassService
+@inject MulticlassRace.Services.Abstractions.IDriverService DriverService
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
+@inject ToastService Toast
+
+<PageTitle>Teams</PageTitle>
+
+<h1>Teams</h1>
+
+<ToastHost />
+
+@if (teams is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="wec-toolbar">
+        <button type="button" class="wec-toolbar__btn" @onclick="OpenCreate">
+            <i class="bi bi-plus-lg"></i> New Team
+        </button>
+    </div>
+
+    <div class="wec-table-wrapper">
+        <table class="wec-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>
+                        <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Team)">
+                            Team
+                            <i class="bi @(sortColumn == SortColumn.Team && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Team ? "" : "wec-table__sort-icon--inactive")"></i>
+                        </button>
+                    </th>
+                    <th>
+                        <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Class)">
+                            Class
+                            <i class="bi @(sortColumn == SortColumn.Class && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Class ? "" : "wec-table__sort-icon--inactive")"></i>
+                        </button>
+                    </th>
+                    <th>
+                        <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
+                            Status
+                            <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                        </button>
+                    </th>
+                    <th class="wec-table__actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!DisplayTeams.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="wec-empty">No teams found</td>
+                    </tr>
+                }
+                else
+                {
+                    var index = 0;
+                    @foreach (var team in DisplayTeams)
+                    {
+                        index++;
+                        <tr>
+                            <td class="wec-table__position">@index</td>
+                            <td>
+                                <div class="wec-table__team">
+                                    @if (!string.IsNullOrWhiteSpace(team.TeamLogo))
+                                    {
+                                        <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
+                                    }
+                                    else
+                                    {
+                                        <span class="wec-table__logo wec-table__logo--fallback">@team.TeamName[..Math.Min(2, team.TeamName.Length)].ToUpper()</span>
+                                    }
+                                    <span>@team.TeamName</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
+                            </td>
+                            <td>
+                                <span class="wec-status @(team.IsActive ? "" : "wec-status--inactive")">
+                                    @(team.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="wec-table__actions">
+                                <button type="button" class="wec-btn" title="Edit @team.TeamName" @onclick="() => OpenEdit(team)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (editingTeam is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>@(isCreating ? "New Team" : "Edit Team")</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                @if (!isCreating)
+                {
+                    <div class="wec-form-field wec-form-field--readonly">
+                        <label for="team-id">Team ID</label>
+                        <input id="team-id" type="text" value="@editingTeam.TeamId" readonly />
+                    </div>
+                }
+
+                <div class="wec-form-field">
+                    <label for="team-name">Team Name</label>
+                    <input id="team-name" type="text" @bind="editingTeam.TeamName" />
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="team-logo-file">Team Logo</label>
+                    <div class="wec-form-field__upload">
+                        @if (!string.IsNullOrWhiteSpace(editingTeam.TeamLogo))
+                        {
+                            <img src="@editingTeam.TeamLogo" alt="Team logo preview" class="wec-form-field__preview" />
+                        }
+                        <InputFile id="team-logo-file" OnChange="HandleLogoUpload" accept="image/*" />
+                    </div>
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="team-class">Team Class</label>
+                    <select id="team-class" @bind="editingTeam.TeamClassId">
+                        @if (!teamClasses.Any())
+                        {
+                            <option value="">No classes available</option>
+                        }
+                        else
+                        {
+                            @foreach (var teamClass in teamClasses)
+                            {
+                                <option value="@teamClass.TeamClassId">@teamClass.TeamClassName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="wec-form-field wec-form-field--checkbox">
+                    <input id="team-active" type="checkbox" @bind="editingTeam.IsActive" />
+                    <label for="team-active">Is Active</label>
+                </div>
+
+                <div class="wec-drivers">
+                    <div class="wec-drivers__head">
+                        <span class="wec-drivers__title">Drivers @(editingDrivers is null ? "" : $"({editingDrivers.Count})")</span>
+                        <button type="button" class="wec-drivers__add" disabled="@(editingDrivers is null || isAddingDriver)" @onclick="OpenDriverSearch">
+                            <i class="bi bi-person-plus"></i> Add Driver
+                        </button>
+                    </div>
+
+                    @if (editingDrivers is null)
+                    {
+                        <div class="wec-drivers__empty">Loading drivers...</div>
+                    }
+                    else
+                    {
+                        <div class="wec-drivers__grid">
+                            @if (!editingDrivers.Any())
+                            {
+                                <div class="wec-drivers__empty">No drivers on this team</div>
+                            }
+                            else
+                            {
+                                @foreach (var driver in editingDrivers)
+                                {
+                                    <div class="wec-drivers__row">
+                                        <div class="wec-drivers__info">
+                                            <span class="wec-drivers__name">@driver.DriverName</span>
+                                            <span class="wec-drivers__car">
+                                                @if (!string.IsNullOrWhiteSpace(driver.Nationality))
+                                                {
+                                                    @Countries.GetFlag(driver.Nationality)@(" ")@driver.Nationality
+                                                }
+                                                else
+                                                {
+                                                    <span>—</span>
+                                                }
+                                            </span>
+                                        </div>
+                                        <button type="button" class="wec-drivers__remove" title="Remove @driver.DriverName" @onclick="() => RemoveDriver(driver)">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                        </div>
+
+                        @if (isAddingDriver)
+                        {
+                            <div class="wec-drivers__searchbox">
+                                <input type="text" placeholder="Search driver name..." value="@driverSearchTerm" @oninput="HandleDriverSearch" />
+                                <button type="button" class="wec-drivers__search-close" title="Close search" @onclick="ClearSearch">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+
+                                <div class="wec-drivers__results">
+                                    @if (!driverSearchResults.Any())
+                                    {
+                                        <div class="wec-drivers__result wec-drivers__result--empty">No available drivers</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var result in driverSearchResults)
+                                        {
+                                            <button type="button" class="wec-drivers__result" @onclick="() => AddDriver(result)">
+                                                <span class="wec-drivers__result-name">@result.DriverName</span>
+                                                <span class="wec-drivers__result-meta">
+                                                    @if (!string.IsNullOrWhiteSpace(result.Nationality))
+                                                    {
+                                                        @Countries.GetFlag(result.Nationality)@(" ")@result.Nationality
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>—</span>
+                                                    }
+                                                </span>
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveTeamAsync" disabled="@(isSaving || editingDrivers is null)">
+                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum SortColumn
+    {
+        Team,
+        Class,
+        Status
+    }
+
+    private const long MaxLogoSizeBytes = 2 * 1024 * 1024;
+
+    private static readonly string[] AllowedLogoContentTypes =
+        { "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml" };
+
+    private List<TeamModel>? teams;
+    private List<TeamClassModel> teamClasses = new();
+    private TeamFormModel? editingTeam;
+    private List<DriverModel>? editingDrivers;
+    private bool isCreating;
+    private bool isSaving;
+    private bool isAddingDriver;
+    private string? driverSearchTerm;
+    private List<DriverModel> driverSearchResults = new();
+    private SortColumn sortColumn = SortColumn.Team;
+    private bool sortDescending;
+    private int searchSequence;
+
+    private IEnumerable<TeamModel> DisplayTeams
+    {
+        get
+        {
+            if (teams is null)
+            {
+                return Array.Empty<TeamModel>();
+            }
+
+            return sortColumn switch
+            {
+                SortColumn.Team => sortDescending
+                    ? teams.OrderByDescending(t => t.TeamName)
+                    : teams.OrderBy(t => t.TeamName),
+                SortColumn.Class => sortDescending
+                    ? teams.OrderByDescending(t => t.TeamClass)
+                    : teams.OrderBy(t => t.TeamClass),
+                SortColumn.Status => sortDescending
+                    ? teams.OrderByDescending(t => t.IsActive)
+                    : teams.OrderBy(t => t.IsActive),
+                _ => teams
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        teams = (await TeamService.GetActiveTeamsAsync()).ToList();
+        teamClasses = (await TeamClassService.GetActiveTeamClassesAsync()).ToList();
+    }
+
+    private void SortBy(SortColumn column)
+    {
+        if (sortColumn == column)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortDescending = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        isCreating = true;
+        ClearSearch();
+        editingDrivers = new List<DriverModel>();
+        editingTeam = new TeamFormModel
+        {
+            TeamId = Guid.NewGuid(),
+            TeamName = string.Empty,
+            IsActive = true,
+            TeamClassId = teamClasses.FirstOrDefault()?.TeamClassId ?? Guid.Empty
+        };
+    }
+
+    private async Task OpenEdit(TeamModel team)
+    {
+        isCreating = false;
+        ClearSearch();
+        editingDrivers = null;
+        editingTeam = new TeamFormModel
+        {
+            TeamId = team.TeamId,
+            TeamName = team.TeamName,
+            TeamLogo = team.TeamLogo,
+            TeamClassId = team.TeamClassId,
+            IsActive = team.IsActive
+        };
+
+        var detail = await TeamService.GetTeamByIdAsync(team.TeamId);
+
+        if (editingTeam is null || editingTeam.TeamId != team.TeamId)
+        {
+            return;
+        }
+
+        if (detail is null)
+        {
+            Toast.Show("Team could not be loaded.", isError: true);
+            editingDrivers = new List<DriverModel>();
+            return;
+        }
+
+        editingDrivers = detail.Drivers;
+    }
+
+    private void CancelEdit()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        editingTeam = null;
+        editingDrivers = null;
+        isCreating = false;
+        ClearSearch();
+    }
+
+    private async Task SaveTeamAsync()
+    {
+        if (editingTeam is null || editingDrivers is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editingTeam.TeamName))
+        {
+            Toast.Show("Team name is required.", isError: true);
+            return;
+        }
+
+        if (editingTeam.TeamClassId == Guid.Empty)
+        {
+            Toast.Show("Please select a team class.", isError: true);
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var driverIds = editingDrivers.Select(d => d.DriverId).ToList();
+
+            if (isCreating)
+            {
+                await TeamService.CreateTeamAsync(editingTeam, driverIds);
+            }
+            else
+            {
+                await TeamService.UpdateTeamAsync(editingTeam, driverIds);
+            }
+
+            teams = (await TeamService.GetActiveTeamsAsync()).ToList();
+            isSaving = false;
+            Toast.Show(isCreating ? "Team created." : "Team updated.");
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not save team: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void OpenDriverSearch()
+    {
+        isAddingDriver = true;
+        driverSearchTerm = string.Empty;
+        driverSearchResults = new List<DriverModel>();
+        _ = SearchDriversAsync(string.Empty);
+    }
+
+    private async Task HandleDriverSearch(ChangeEventArgs e)
+    {
+        driverSearchTerm = e.Value?.ToString();
+        await SearchDriversAsync(driverSearchTerm);
+    }
+
+    private async Task SearchDriversAsync(string? searchTerm)
+    {
+        if (editingTeam is null)
+        {
+            return;
+        }
+
+        var sequence = ++searchSequence;
+        var results = (await DriverService.SearchAvailableDriversAsync(searchTerm)).ToList();
+
+        if (sequence != searchSequence || editingDrivers is null)
+        {
+            return;
+        }
+
+        var currentIds = editingDrivers.Select(d => d.DriverId).ToHashSet();
+        driverSearchResults = results.Where(r => !currentIds.Contains(r.DriverId)).ToList();
+    }
+
+    private void AddDriver(DriverModel driver)
+    {
+        if (editingDrivers is null)
+        {
+            return;
+        }
+
+        if (!editingDrivers.Any(d => d.DriverId == driver.DriverId))
+        {
+            editingDrivers.Add(driver);
+        }
+
+        ClearSearch();
+    }
+
+    private void RemoveDriver(DriverModel driver)
+    {
+        editingDrivers?.Remove(driver);
+    }
+
+    private void ClearSearch()
+    {
+        searchSequence++;
+        isAddingDriver = false;
+        driverSearchTerm = null;
+        driverSearchResults = new List<DriverModel>();
+    }
+
+    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    {
+        if (editingTeam is null || e.File is null)
+        {
+            return;
+        }
+
+        var file = e.File;
+
+        if (file.Size > MaxLogoSizeBytes)
+        {
+            Toast.Show("Logo image must be 2MB or smaller.", isError: true);
+            return;
+        }
+
+        if (!AllowedLogoContentTypes.Contains(file.ContentType))
+        {
+            Toast.Show("Logo must be a PNG, JPG, GIF, WEBP, or SVG image.", isError: true);
+            return;
+        }
+
+        var extension = Path.GetExtension(file.Name);
+        if (string.IsNullOrEmpty(extension))
+        {
+            extension = file.ContentType switch
+            {
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                "image/svg+xml" => ".svg",
+                _ => ".jpg"
+            };
+        }
+        else
+        {
+            extension = "." + new string(extension.Skip(1).Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        }
+
+        var uploadsDir = Path.Combine(HostEnvironment.WebRootPath, "uploads", "team-logos");
+        Directory.CreateDirectory(uploadsDir);
+
+        foreach (var stale in Directory.GetFiles(uploadsDir, $"{editingTeam.TeamId}.*"))
+        {
+            File.Delete(stale);
+        }
+
+        var fileName = $"{editingTeam.TeamId}{extension}";
+        var fullPath = Path.Combine(uploadsDir, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.OpenReadStream(MaxLogoSizeBytes).CopyToAsync(stream);
+        }
+
+        editingTeam.TeamLogo = $"/uploads/team-logos/{fileName}";
+    }
+
+    private string GetClassBadgeClass(string teamClass)
+    {
+        if (string.IsNullOrWhiteSpace(teamClass))
+        {
+            return "wec-badge--default";
+        }
+
+        var normalized = teamClass.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "hypercar" or "h" or "lmh" => "wec-badge--hypercar",
+            "lmp2" => "wec-badge--lmp2",
+            "gt3" or "gts" or "lmgt" => "wec-badge--lmgt3",
+            _ => "wec-badge--default"
+        };
+    }
+}

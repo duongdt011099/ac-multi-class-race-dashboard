@@ -1,0 +1,490 @@
+@page "/"
+@rendermode InteractiveServer
+@using MulticlassRace.ViewModels
+@inject MulticlassRace.Services.Abstractions.IChampionshipService ChampionshipService
+@inject MulticlassRace.Services.Abstractions.ISeasonService SeasonService
+@inject ToastService Toast
+@inject NavigationManager Nav
+
+<PageTitle>Championship</PageTitle>
+
+<h1>Championship</h1>
+
+<ToastHost />
+
+@if (championships is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="wec-toolbar">
+        <button type="button" class="wec-toolbar__btn" @onclick="OpenCreate">
+            <i class="bi bi-plus-lg"></i> New Championship
+        </button>
+    </div>
+
+    <div class="wec-table-wrapper">
+        <table class="wec-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>
+                        <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Championship)">
+                            Championship
+                            <i class="bi @(sortColumn == SortColumn.Championship && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Championship ? "" : "wec-table__sort-icon--inactive")"></i>
+                        </button>
+                    </th>
+                    <th>Seasons</th>
+                    <th>
+                        <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
+                            Status
+                            <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                        </button>
+                    </th>
+                    <th class="wec-table__actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!DisplayChampionships.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="wec-empty">No championships found</td>
+                    </tr>
+                }
+                else
+                {
+                    var index = 0;
+                    @foreach (var championship in DisplayChampionships)
+                    {
+                        index++;
+                        <tr class="wec-row-clickable" title="Manage seasons" @onclick="() => OpenSeasons(championship)">
+                            <td class="wec-table__position">@index</td>
+                            <td>@championship.ChampionshipName</td>
+                            <td>@championship.SeasonCount</td>
+                            <td>
+                                <span class="wec-status @(championship.IsActive ? "" : "wec-status--inactive")">
+                                    @(championship.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="wec-table__actions">
+                                <button type="button" class="wec-btn" title="Edit @championship.ChampionshipName" @onclick="() => OpenEdit(championship)" @onclick:stopPropagation="true">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="wec-btn" title="Delete @championship.ChampionshipName" @onclick="() => confirmDeleteChampionship = championship" @onclick:stopPropagation="true">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (editingChampionship is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>@(isCreating ? "New Championship" : "Edit Championship")</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-form-field">
+                    <label for="championship-name">Championship Name</label>
+                    <input id="championship-name" type="text" @bind="editingChampionship.ChampionshipName" />
+                </div>
+
+                <div class="wec-form-field wec-form-field--checkbox">
+                    <input id="championship-active" type="checkbox" @bind="editingChampionship.IsActive" />
+                    <label for="championship-active">Is Active</label>
+                </div>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveChampionshipAsync" disabled="@isSaving">
+                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (confirmDeleteChampionship is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Delete Championship</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDeleteChampionship = null">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <p>Delete @confirmDeleteChampionship.ChampionshipName? This permanently removes its seasons, races and standings.</p>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDeleteChampionship = null">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteChampionshipAsync" disabled="@isDeleting">
+                    @(isDeleting ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (selectedChampionship is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>@selectedChampionship.ChampionshipName — Seasons</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseSeasons">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-seasons__add">
+                    <input type="text" placeholder="Season name..." value="@newSeasonName" @oninput="HandleNewSeasonInput" @onkeydown="HandleNewSeasonEnter" />
+                    <button type="button" class="wec-toolbar__btn" @onclick="AddSeasonAsync" disabled="@isAddingSeason">
+                        @(isAddingSeason ? "Adding..." : "Add Season")
+                    </button>
+                </div>
+
+                @if (seasons is null)
+                {
+                    <div class="wec-seasons__empty">Loading seasons...</div>
+                }
+                else if (!seasons.Any())
+                {
+                    <div class="wec-seasons__empty">No seasons yet</div>
+                }
+                else
+                {
+                    @foreach (var season in seasons)
+                    {
+                        <div class="wec-seasons__row">
+                            <span class="wec-seasons__name">@season.SeasonName</span>
+                            <span class="wec-seasons__races">@season.RaceCount race@(season.RaceCount == 1 ? "" : "s")</span>
+                            <button type="button" class="wec-btn" title="View races for @season.SeasonName" @onclick="() => NavigateToRaces(season)">
+                                <i class="bi bi-flag"></i>
+                            </button>
+                            <button type="button" class="wec-btn" title="Delete @season.SeasonName" @onclick="() => confirmDeleteSeason = season">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (confirmDeleteSeason is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Delete Season</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDeleteSeason = null">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <p>Delete @confirmDeleteSeason.SeasonName? This also removes its races.</p>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDeleteSeason = null">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteSeasonAsync" disabled="@isDeletingSeason">
+                    @(isDeletingSeason ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum SortColumn
+    {
+        Championship,
+        Status
+    }
+
+    private List<ChampionshipModel>? championships;
+    private ChampionshipFormModel? editingChampionship;
+    private bool isCreating;
+    private bool isSaving;
+    private ChampionshipModel? confirmDeleteChampionship;
+    private bool isDeleting;
+    private ChampionshipModel? selectedChampionship;
+    private List<SeasonModel>? seasons;
+    private string? newSeasonName;
+    private bool isAddingSeason;
+    private SeasonModel? confirmDeleteSeason;
+    private bool isDeletingSeason;
+    private SortColumn sortColumn = SortColumn.Championship;
+    private bool sortDescending;
+
+    private IEnumerable<ChampionshipModel> DisplayChampionships
+    {
+        get
+        {
+            if (championships is null)
+            {
+                return Array.Empty<ChampionshipModel>();
+            }
+
+            return sortColumn switch
+            {
+                SortColumn.Championship => sortDescending
+                    ? championships.OrderByDescending(c => c.ChampionshipName)
+                    : championships.OrderBy(c => c.ChampionshipName),
+                SortColumn.Status => sortDescending
+                    ? championships.OrderByDescending(c => c.IsActive)
+                    : championships.OrderBy(c => c.IsActive),
+                _ => championships
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChampionshipsAsync();
+    }
+
+    private async Task LoadChampionshipsAsync()
+    {
+        championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
+    }
+
+    private void SortBy(SortColumn column)
+    {
+        if (sortColumn == column)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortDescending = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        isCreating = true;
+        editingChampionship = new ChampionshipFormModel
+        {
+            ChampionshipId = Guid.NewGuid(),
+            ChampionshipName = string.Empty,
+            IsActive = true
+        };
+    }
+
+    private void OpenEdit(ChampionshipModel championship)
+    {
+        isCreating = false;
+        editingChampionship = new ChampionshipFormModel
+        {
+            ChampionshipId = championship.ChampionshipId,
+            ChampionshipName = championship.ChampionshipName,
+            IsActive = championship.IsActive
+        };
+    }
+
+    private void CancelEdit()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        editingChampionship = null;
+        isCreating = false;
+    }
+
+    private async Task SaveChampionshipAsync()
+    {
+        if (editingChampionship is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editingChampionship.ChampionshipName))
+        {
+            Toast.Show("Championship name is required.", isError: true);
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            if (isCreating)
+            {
+                await ChampionshipService.CreateChampionshipAsync(editingChampionship);
+            }
+            else
+            {
+                await ChampionshipService.UpdateChampionshipAsync(editingChampionship);
+            }
+
+            await LoadChampionshipsAsync();
+            isSaving = false;
+            Toast.Show(isCreating ? "Championship created." : "Championship updated.");
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not save championship: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteChampionshipAsync()
+    {
+        if (confirmDeleteChampionship is null)
+        {
+            return;
+        }
+
+        isDeleting = true;
+
+        try
+        {
+            await ChampionshipService.DeleteChampionshipAsync(confirmDeleteChampionship.ChampionshipId);
+            var name = confirmDeleteChampionship.ChampionshipName;
+            confirmDeleteChampionship = null;
+            await LoadChampionshipsAsync();
+            Toast.Show($"Championship '{name}' deleted.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not delete championship: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private async Task OpenSeasons(ChampionshipModel championship)
+    {
+        selectedChampionship = championship;
+        newSeasonName = null;
+        seasons = null;
+
+        await LoadSeasonsAsync();
+    }
+
+    private async Task LoadSeasonsAsync()
+    {
+        if (selectedChampionship is null)
+        {
+            return;
+        }
+
+        seasons = (await SeasonService.GetSeasonsByChampionshipAsync(selectedChampionship.ChampionshipId)).ToList();
+    }
+
+    private void CloseSeasons()
+    {
+        if (!isAddingSeason && !isDeletingSeason)
+        {
+            selectedChampionship = null;
+            seasons = null;
+            newSeasonName = null;
+        }
+    }
+
+    private void NavigateToRaces(SeasonModel season)
+    {
+        if (selectedChampionship is null)
+        {
+            return;
+        }
+
+        Nav.NavigateTo($"/races?championshipId={selectedChampionship.ChampionshipId}&seasonId={season.SeasonId}");
+    }
+
+    private void HandleNewSeasonInput(ChangeEventArgs e)
+    {
+        newSeasonName = e.Value?.ToString();
+    }
+
+    private async Task HandleNewSeasonEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddSeasonAsync();
+        }
+    }
+
+    private async Task AddSeasonAsync()
+    {
+        if (selectedChampionship is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newSeasonName))
+        {
+            Toast.Show("Season name is required.", isError: true);
+            return;
+        }
+
+        isAddingSeason = true;
+
+        try
+        {
+            await SeasonService.CreateSeasonAsync(selectedChampionship.ChampionshipId, newSeasonName);
+            newSeasonName = null;
+            await LoadSeasonsAsync();
+            await LoadChampionshipsAsync();
+            Toast.Show($"Season added to '{selectedChampionship.ChampionshipName}'.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not add season: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isAddingSeason = false;
+        }
+    }
+
+    private async Task DeleteSeasonAsync()
+    {
+        if (confirmDeleteSeason is null)
+        {
+            return;
+        }
+
+        isDeletingSeason = true;
+
+        try
+        {
+            await SeasonService.DeleteSeasonAsync(confirmDeleteSeason.SeasonId);
+            var name = confirmDeleteSeason.SeasonName;
+            confirmDeleteSeason = null;
+            await LoadSeasonsAsync();
+            await LoadChampionshipsAsync();
+            Toast.Show($"Season '{name}' deleted.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not delete season: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isDeletingSeason = false;
+        }
+    }
+}

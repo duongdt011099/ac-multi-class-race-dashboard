@@ -1,0 +1,50 @@
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@inject ToastService Toast
+
+<div class="wec-preset-export">
+    <span class="wec-preset-export__label">Grid</span>
+    <label class="wec-preset-export__mode">
+        <input type="radio" name="preset-mode" value="all" checked="@(presetExportMode == "all")" @onchange='() => presetExportMode = "all"' />
+        <span>All Cars</span>
+    </label>
+    <label class="wec-preset-export__mode">
+        <input type="radio" name="preset-mode" value="human" checked="@(presetExportMode == "human")" @onchange='() => presetExportMode = "human"' />
+        <span>Human Class Only</span>
+    </label>
+    <button type="button" class="wec-toolbar__btn @(isExportingPreset ? "wec-toolbar__btn--disabled" : "")" @onclick="OnExportAsync" disabled="@isExportingPreset">
+        @(isExportingPreset ? "Exporting..." : "Export Preset")
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Func<bool, Task<PresetExportResult>> ExportHandler { get; set; } = null!;
+
+    private string presetExportMode = "all";
+    private bool isExportingPreset;
+
+    private async Task OnExportAsync()
+    {
+        if (isExportingPreset || ExportHandler is null)
+        {
+            return;
+        }
+
+        isExportingPreset = true;
+
+        try
+        {
+            var result = await ExportHandler(presetExportMode == "human");
+            Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isExportingPreset = false;
+        }
+    }
+}
