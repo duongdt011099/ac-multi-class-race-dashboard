@@ -9,6 +9,7 @@ public sealed class PresetBuilder
     private readonly List<string?> _names = new();
     private readonly List<string> _aiLevels = new();
     private readonly List<string> _aiAggressions = new();
+    private int _startingPosition = 1;
 
     public int Count => _carIds.Count;
 
@@ -19,6 +20,12 @@ public sealed class PresetBuilder
         _names.Add(string.IsNullOrWhiteSpace(name) ? null : name);
         _aiLevels.Add(aiLevel?.ToString() ?? "-1");
         _aiAggressions.Add(aiAggression?.ToString() ?? "-1");
+        return this;
+    }
+
+    public PresetBuilder SetStartingPosition(int position)
+    {
+        _startingPosition = position;
         return this;
     }
 
@@ -36,7 +43,7 @@ public sealed class PresetBuilder
             ShuffleCandidates = false,
             VarietyLimitation = 0,
             OpponentsNumber = _carIds.Count,
-            StartingPosition = 1,
+            StartingPosition = _startingPosition,
             AiLevel = 100.0,
             AiLevelMin = 100.0,
             AiLevelArrangeRandom = 0.1,

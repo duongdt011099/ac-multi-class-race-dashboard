@@ -280,6 +280,11 @@ public class RaceService : IRaceService
 
         foreach (var row in ordered)
         {
+            if (row.Driver.IsHuman)
+            {
+                builder.SetStartingPosition(qualifyingPositionByDriverId.TryGetValue(row.Driver.DriverId, out var pos) ? pos : 1);
+            }
+            
             builder.AddCar(row.Driver.Car, row.Driver.Skin, row.Driver.DriverName, row.Driver.DriverStrength, row.Driver.DriverAgression);
         }
 
@@ -385,7 +390,7 @@ public class RaceService : IRaceService
         {
             foreach (var driver in team.Drivers.Where(d => d.IsActive))
             {
-                driverByKey[BuildDriverKey(driver.Car, driver.Skin)] = (driver, team);
+                driverByKey[BuildDriverKey(driver.Car, driver.Skin, driver.DriverName)] = (driver, team);
             }
         }
 
@@ -395,7 +400,7 @@ public class RaceService : IRaceService
         {
             var player = sessionFile.Players[carIndex];
 
-            if (!driverByKey.TryGetValue(BuildDriverKey(player.Car, player.Skin), out var match))
+            if (!driverByKey.TryGetValue(BuildDriverKey(player.Car, player.Skin, player.Name), out var match))
             {
                 continue;
             }
@@ -515,7 +520,7 @@ public class RaceService : IRaceService
         {
             foreach (var driver in team.Drivers.Where(d => d.IsActive))
             {
-                driverByKey[BuildDriverKey(driver.Car, driver.Skin)] = (driver, team);
+                driverByKey[BuildDriverKey(driver.Car, driver.Skin, driver.DriverName)] = (driver, team);
             }
         }
 
@@ -524,7 +529,7 @@ public class RaceService : IRaceService
 
         foreach (var entry in entries)
         {
-            if (!driverByKey.TryGetValue(BuildDriverKey(entry.Car, entry.Skin), out var match))
+            if (!driverByKey.TryGetValue(BuildDriverKey(entry.Car, entry.Skin, entry.Driver), out var match))
             {
                 skipped++;
                 continue;
@@ -545,13 +550,13 @@ public class RaceService : IRaceService
 
         var untimed = new List<ImportEntry>();
 
-        var timedKeys = timed.Select(e => BuildDriverKey(e.Match.Driver.Car, e.Match.Driver.Skin)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var timedKeys = timed.Select(e => BuildDriverKey(e.Match.Driver.Car, e.Match.Driver.Skin, e.Match.Driver.DriverName)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var team in teams)
         {
             foreach (var driver in team.Drivers.Where(d => d.IsActive))
             {
-                var key = BuildDriverKey(driver.Car, driver.Skin);
+                var key = BuildDriverKey(driver.Car, driver.Skin, driver.DriverName);
 
                 if (!timedKeys.Contains(key))
                 {
@@ -697,9 +702,9 @@ public class RaceService : IRaceService
         }
     }
 
-    private static string BuildDriverKey(string car, string skin)
+    private static string BuildDriverKey(string car, string skin, string driverName)
     {
-        return car + "\u001F" + skin;
+        return car + "\u001F" + skin + "\u001F" + (driverName ?? string.Empty).Trim();
     }
 
     private static string SessionTypeLabel(SessionType sessionType)
