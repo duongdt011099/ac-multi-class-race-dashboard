@@ -225,11 +225,11 @@
 
 @if (viewingSessionsFor is not null)
 {
-    <div class="wec-modal-overlay">
-        <div class="wec-modal wec-modal--wide">
+    <div class="wec-modal-overlay wec-modal-overlay--top">
+        <div class="wec-modal wec-modal--sessions">
             <div class="wec-modal__header">
                 <span>Sessions — @viewingSessionsFor.RaceName</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => viewingSessionsFor = null">
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseSessionsAsync">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
@@ -243,7 +243,62 @@
 
                 @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
                 {
-                    <PresetExporter ExportHandler="@(async human => await ExportGridPresetAsync(human))" />
+                    <div class="wec-session-actions">
+                        <PresetExporter ExportHandler="@(async human => await ExportGridPresetAsync(human))" />
+
+                        @if (selectedTab == RacePopupTab.Qualifying)
+                        {
+                            <div class="wec-preset-export">
+                                <button type="button" class="wec-toolbar__btn @(isExportingRacePreset ? "wec-toolbar__btn--disabled" : "")" @onclick="ExportRacePresetAsync" disabled="@isExportingRacePreset">
+                                    @(isExportingRacePreset ? "Exporting..." : "Export Preset For Race")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="wec-preset-export">
+                            <label for="session-result-file" class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
+                                <i class="bi bi-upload"></i> @(isImportingSessionResult ? "Importing..." : "Import Result")
+                            </label>
+                            <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport" class="d-none" />
+                        </div>
+                    </div>
+                }
+
+                @if (selectedTab == RacePopupTab.Race)
+                {
+                    <div class="wec-preset-export">
+                        <span class="wec-preset-export__label">Import Result</span>
+                        <select class="wec-result-file-select" value="@selectedRaceResultFile" @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
+                            @if (raceResultFiles is null || raceResultFiles.Count == 0)
+                            {
+                                <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
+                            }
+                            else
+                            {
+                                @foreach (var file in raceResultFiles)
+                                {
+                                    <option value="@file.FileName">@file.FileName — @file.Track</option>
+                                }
+                            }
+                        </select>
+                        <button type="button" class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")" disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
+                            @(isImportingRaceResult ? "Importing..." : "Import")
+                        </button>
+                    </div>
+                }
+
+                @if (selectedTab is not RacePopupTab.Teams && StandingClassNames.Any())
+                {
+                    <div class="wec-session-toolbar">
+                        <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
+                        <select id="standing-class-filter" class="wec-result-file-select wec-session-toolbar__select" value="@selectedStandingClassFilter" @onchange="HandleStandingClassFilterChanged">
+                            <option value="">All classes</option>
+                            @foreach (var cls in StandingClassNames)
+                            {
+                                <option value="@cls">@cls</option>
+                            }
+                        </select>
+                    </div>
                 }
 
                 @if (selectedTab == RacePopupTab.Teams)
@@ -321,35 +376,41 @@
                             }
                             else
                             {
-                                <table class="wec-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Pos</th>
-                                            <th>Driver</th>
-                                            <th>Team</th>
-                                            <th>Best Lap</th>
-                                            @if (selectedSessionType == SessionType.Race)
-                                            {
-                                                <th>Points</th>
-                                            }
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var standing in session.DriverStandings)
-                                        {
+                                <div class="wec-table-scroll">
+                                    <table class="wec-table">
+                                        <thead>
                                             <tr>
-                                                <td class="wec-table__position">@standing.Position</td>
-                                                <td>@standing.DriverName</td>
-                                                <td>@standing.TeamName</td>
-                                                <td>@FormatLap(standing.BestLapTimeMs)</td>
+                                                <th>Pos</th>
+                                                <th>Driver</th>
+                                                <th>Team</th>
+                                                <th>Class</th>
+                                                <th>Best Lap</th>
                                                 @if (selectedSessionType == SessionType.Race)
                                                 {
-                                                    <td>@standing.Points</td>
+                                                    <th>Laps</th>
+                                                    <th>Points</th>
                                                 }
                                             </tr>
-                                        }
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var standing in session.DriverStandings.Where(s => string.IsNullOrEmpty(selectedStandingClassFilter) || s.TeamClassName == selectedStandingClassFilter))
+                                            {
+                                                <tr>
+                                                    <td class="wec-table__position">@standing.Position</td>
+                                                    <td>@standing.DriverName</td>
+                                                    <td>@standing.TeamName</td>
+                                                    <td><span class="wec-badge @(GetClassBadgeClass(standing.TeamClassName))">@standing.TeamClassName</span></td>
+                                                    <td>@FormatLap(standing.BestLapTimeMs)</td>
+                                                    @if (selectedSessionType == SessionType.Race)
+                                                    {
+                                                        <td class="wec-table__position">@standing.LapCount</td>
+                                                        <td>@standing.Points</td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
                             }
                         </div>
                     }
@@ -383,8 +444,16 @@
     private HashSet<Guid> selectedTeamIds = new();
     private bool isSavingRaceTeams;
     private string selectedTeamClassFilter = "";
+    private List<RaceResultFileModel>? raceResultFiles;
+    private string? selectedRaceResultFile;
+    private bool isImportingRaceResult;
+    private bool isImportingSessionResult;
+    private bool isExportingRacePreset;
+    private string selectedStandingClassFilter = "";
 
     private const string UncategorizedKey = "__uncategorized__";
+
+    private const long MaxResultFileBytes = 2 * 1024 * 1024;
 
     private enum RacePopupTab
     {
@@ -460,6 +529,19 @@
         sessionsCache is null
             ? Array.Empty<SessionModel>()
             : sessionsCache.Where(s => s.SessionType == selectedSessionType);
+
+    private IEnumerable<string> StandingClassNames =>
+        DisplaySessions
+            .SelectMany(s => s.DriverStandings)
+            .Select(d => d.TeamClassName)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase);
+
+    private void HandleStandingClassFilterChanged(ChangeEventArgs e)
+    {
+        selectedStandingClassFilter = e.Value?.ToString() ?? "";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -707,9 +789,98 @@
         selectedTeamIds = (await RaceService.GetRaceTeamsAsync(race.RaceId)).Select(t => t.TeamId).ToHashSet();
         availableTeams = (await TeamService.GetActiveTeamsAsync()).ToList();
         selectedTeamClassFilter = "";
+        selectedStandingClassFilter = "";
         selectedSessionType = SessionType.Race;
         selectedTab = selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
         sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
+        await LoadResultFilesAsync();
+    }
+
+    private async Task CloseSessionsAsync()
+    {
+        viewingSessionsFor = null;
+        await LoadRacesAsync();
+    }
+
+    private async Task LoadResultFilesAsync()
+    {
+        raceResultFiles = (await RaceService.GetRaceResultFilesAsync()).ToList();
+        selectedRaceResultFile = raceResultFiles.FirstOrDefault()?.FileName;
+    }
+
+    private bool canImportRaceResult =>
+        !isImportingRaceResult
+        && !string.IsNullOrWhiteSpace(selectedRaceResultFile)
+        && viewingSessionsFor is not null;
+
+    private void HandleResultFileChanged(ChangeEventArgs e)
+    {
+        selectedRaceResultFile = e.Value?.ToString();
+    }
+
+    private async Task ImportRaceResultAsync()
+    {
+        if (!canImportRaceResult || viewingSessionsFor is null)
+        {
+            return;
+        }
+
+        isImportingRaceResult = true;
+
+        try
+        {
+            var result = await RaceService.ImportRaceResultAsync(viewingSessionsFor.RaceId, selectedRaceResultFile!);
+
+            Toast.Show(
+                $"Imported {result.Imported} result(s) (skipped {result.Skipped}) from {Path.GetFileName(selectedRaceResultFile)}.",
+                result.Skipped > 0);
+
+            selectedSessionType = SessionType.Race;
+            selectedTab = RacePopupTab.Race;
+            sessionsCache = (await RaceService.GetRaceSessionsAsync(viewingSessionsFor.RaceId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isImportingRaceResult = false;
+        }
+    }
+
+    private async Task HandleSessionResultImport(InputFileChangeEventArgs e)
+    {
+        if (e.File is null || viewingSessionsFor is null)
+        {
+            return;
+        }
+
+        isImportingSessionResult = true;
+
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxResultFileBytes);
+            var result = await RaceService.ImportSessionResultAsync(
+                viewingSessionsFor.RaceId,
+                selectedSessionType,
+                stream,
+                e.File.Name);
+
+            Toast.Show(
+                $"Imported {result.Imported} result(s) (skipped {result.Skipped}).",
+                result.Skipped > 0);
+
+            sessionsCache = (await RaceService.GetRaceSessionsAsync(viewingSessionsFor.RaceId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isImportingSessionResult = false;
+        }
     }
 
     private void HandleTeamClassFilterChanged(ChangeEventArgs e)
@@ -776,6 +947,7 @@
             _ => RacePopupTab.Race
         };
         selectedSessionType = type;
+        selectedStandingClassFilter = "";
     }
 
     private async Task ToggleRaceTeamAsync(Guid teamId)
@@ -845,6 +1017,39 @@
             humanClassOnly,
             selectedSeason.SeasonName,
             selectedChampionship.ChampionshipName);
+    }
+
+    private async Task ExportRacePresetAsync()
+    {
+        if (viewingSessionsFor is null)
+        {
+            throw new InvalidOperationException("No race selected.");
+        }
+
+        if (selectedChampionship is null || selectedSeason is null)
+        {
+            throw new InvalidOperationException("No championship or season selected.");
+        }
+
+        isExportingRacePreset = true;
+
+        try
+        {
+            var result = await RaceService.ExportRaceGridPresetAsync(
+                viewingSessionsFor.RaceId,
+                selectedSeason.SeasonName,
+                selectedChampionship.ChampionshipName);
+
+            Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isExportingRacePreset = false;
+        }
     }
 
     private string GetClassBadgeClass(string teamClass)

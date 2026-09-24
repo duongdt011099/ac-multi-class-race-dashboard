@@ -227,6 +227,76 @@ public class RaceService : IRaceService
         };
     }
 
+    public async Task<PresetExportResult> ExportRaceGridPresetAsync(Guid raceId, string seasonName, string championshipName)
+    {
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        if (race is null)
+        {
+            throw new InvalidOperationException("Race not found.");
+        }
+
+        var config = await _configRepository.GetAsync();
+        var presetPath = config?.PresetPath?.Trim();
+
+        if (string.IsNullOrWhiteSpace(presetPath))
+        {
+            throw new InvalidOperationException("Preset path is not configured. Set it on the Game Config page.");
+        }
+
+        var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
+
+        var rows = teams
+            .SelectMany(t => t.Drivers
+                .Where(d => d.IsActive)
+                .Select(d => new { Team = t, Driver = d }))
+            .ToList();
+
+        if (rows.Count == 0)
+        {
+            throw new InvalidOperationException("No cars available to export from the entered teams.");
+        }
+
+        var qualifyingSession = (await _raceRepository.GetSessionsByRaceAsync(raceId))
+            .Where(s => s.SessionType == SessionType.Qualifying)
+            .OrderByDescending(s => s.SessionDate)
+            .FirstOrDefault();
+
+        var qualifyingPositionByDriverId = qualifyingSession is null
+            ? new Dictionary<Guid, int>()
+            : qualifyingSession.DriverStandings
+                .Where(d => d.Driver != null)
+                .GroupBy(d => d.Driver!.DriverId)
+                .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
+
+        var ordered = rows
+            .OrderBy(r => ClassOrderIndex(r.Team.TeamClass?.TeamClassName))
+            .ThenBy(r => qualifyingPositionByDriverId.TryGetValue(r.Driver.DriverId, out var pos) ? pos : int.MaxValue)
+            .ThenBy(r => r.Team.TeamName)
+            .ThenBy(r => r.Driver.DriverName)
+            .ToList();
+
+        var builder = new PresetBuilder();
+
+        foreach (var row in ordered)
+        {
+            builder.AddCar(row.Driver.Car, row.Driver.Skin, row.Driver.DriverName, row.Driver.DriverStrength, row.Driver.DriverAgression);
+        }
+
+        var fileName = $"{SanitizeFileName($"Race-{race.RaceName}-{seasonName}-{championshipName}")}.cmpreset";
+        var filePath = Path.Combine(presetPath, fileName);
+
+        Directory.CreateDirectory(presetPath);
+
+        await File.WriteAllTextAsync(filePath, builder.BuildJson());
+
+        return new PresetExportResult
+        {
+            FilePath = filePath,
+            CarCount = builder.Count
+        };
+    }
+
     public async Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync()
     {
         var config = await _configRepository.GetAsync();
@@ -407,6 +477,159 @@ public class RaceService : IRaceService
         };
     }
 
+    public async Task<RaceResultImportResult> ImportSessionResultAsync(Guid raceId, SessionType sessionType, Stream stream, string? fileName)
+    {
+        if (sessionType is not (SessionType.Practice or SessionType.Qualifying))
+        {
+            throw new InvalidOperationException("Only practice and qualifying results can be imported this way.");
+        }
+
+        List<SessionResultEntry>? entries;
+
+        try
+        {
+            entries = await JsonSerializer.DeserializeAsync<List<SessionResultEntry>>(stream, CaseInsensitiveJson);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("The selected file is not a valid session result file.", ex);
+        }
+
+        if (entries is null || entries.Count == 0)
+        {
+            throw new InvalidOperationException("The selected file contains no result entries.");
+        }
+
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        if (race is null)
+        {
+            throw new InvalidOperationException("Race not found.");
+        }
+
+        var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
+
+        var driverByKey = new Dictionary<string, (Driver Driver, Team Team)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var team in teams)
+        {
+            foreach (var driver in team.Drivers.Where(d => d.IsActive))
+            {
+                driverByKey[BuildDriverKey(driver.Car, driver.Skin)] = (driver, team);
+            }
+        }
+
+        var timed = new List<ImportEntry>();
+        var skipped = 0;
+
+        foreach (var entry in entries)
+        {
+            if (!driverByKey.TryGetValue(BuildDriverKey(entry.Car, entry.Skin), out var match))
+            {
+                skipped++;
+                continue;
+            }
+
+            if (!TryParseLapTime(entry.BestLapTimeMs, out var lapMs))
+            {
+                continue;
+            }
+
+            timed.Add(new ImportEntry
+            {
+                Match = match,
+                BestLapMs = lapMs,
+                LapCount = 0
+            });
+        }
+
+        var untimed = new List<ImportEntry>();
+
+        var timedKeys = timed.Select(e => BuildDriverKey(e.Match.Driver.Car, e.Match.Driver.Skin)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var team in teams)
+        {
+            foreach (var driver in team.Drivers.Where(d => d.IsActive))
+            {
+                var key = BuildDriverKey(driver.Car, driver.Skin);
+
+                if (!timedKeys.Contains(key))
+                {
+                    untimed.Add(new ImportEntry
+                    {
+                        Match = (driver, team),
+                        BestLapMs = 0,
+                        LapCount = 0
+                    });
+                }
+            }
+        }
+
+        var orderedUntimed = untimed
+            .OrderBy(e => e.Match.Team.TeamName)
+            .ThenBy(e => e.Match.Driver.DriverName)
+            .ToList();
+        var orderedEntries = timed.Concat(orderedUntimed);
+
+        var session = new Session
+        {
+            SessionId = Guid.NewGuid(),
+            SessionType = sessionType,
+            SessionDate = TryParseSessionDate(fileName ?? string.Empty, out var date) ? date : DateTime.Now,
+            RaceId = raceId,
+            Race = race,
+            DriverStandings = new List<DriverStanding>()
+        };
+
+        var ordered = orderedEntries
+            .GroupBy(e => e.Match.Team.TeamClass?.TeamClassName?.Trim() ?? string.Empty)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(g =>
+            {
+                var classMatches = g
+                    .OrderByDescending(e => e.BestLapMs > 0)
+                    .ThenBy(e => e.BestLapMs)
+                    .ToList();
+
+                return classMatches.Select((e, index) => new
+                {
+                    Entry = e,
+                    ClassPosition = index + 1,
+                    TeamClassName = g.Key
+                });
+            })
+            .ToList();
+
+        foreach (var item in ordered)
+        {
+            session.DriverStandings.Add(new DriverStanding
+            {
+                DriverStandingId = Guid.NewGuid(),
+                Driver = item.Entry.Match.Driver,
+                DriverName = item.Entry.Match.Driver.DriverName,
+                OriginalTeamId = item.Entry.Match.Team.TeamId,
+                TeamName = item.Entry.Match.Team.TeamName,
+                TeamClassName = item.TeamClassName,
+                Race = race,
+                Position = item.ClassPosition,
+                ClassPosition = item.ClassPosition,
+                Points = 0,
+                BestLapTimeMs = item.Entry.BestLapMs,
+                LapCount = 0
+            });
+        }
+
+        await _raceRepository.SaveRaceSessionAsync(raceId, session);
+
+        return new RaceResultImportResult
+        {
+            Imported = session.DriverStandings.Count,
+            Skipped = skipped,
+            SessionDate = session.SessionDate,
+            SessionType = session.SessionType
+        };
+    }
+
     private sealed class ImportEntry
     {
         public required (Driver Driver, Team Team) Match { get; set; }
@@ -426,6 +649,28 @@ public class RaceService : IRaceService
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None,
             out date);
+    }
+
+    private static bool TryParseLapTime(string? value, out int lapTimeMs)
+    {
+        lapTimeMs = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (!TimeSpan.TryParseExact(
+            value.Trim(),
+            new[] { @"mm\:ss\.fff", @"m\:ss\.fff" },
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var parsed))
+        {
+            return false;
+        }
+
+        lapTimeMs = (int)Math.Round(parsed.TotalMilliseconds);
+        return lapTimeMs > 0;
     }
 
     private static string? ReadSessionInfo(string filePath)
@@ -467,11 +712,35 @@ public class RaceService : IRaceService
         };
     }
 
+    private static int ClassOrderIndex(string? teamClassName)
+    {
+        var normalized = teamClassName?.Trim().ToLowerInvariant();
+
+        return normalized switch
+        {
+            "hypercar" or "h" or "lmh" => 0,
+            "lmp2" => 1,
+            "gt3" or "gts" or "lmgt" => 2,
+            _ => 3
+        };
+    }
+
     private static string SanitizeFileName(string value)
     {
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(value.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
         return sanitized.Trim();
+    }
+
+    private sealed class SessionResultEntry
+    {
+        public string Driver { get; set; } = string.Empty;
+
+        public string Car { get; set; } = string.Empty;
+
+        public string Skin { get; set; } = string.Empty;
+
+        public string? BestLapTimeMs { get; set; }
     }
 
     private sealed class CmSessionFile
