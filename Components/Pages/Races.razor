@@ -8,6 +8,7 @@
 @inject MulticlassRace.Services.Abstractions.IChampionshipService ChampionshipService
 @inject MulticlassRace.Services.Abstractions.ISeasonService SeasonService
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
+@inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
 @inject ToastService Toast
 @inject NavigationManager Nav
 
@@ -165,10 +166,33 @@
                         }
                     </select>
                 </div>
+
+                <div class="wec-form-field">
+                    <label for="race-point-setting">Point Setting</label>
+                    <select id="race-point-setting" @bind="editingRace.PointSettingId">
+                        <option value="@Guid.Empty">Select point setting...</option>
+                        @foreach (var setting in pointSettings)
+                        {
+                            <option value="@setting.SettingId">@setting.SettingName@(setting.IsDefault ? " (default)" : "")</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="wec-text-muted">
+                    @if (editingRace.PointSettingId != Guid.Empty)
+                    {
+                        var selectedSetting = pointSettings.FirstOrDefault(p => p.SettingId == editingRace.PointSettingId);
+                        if (selectedSetting is not null)
+                        {
+                            var preview = string.Join(" › ", selectedSetting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv => $"{kv.Key}:{kv.Value}"));
+                            <span>@preview</span>
+                        }
+                    }
+                </div>
             </div>
             <div class="wec-modal__footer">
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelRaceEdit">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync" disabled="@isSavingRace">
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync" disabled="@(isSavingRace || editingRace.PointSettingId == Guid.Empty)">
                     @(isSavingRace ? "Saving..." : isCreatingRace ? "Create" : "Save")
                 </button>
             </div>
@@ -352,6 +376,7 @@
     private bool sortDescending;
     private RaceModel? viewingSessionsFor;
     private RacePopupTab selectedTab = RacePopupTab.Race;
+    private List<PointSettingModel> pointSettings = new();
     private SessionType selectedSessionType = SessionType.Race;
     private List<SessionModel>? sessionsCache;
     private List<TeamModel> availableTeams = new();
@@ -439,6 +464,7 @@
     protected override async Task OnInitializedAsync()
     {
         championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
+        pointSettings = (await PointSettingService.GetAllAsync()).ToList();
 
         var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
 
@@ -562,11 +588,13 @@
         }
 
         isCreatingRace = true;
+        var defaultPointSetting = pointSettings.FirstOrDefault(p => p.IsDefault);
         editingRace = new RaceFormModel
         {
             RaceId = Guid.NewGuid(),
             RaceName = string.Empty,
-            SeasonId = selectedSeason.SeasonId
+            SeasonId = selectedSeason.SeasonId,
+            PointSettingId = defaultPointSetting?.SettingId ?? Guid.Empty
         };
     }
 
@@ -583,7 +611,8 @@
             RaceId = race.RaceId,
             RaceName = race.RaceName,
             Country = race.Country,
-            SeasonId = selectedSeason.SeasonId
+            SeasonId = selectedSeason.SeasonId,
+            PointSettingId = race.PointSettingId
         };
     }
 
@@ -611,13 +640,19 @@
             return;
         }
 
+        if (editingRace.PointSettingId == Guid.Empty)
+        {
+            Toast.Show("Select a point setting.", isError: true);
+            return;
+        }
+
         isSavingRace = true;
 
         try
         {
             if (isCreatingRace)
             {
-                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country);
+                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country, editingRace.PointSettingId);
             }
             else
             {

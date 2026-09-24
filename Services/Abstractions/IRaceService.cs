@@ -6,7 +6,7 @@ namespace MulticlassRace.Services.Abstractions;
 public interface IRaceService
 {
     Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId);
-    Task CreateRaceAsync(Guid seasonId, string raceName, string country);
+    Task CreateRaceAsync(Guid seasonId, string raceName, string country, Guid pointSettingId);
     Task UpdateRaceAsync(RaceFormModel model);
     Task DeleteRaceAsync(Guid raceId);
     Task<IEnumerable<SessionModel>> GetRaceSessionsAsync(Guid raceId);

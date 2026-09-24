@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MulticlassRace.Data;
 
@@ -10,9 +11,11 @@ using MulticlassRace.Data;
 namespace multi_class_race_dashboard.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924073028_AddPointSetting")]
+    partial class AddPointSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
@@ -170,15 +173,6 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasKey("SettingId");
 
                     b.ToTable("PointSettings");
-
-                    b.HasData(
-                        new
-                        {
-                            SettingId = new Guid("d8f10b2a-5a6b-4c7d-8e9f-0a1b2c3d4e5f"),
-                            Config = "{\"1\":25,\"2\":18,\"3\":15,\"4\":12,\"5\":10,\"6\":8,\"7\":6,\"8\":4,\"9\":2,\"10\":1}",
-                            IsDefault = true,
-                            SettingName = "Standard"
-                        });
                 });
 
             modelBuilder.Entity("MulticlassRace.Models.Race", b =>

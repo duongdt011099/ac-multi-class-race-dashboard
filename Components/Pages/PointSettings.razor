@@ -1,0 +1,314 @@
+@page "/pointsettings"
+@rendermode InteractiveServer
+@using MulticlassRace.ViewModels
+@inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
+@inject ToastService Toast
+
+<PageTitle>Point Settings</PageTitle>
+
+<h1>Point Settings</h1>
+
+<ToastHost />
+
+<div class="wec-toolbar">
+    <button type="button" class="wec-toolbar__btn" @onclick="OpenCreate">
+        <i class="bi bi-plus-lg"></i> Add Point Setting
+    </button>
+</div>
+
+<div class="wec-table-wrapper">
+    <table class="wec-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Default</th>
+                <th>Points</th>
+                <th class="wec-table__actions">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (settings is null)
+            {
+                <tr>
+                    <td colspan="4" class="wec-empty">Loading point settings...</td>
+                </tr>
+            }
+            else if (!settings.Any())
+            {
+                <tr>
+                    <td colspan="4" class="wec-empty">No point settings yet. Click Add Point Setting to create one.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var setting in settings)
+                {
+                    <tr>
+                        <td>@setting.SettingName</td>
+                        <td>
+                            @if (setting.IsDefault)
+                            {
+                                <span class="wec-badge wec-badge--default">Default</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td>
+                            @{
+                                var preview = string.Join(" › ", setting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv => $"{kv.Key}:{kv.Value}"));
+                            }
+                            <span class="wec-points-preview">@preview</span>
+                        </td>
+                        <td class="wec-table__actions">
+                            <button type="button" class="wec-btn" title="Edit @setting.SettingName" @onclick="() => OpenEdit(setting)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="wec-btn" title="Delete @setting.SettingName" @onclick="() => confirmDelete = setting">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (editingSetting is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--wide">
+            <div class="wec-modal__header">
+                <span>@(isCreating ? "New Point Setting" : "Edit Point Setting")</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-form-row">
+                    <div class="wec-form-field wec-form-field--wide">
+                        <label for="setting-name">Name</label>
+                        <input id="setting-name" type="text" placeholder="e.g. WEC Season" @bind="editingSetting.SettingName" />
+                    </div>
+                    <div class="wec-form-field wec-form-field--checkbox">
+                        <input id="setting-default" type="checkbox" @bind="editingSetting.IsDefault" />
+                        <label for="setting-default">Is Default</label>
+                    </div>
+                </div>
+
+                <div class="wec-setting-entries">
+                    <div class="wec-setting-entries__header">Points Table</div>
+                    <table class="wec-table">
+                        <thead>
+                            <tr>
+                                <th>Position</th>
+                                <th>Points</th>
+                                <th class="wec-table__actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < editingSetting.Entries.Count; i++)
+                            {
+                                var index = i;
+                                <tr>
+                                    <td>
+                                        <input class="wec-setting-entry-input" type="number" min="1" step="1" placeholder="1" @bind="editingSetting.Entries[index].Position" />
+                                    </td>
+                                    <td>
+                                        <input class="wec-setting-entry-input" type="number" min="0" step="1" placeholder="25" @bind="editingSetting.Entries[index].Points" />
+                                    </td>
+                                    <td class="wec-table__actions">
+                                        <button type="button" class="wec-btn" title="Remove row" @onclick="() => RemoveEntry(index)">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <button type="button" class="wec-toolbar__btn" @onclick="AddEntry">
+                        <i class="bi bi-plus-lg"></i> Add Entry
+                    </button>
+                </div>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveSettingAsync" disabled="@isSaving">
+                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (confirmDelete is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Delete Point Setting</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDelete = null">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <p>Delete @confirmDelete.SettingName?</p>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDelete = null">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteSettingAsync" disabled="@isDeleting">
+                    @(isDeleting ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PointSettingModel>? settings;
+    private PointSettingFormModel? editingSetting;
+    private bool isCreating;
+    private bool isSaving;
+    private PointSettingModel? confirmDelete;
+    private bool isDeleting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        settings = (await PointSettingService.GetAllAsync()).ToList();
+    }
+
+    private void OpenCreate()
+    {
+        isCreating = true;
+        editingSetting = new PointSettingFormModel
+        {
+            SettingId = Guid.NewGuid(),
+            SettingName = string.Empty,
+            IsDefault = settings is null || !settings.Any(s => s.IsDefault),
+            Entries = new List<PointSettingEntryModel>
+            {
+                new PointSettingEntryModel { Position = "1", Points = "" },
+                new PointSettingEntryModel { Position = "2", Points = "" }
+            }
+        };
+    }
+
+    private void OpenEdit(PointSettingModel setting)
+    {
+        isCreating = false;
+        editingSetting = new PointSettingFormModel
+        {
+            SettingId = setting.SettingId,
+            SettingName = setting.SettingName,
+            IsDefault = setting.IsDefault,
+            Entries = setting.Config
+                .OrderBy(kv => int.Parse(kv.Key))
+                .Select(kv => new PointSettingEntryModel
+                {
+                    Position = kv.Key,
+                    Points = kv.Value.ToString()
+                })
+                .ToList()
+        };
+    }
+
+    private void CancelEdit()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        editingSetting = null;
+        isCreating = false;
+    }
+
+    private void AddEntry()
+    {
+        editingSetting?.Entries.Add(new PointSettingEntryModel());
+    }
+
+    private void RemoveEntry(int index)
+    {
+        if (editingSetting is null)
+        {
+            return;
+        }
+
+        editingSetting.Entries.RemoveAt(index);
+    }
+
+    private async Task SaveSettingAsync()
+    {
+        if (editingSetting is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editingSetting.SettingName))
+        {
+            Toast.Show("Setting name is required.", isError: true);
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            if (isCreating)
+            {
+                await PointSettingService.CreateAsync(editingSetting);
+            }
+            else
+            {
+                await PointSettingService.UpdateAsync(editingSetting);
+            }
+
+            await LoadSettingsAsync();
+            Toast.Show(isCreating ? "Point setting created." : "Point setting updated.");
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteSettingAsync()
+    {
+        if (confirmDelete is null)
+        {
+            return;
+        }
+
+        isDeleting = true;
+
+        try
+        {
+            await PointSettingService.DeleteAsync(confirmDelete.SettingId);
+            var name = confirmDelete.SettingName;
+            confirmDelete = null;
+            await LoadSettingsAsync();
+            Toast.Show($"Point setting '{name}' deleted.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+}

@@ -381,6 +381,44 @@
     padding: 1.25rem 0;
 }
 
+.wec-text-muted {
+    font-size: 0.85rem;
+    color: #71717a;
+    overflow-wrap: anywhere;
+}
+
+.wec-points-preview {
+    font-size: 0.85rem;
+    color: #3f3f46;
+    overflow-wrap: anywhere;
+}
+
+.wec-setting-entries {
+    margin-top: 1rem;
+}
+
+.wec-setting-entries__header {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #71717a;
+    margin-bottom: 0.5rem;
+}
+
+.wec-setting-entry-input {
+    width: 6rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.wec-setting-entries .wec-toolbar__btn {
+    margin-top: 0.75rem;
+}
+
 .wec-form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -16,6 +16,7 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
         return await _context.Races
             .Include(r => r.Sessions)
                 .ThenInclude(s => s.DriverStandings)
+            .Include(r => r.PointSetting)
             .Where(r => r.Season.SeasonId == seasonId)
             .OrderBy(r => r.RaceName)
             .ToListAsync();

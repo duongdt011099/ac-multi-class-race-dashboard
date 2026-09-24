@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<ISeasonService, SeasonService>();
         services.AddScoped<IRaceService, RaceService>();
         services.AddScoped<IAssettoCorsaGameConfigService, AssettoCorsaGameConfigService>();
+        services.AddScoped<IPointSettingService, PointSettingService>();
         services.AddScoped<ToastService>();
 
         return services;

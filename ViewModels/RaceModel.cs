@@ -12,5 +12,9 @@ public class RaceModel
 
     public RaceStatus Status { get; set; }
 
+    public Guid PointSettingId { get; set; }
+
+    public string PointSettingName { get; set; } = string.Empty;
+
     public int StandingCount { get; set; }
 }

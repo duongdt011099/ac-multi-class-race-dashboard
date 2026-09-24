@@ -8,9 +8,13 @@ public class Race
 
     public string Country { get; set; } = string.Empty;
 
+    public Guid PointSettingId { get; set; }
+
     public required RaceStatus Status { get; set; } = RaceStatus.NotStarted;
 
     public required Season Season { get; set; }
+    
+    public required PointSetting PointSetting { get; set; }
 
     public required ICollection<Session> Sessions { get; set; } = new List<Session>();
 

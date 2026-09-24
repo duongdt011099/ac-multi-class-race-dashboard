@@ -9,4 +9,6 @@ public class RaceFormModel
     public string Country { get; set; } = string.Empty;
 
     public Guid SeasonId { get; set; }
+
+    public Guid PointSettingId { get; set; }
 }

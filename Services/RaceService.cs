@@ -10,15 +10,18 @@ public class RaceService : IRaceService
     private readonly IRaceRepository _raceRepository;
     private readonly ISeasonRepository _seasonRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
+    private readonly IPointSettingRepository _pointSettingRepository;
 
     public RaceService(
         IRaceRepository raceRepository,
         ISeasonRepository seasonRepository,
-        IAssettoCorsaGameConfigRepository configRepository)
+        IAssettoCorsaGameConfigRepository configRepository,
+        IPointSettingRepository pointSettingRepository)
     {
         _raceRepository = raceRepository;
         _seasonRepository = seasonRepository;
         _configRepository = configRepository;
+        _pointSettingRepository = pointSettingRepository;
     }
 
     public async Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId)
@@ -31,11 +34,13 @@ public class RaceService : IRaceService
             RaceName = r.RaceName,
             Country = r.Country,
             Status = r.Status,
+            PointSettingId = r.PointSettingId,
+            PointSettingName = r.PointSetting.SettingName,
             StandingCount = r.Sessions.Sum(s => s.DriverStandings.Count)
         });
     }
 
-    public async Task CreateRaceAsync(Guid seasonId, string raceName, string country)
+    public async Task CreateRaceAsync(Guid seasonId, string raceName, string country, Guid pointSettingId)
     {
         var season = await _seasonRepository.GetByIdAsync(seasonId);
 
@@ -44,12 +49,21 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("Season not found.");
         }
 
+        var pointSetting = await _pointSettingRepository.GetByIdAsync(pointSettingId);
+
+        if (pointSetting is null)
+        {
+            throw new InvalidOperationException("A point setting must be selected.");
+        }
+
         var race = new Race
         {
             RaceId = Guid.NewGuid(),
             RaceName = raceName.Trim(),
             Country = country?.Trim() ?? string.Empty,
             Status = RaceStatus.NotStarted,
+            PointSettingId = pointSetting.SettingId,
+            PointSetting = pointSetting,
             Season = season,
             Sessions = new List<Session>(),
             EnteredTeams = new List<Team>()
@@ -69,6 +83,17 @@ public class RaceService : IRaceService
 
         race.RaceName = model.RaceName.Trim();
         race.Country = model.Country?.Trim() ?? string.Empty;
+
+        if (model.PointSettingId != Guid.Empty && race.PointSettingId != model.PointSettingId)
+        {
+            var pointSetting = await _pointSettingRepository.GetByIdAsync(model.PointSettingId);
+
+            if (pointSetting is not null)
+            {
+                race.PointSettingId = pointSetting.SettingId;
+                race.PointSetting = pointSetting;
+            }
+        }
 
         await _raceRepository.UpdateAsync(race);
     }
