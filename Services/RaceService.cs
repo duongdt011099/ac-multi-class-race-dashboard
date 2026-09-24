@@ -626,6 +626,12 @@ public class RaceService : IRaceService
 
         await _raceRepository.SaveRaceSessionAsync(raceId, session);
 
+        if (race.Status != RaceStatus.Finished)
+        {
+            race.Status = RaceStatus.InProgress;
+            await _raceRepository.UpdateAsync(race);
+        }
+
         return new RaceResultImportResult
         {
             Imported = session.DriverStandings.Count,
