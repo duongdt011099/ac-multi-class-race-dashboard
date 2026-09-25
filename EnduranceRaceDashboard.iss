@@ -24,7 +24,7 @@ PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Files]
-Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion; Excludes: "wwwroot\uploads"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "http://127.0.0.1:5000"
