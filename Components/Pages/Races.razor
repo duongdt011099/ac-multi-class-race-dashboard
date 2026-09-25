@@ -46,14 +46,20 @@
 
     @if (selectedChampionship is not null)
     {
-        <div class="wec-breadcrumb">@selectedChampionship.ChampionshipName @(selectedSeason is not null ? $"› {selectedSeason.SeasonName}" : "")</div>
+        <div class="wec-breadcrumb">@selectedChampionship.ChampionshipName @(selectedSeason is not null ? $"›      {selectedSeason.SeasonName}" : "")</div>
     }
 </div>
 
 @if (races is not null)
 {
     <div class="wec-toolbar">
-        <button type="button" class="wec-toolbar__btn @(hasSeason ? "" : "wec-toolbar__btn--disabled")" @onclick="OpenRaceCreate" disabled="@(!hasSeason)">
+        <button type="button" class="wec-toolbar__btn @(hasSeason ? "" : "wec-toolbar__btn--disabled")"
+                @onclick="OpenStandings" disabled="@(!hasSeason)">
+            <i class="bi bi-trophy-fill"></i> Standings
+        </button>
+
+        <button type="button" class="wec-toolbar__btn @(hasSeason ? "" : "wec-toolbar__btn--disabled")"
+                @onclick="OpenRaceCreate" disabled="@(!hasSeason)">
             <i class="bi bi-plus-lg"></i> Add Race
         </button>
     </div>
@@ -66,14 +72,16 @@
                 <th>
                     <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Race)">
                         Race
-                        <i class="bi @(sortColumn == SortColumn.Race && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Race ? "" : "wec-table__sort-icon--inactive")"></i>
+                        <i
+                        class="bi @(sortColumn == SortColumn.Race && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Race ? "" : "wec-table__sort-icon--inactive")"></i>
                     </button>
                 </th>
                 <th>Country</th>
                 <th>
                     <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
                         Status
-                        <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                        <i
+                        class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
                     </button>
                 </th>
                 <th class="wec-table__actions">Actions</th>
@@ -105,7 +113,9 @@
                     <tr class="wec-row-clickable" title="View sessions" @onclick="() => ViewSessionsAsync(race)">
                         <td>@race.RaceName</td>
                         <td>
-                            @{ var countryFlag = Countries.GetFlag(race.Country); }
+                            @{
+                                var countryFlag = Countries.GetFlag(race.Country);
+                            }
                             @if (!string.IsNullOrEmpty(countryFlag))
                             {
                                 <span class="wec-race-flag-emoji">@countryFlag</span>
@@ -118,10 +128,12 @@
                             </span>
                         </td>
                         <td class="wec-table__actions">
-                            <button type="button" class="wec-btn" title="Edit @race.RaceName" @onclick="() => OpenRaceEdit(race)" @onclick:stopPropagation="true">
+                            <button type="button" class="wec-btn" title="Edit @race.RaceName"
+                                    @onclick="() => OpenRaceEdit(race)" @onclick:stopPropagation="true">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button type="button" class="wec-btn" title="Delete @race.RaceName" @onclick="() => confirmDeleteRace = race" @onclick:stopPropagation="true">
+                            <button type="button" class="wec-btn" title="Delete @race.RaceName"
+                                    @onclick="() => confirmDeleteRace = race" @onclick:stopPropagation="true">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -131,6 +143,59 @@
         </tbody>
     </table>
 </div>
+
+@if (isOpeningStandings)
+{
+    <div class="wec-modal-overlay wec-modal-overlay--top">
+        <div class="wec-modal wec-modal--wider">
+            <div class="wec-modal__header">
+                <span>Standings</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseStandings">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                @if (driverStandings is null)
+                {
+                    <div class="wec-empty wec-empty--block">Loading standings...</div>
+                }
+                else if (!driverStandings.Any())
+                {
+                    <div class="wec-empty wec-empty--block">No driver standings recorded for this season.</div>
+                }
+                else
+                {
+                    <div class="wec-table-scroll">
+                        <table class="wec-table">
+                            <thead>
+                                <tr>
+                                    <th>Pos</th>
+                                    <th>Driver</th>
+                                    <th>Team</th>
+                                    <th>Class</th>
+                                    <th>Points</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < driverStandings.Count; i++)
+                                {
+                                    var standing = driverStandings[i];
+                                    <tr>
+                                        <td class="wec-table__position">@(i + 1)</td>
+                                        <td>@standing.DriverName</td>
+                                        <td>@standing.TeamName</td>
+                                        <td><span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span></td>
+                                        <td>@standing.Points</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
 
 @if (editingRace is not null)
 {
@@ -184,15 +249,18 @@
                         var selectedSetting = pointSettings.FirstOrDefault(p => p.SettingId == editingRace.PointSettingId);
                         if (selectedSetting is not null)
                         {
-                            var preview = string.Join(" › ", selectedSetting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv => $"{kv.Key}:{kv.Value}"));
+                            var preview = string.Join(" › ", selectedSetting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv =>
+                $"{kv.Key}:{kv.Value}"));
                             <span>@preview</span>
                         }
                     }
                 </div>
             </div>
             <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelRaceEdit">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync" disabled="@(isSavingRace || editingRace.PointSettingId == Guid.Empty)">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                        @onclick="CancelRaceEdit">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync"
+                        disabled="@(isSavingRace || editingRace.PointSettingId == Guid.Empty)">
                     @(isSavingRace ? "Saving..." : isCreatingRace ? "Create" : "Save")
                 </button>
             </div>
@@ -214,8 +282,10 @@
                 <p>Delete @confirmDeleteRace.RaceName? This also removes its sessions and driver standings.</p>
             </div>
             <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDeleteRace = null">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteRaceAsync" disabled="@isDeletingRace">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                        @onclick="() => confirmDeleteRace = null">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteRaceAsync"
+                        disabled="@isDeletingRace">
                     @(isDeletingRace ? "Deleting..." : "Delete")
                 </button>
             </div>
@@ -226,7 +296,7 @@
 @if (viewingSessionsFor is not null)
 {
     <div class="wec-modal-overlay wec-modal-overlay--top">
-        <div class="wec-modal wec-modal--sessions">
+        <div class="wec-modal wec-modal--wider">
             <div class="wec-modal__header">
                 <span>Sessions — @viewingSessionsFor.RaceName</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseSessionsAsync">
@@ -235,10 +305,19 @@
             </div>
             <div class="wec-modal__body">
                 <div class="wec-tabs">
-                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "")" @onclick="SetTeamsTab">Teams</button>
-                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Practice)">Practice</button>
-                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Qualifying)">Qualifying</button>
-                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")" disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
+                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "")"
+                            @onclick="SetTeamsTab">Teams</button>
+                    <button type="button"
+                            class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
+                            disabled="@(!hasEnteredTeams)"
+                            @onclick="() => SetSessionTab(SessionType.Practice)">Practice</button>
+                    <button type="button"
+                            class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
+                            disabled="@(!hasEnteredTeams)"
+                            @onclick="() => SetSessionTab(SessionType.Qualifying)">Qualifying</button>
+                    <button type="button"
+                            class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
+                            disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
                 </div>
 
                 @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
@@ -249,17 +328,21 @@
                         @if (selectedTab == RacePopupTab.Qualifying)
                         {
                             <div class="wec-preset-export">
-                                <button type="button" class="wec-toolbar__btn @(isExportingRacePreset ? "wec-toolbar__btn--disabled" : "")" @onclick="ExportRacePresetAsync" disabled="@isExportingRacePreset">
+                                <button type="button"
+                                        class="wec-toolbar__btn @(isExportingRacePreset ? "wec-toolbar__btn--disabled" : "")"
+                                        @onclick="ExportRacePresetAsync" disabled="@isExportingRacePreset">
                                     @(isExportingRacePreset ? "Exporting..." : "Export Preset For Race")
                                 </button>
                             </div>
                         }
 
                         <div class="wec-preset-export">
-                            <label for="session-result-file" class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
+                            <label for="session-result-file"
+                                   class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
                                 <i class="bi bi-upload"></i> @(isImportingSessionResult ? "Importing..." : "Import Result")
                             </label>
-                            <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport" class="d-none" />
+                            <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport"
+                                       class="d-none" />
                         </div>
                     </div>
                 }
@@ -268,7 +351,8 @@
                 {
                     <div class="wec-preset-export">
                         <span class="wec-preset-export__label">Import Result</span>
-                        <select class="wec-result-file-select" value="@selectedRaceResultFile" @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
+                        <select class="wec-result-file-select" value="@selectedRaceResultFile"
+                                @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
                             @if (raceResultFiles is null || raceResultFiles.Count == 0)
                             {
                                 <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
@@ -281,7 +365,9 @@
                                 }
                             }
                         </select>
-                        <button type="button" class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")" disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
+                        <button type="button"
+                                class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
+                                disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
                             @(isImportingRaceResult ? "Importing..." : "Import")
                         </button>
                     </div>
@@ -291,7 +377,8 @@
                 {
                     <div class="wec-session-toolbar">
                         <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
-                        <select id="standing-class-filter" class="wec-result-file-select wec-session-toolbar__select" value="@selectedStandingClassFilter" @onchange="HandleStandingClassFilterChanged">
+                        <select id="standing-class-filter" class="wec-result-file-select wec-session-toolbar__select"
+                                value="@selectedStandingClassFilter" @onchange="HandleStandingClassFilterChanged">
                             <option value="">All classes</option>
                             @foreach (var cls in StandingClassNames)
                             {
@@ -304,121 +391,129 @@
                 @if (selectedTab == RacePopupTab.Teams)
                 {
                     <div class="wec-race-teams">
-                        <div class="wec-race-teams__hint">Select the teams entered in this race. Session tabs unlock once at least one team is selected.</div>
+                        <div class="wec-race-teams__hint">Select the teams entered in this race. Session tabs unlock once at
+                            least one team is selected.</div>
 
-                        <div class="wec-race-teams__toolbar">
-                            <div class="wec-race-teams__filter">
-                                <label for="race-teams-class">Class</label>
-                                <select id="race-teams-class" value="@selectedTeamClassFilter" @onchange="HandleTeamClassFilterChanged">
-                                    <option value="">All classes</option>
-                                    @foreach (var cls in ClassNames)
-                                    {
-                                        <option value="@cls">@cls</option>
-                                    }
-                                    @if (HasUncategorized)
-                                    {
-                                        <option value="@UncategorizedKey">Uncategorized</option>
-                                    }
-                                </select>
-                            </div>
-
-                            <label class="wec-race-teams__select-all @(FilteredTeams.Count > 0 ? "" : "wec-disabled")">
-                                <input type="checkbox" checked="@allVisibleSelected" disabled="@(isSavingRaceTeams || FilteredTeams.Count == 0)" @onchange="ToggleAllVisibleAsync" />
-                                <span>@(allVisibleSelected ? "Unselect all visible" : "Select all visible")</span>
-                            </label>
-                        </div>
-
-                        @if (!availableTeams.Any())
-                        {
-                            <div class="wec-empty">No active teams available.</div>
-                        }
-                        else if (!FilteredTeams.Any())
-                        {
-                            <div class="wec-empty">No teams in this class.</div>
-                        }
-                        else
-                        {
-                            <div class="wec-race-teams__list">
-                                @foreach (var team in FilteredTeams)
-                                {
-                                    <label class="wec-race-teams__row @(selectedTeamIds.Contains(team.TeamId) ? "wec-race-teams__row--selected" : "")">
-                                        <input type="checkbox" checked="@selectedTeamIds.Contains(team.TeamId)" disabled="@isSavingRaceTeams" @onchange="() => ToggleRaceTeamAsync(team.TeamId)" />
-                                        @if (!string.IsNullOrWhiteSpace(team.TeamLogo))
+                            <div class="wec-race-teams__toolbar">
+                                <div class="wec-race-teams__filter">
+                                    <label for="race-teams-class">Class</label>
+                                    <select id="race-teams-class" value="@selectedTeamClassFilter"
+                                            @onchange="HandleTeamClassFilterChanged">
+                                        <option value="">All classes</option>
+                                        @foreach (var cls in ClassNames)
                                         {
-                                            <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
+                                            <option value="@cls">@cls</option>
                                         }
-                                        <span>@team.TeamName</span>
-                                        <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
-                                    </label>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-                else if (sessionsCache is null)
-                {
-                    <div class="wec-empty wec-empty--block">Loading sessions...</div>
-                }
-                else if (!DisplaySessions.Any())
-                {
-                    <div class="wec-empty wec-empty--block">No @SessionTypeLabel(selectedSessionType) sessions for this race.</div>
-                }
-                else
-                {
-                    @foreach (var session in DisplaySessions)
-                    {
-                        <div class="wec-session-block">
-                            <div class="wec-session-block__date">@session.SessionDate.ToString("ddd, dd MMM yyyy")</div>
+                                        @if (HasUncategorized)
+                                        {
+                                            <option value="@UncategorizedKey">Uncategorized</option>
+                                        }
+                                    </select>
+                                </div>
 
-                            @if (!session.DriverStandings.Any())
+                                <label class="wec-race-teams__select-all @(FilteredTeams.Count > 0 ? "" : "wec-disabled")">
+                                    <input type="checkbox" checked="@allVisibleSelected"
+                                           disabled="@(isSavingRaceTeams || FilteredTeams.Count == 0)"
+                                           @onchange="ToggleAllVisibleAsync" />
+                                    <span>@(allVisibleSelected ? "Unselect all visible" : "Select all visible")</span>
+                                </label>
+                            </div>
+
+                            @if (!availableTeams.Any())
                             {
-                                <div class="wec-empty">No driver standings recorded for this session.</div>
+                                <div class="wec-empty">No active teams available.</div>
+                            }
+                            else if (!FilteredTeams.Any())
+                            {
+                                <div class="wec-empty">No teams in this class.</div>
                             }
                             else
                             {
-                                <div class="wec-table-scroll">
-                                    <table class="wec-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Pos</th>
-                                                <th>Driver</th>
-                                                <th>Team</th>
-                                                <th>Class</th>
-                                                <th>Best Lap</th>
-                                                @if (selectedSessionType == SessionType.Race)
-                                                {
-                                                    <th>Laps</th>
-                                                    <th>Points</th>
-                                                }
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var standing in session.DriverStandings.Where(s => string.IsNullOrEmpty(selectedStandingClassFilter) || s.TeamClassName == selectedStandingClassFilter))
+                                <div class="wec-race-teams__list">
+                                    @foreach (var team in FilteredTeams)
+                                    {
+                                        <label class="wec-race-teams__row @(selectedTeamIds.Contains(team.TeamId) ? "wec-race-teams__row--selected" : "")">
+                                            <input type="checkbox" checked="@selectedTeamIds.Contains(team.TeamId)"
+                                                   disabled="@isSavingRaceTeams" @onchange="() => ToggleRaceTeamAsync(team.TeamId)" />
+                                            @if (!string.IsNullOrWhiteSpace(team.TeamLogo))
                                             {
-                                                <tr>
-                                                    <td class="wec-table__position">@standing.Position</td>
-                                                    <td>@standing.DriverName</td>
-                                                    <td>@standing.TeamName</td>
-                                                    <td><span class="wec-badge @(GetClassBadgeClass(standing.TeamClassName))">@standing.TeamClassName</span></td>
-                                                    <td>@FormatLap(standing.BestLapTimeMs)</td>
-                                                    @if (selectedSessionType == SessionType.Race)
-                                                    {
-                                                        <td class="wec-table__position">@standing.LapCount</td>
-                                                        <td>@standing.Points</td>
-                                                    }
-                                                </tr>
+                                                <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
                                             }
-                                        </tbody>
-                                    </table>
+                                            <span>@team.TeamName</span>
+                                            <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
+                                        </label>
+                                    }
                                 </div>
                             }
                         </div>
                     }
-                }
+                else if (sessionsCache is null)
+                    {
+                        <div class="wec-empty wec-empty--block">Loading sessions...</div>
+                    }
+                    else if (!DisplaySessions.Any())
+                    {
+                        <div class="wec-empty wec-empty--block">No @SessionTypeLabel(selectedSessionType) sessions for this race.
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var session in DisplaySessions)
+                        {
+                            <div class="wec-session-block">
+                                <div class="wec-session-block__date">@session.SessionDate.ToString("ddd, dd MMM yyyy")</div>
+
+                                @if (!session.DriverStandings.Any())
+                                {
+                                    <div class="wec-empty">No driver standings recorded for this session.</div>
+                                }
+                                else
+                                {
+                                    <div class="wec-table-scroll">
+                                        <table class="wec-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Pos</th>
+                                                    <th>Driver</th>
+                                                    <th>Team</th>
+                                                    <th>Class</th>
+                                                    <th>Best Lap</th>
+                                                    @if (selectedSessionType == SessionType.Race)
+                                                    {
+                                                        <th>Laps</th>
+                                                        <th>Points</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var standing in session.DriverStandings.Where(s =>
+                                string.IsNullOrEmpty(selectedStandingClassFilter) || s.TeamClassName ==
+                                selectedStandingClassFilter))
+                                                {
+                                                    <tr>
+                                                        <td class="wec-table__position">@standing.Position</td>
+                                                        <td>@standing.DriverName</td>
+                                                        <td>@standing.TeamName</td>
+                                                        <td><span class="wec-badge @(GetClassBadgeClass(standing.TeamClassName))">@standing.TeamClassName</span></td>
+                                                        <td>@FormatLap(standing.BestLapTimeMs)</td>
+                                                        @if (selectedSessionType == SessionType.Race)
+                                                        {
+                                                            <td class="wec-table__position">@standing.LapCount</td>
+                                                            <td>@standing.Points</td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
             </div>
         </div>
-    </div>
-}
+    }
 
 @code {
     private List<ChampionshipModel>? championships;
@@ -449,6 +544,8 @@
     private bool isImportingRaceResult;
     private bool isImportingSessionResult;
     private bool isExportingRacePreset;
+    private bool isOpeningStandings;
+    private List<DriverStandingsModel>? driverStandings;
     private string selectedStandingClassFilter = "";
 
     private const string UncategorizedKey = "__uncategorized__";
@@ -662,6 +759,23 @@
         races = (await RaceService.GetRacesBySeasonAsync(selectedSeason.SeasonId)).ToList();
     }
 
+    private async Task OpenStandings()
+    {
+        if (selectedSeason is null)
+        {
+            return;
+        }
+
+        driverStandings = (await SeasonService.GetDriverStandingsAsync(selectedSeason.SeasonId)).ToList();
+
+        isOpeningStandings = true;
+    }
+
+    private void CloseStandings()
+    {
+        isOpeningStandings = false;
+    }
+
     private void OpenRaceCreate()
     {
         if (selectedSeason is null)
@@ -734,7 +848,8 @@
         {
             if (isCreatingRace)
             {
-                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country, editingRace.PointSettingId);
+                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country,
+editingRace.PointSettingId);
             }
             else
             {

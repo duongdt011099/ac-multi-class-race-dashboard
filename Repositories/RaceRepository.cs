@@ -27,6 +27,7 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
         return await _context.Set<Session>()
             .Include(s => s.DriverStandings)
                 .ThenInclude(d => d.Driver)
+                .ThenInclude(t => t.Team)
             .Where(s => s.RaceId == raceId)
             .OrderBy(s => s.SessionType)
             .ThenBy(s => s.SessionDate)
