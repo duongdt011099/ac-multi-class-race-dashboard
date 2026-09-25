@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using multi_class_race_dashboard.Components;
 using Microsoft.EntityFrameworkCore;
 using MulticlassRace.Data;
@@ -7,7 +6,7 @@ using MulticlassRace.Services;
 using MulticlassRace.Services.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Host.UseWindowsService();
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
