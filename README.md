@@ -1,5 +1,6 @@
-# Multi-Class Race Dashboard
+# Asetto Corsa Multi-Class Race Dashboard
 
+<img width="1875" height="589" alt="image" src="https://github.com/user-attachments/assets/e506af2f-be3d-4db4-8be8-c28642521976" />
 <img width="1346" height="676" alt="image" src="https://github.com/user-attachments/assets/a791cc09-e3bb-48e2-bf33-be8da80dbabd" />
 <img width="1331" height="590" alt="image" src="https://github.com/user-attachments/assets/f0f622b7-40a6-446e-a582-975373cd0645" />
 
