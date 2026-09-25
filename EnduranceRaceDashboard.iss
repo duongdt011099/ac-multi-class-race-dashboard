@@ -4,7 +4,7 @@
 #define MyAppExeName "multi-class-race-dashboard.exe"
 #define MyServiceName "EnduranceRace"
 #define MyServiceDisplayName "Endurance Race Manager"
-#define MyPublishDir "D:\multi-class-race-dashboard\publish"
+#define MyPublishDir "publish"
 
 [Setup]
 AppId={{A8E6E5B0-3F2C-4F0A-9B15-6C4A1D2E9F01}
