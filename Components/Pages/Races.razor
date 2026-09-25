@@ -165,6 +165,18 @@
                 }
                 else
                 {
+                    <div class="wec-session-toolbar">
+                        <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
+                        <select id="standing-class-filter" class="wec-result-file-select wec-session-toolbar__select"
+                                value="@selectedStandingsClassFilter" @onchange="HandleStandingsClassFilterChanged">
+                            <option value="">All classes</option>
+                            @foreach (var cls in StandingsClassNames)
+                            {
+                                <option value="@cls">@cls</option>
+                            }
+                        </select>
+                    </div>
+
                     <div class="wec-table-scroll">
                         <table class="wec-table">
                             <thead>
@@ -177,9 +189,9 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @for (int i = 0; i < driverStandings.Count; i++)
+                                @for (int i = 0; i < FilteredStandings.Count; i++)
                                 {
-                                    var standing = driverStandings[i];
+                                    var standing = FilteredStandings[i];
                                     <tr>
                                         <td class="wec-table__position @(i switch
                                             {
@@ -554,6 +566,7 @@
     private bool isOpeningStandings;
     private List<DriverStandingsModel>? driverStandings;
     private string selectedStandingClassFilter = "";
+    private string selectedStandingsClassFilter = "Hypercar";
 
     private const string UncategorizedKey = "__uncategorized__";
 
@@ -774,6 +787,7 @@
         }
 
         driverStandings = (await SeasonService.GetDriverStandingsAsync(selectedSeason.SeasonId)).ToList();
+        selectedStandingsClassFilter = "Hypercar";
 
         isOpeningStandings = true;
     }
@@ -781,6 +795,39 @@
     private void CloseStandings()
     {
         isOpeningStandings = false;
+    }
+
+    private IEnumerable<string> StandingsClassNames =>
+        driverStandings?
+            .Select(s => s.DriverClass)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+        ?? Enumerable.Empty<string>();
+
+    private List<DriverStandingsModel> FilteredStandings
+    {
+        get
+        {
+            if (driverStandings is null)
+            {
+                return new List<DriverStandingsModel>();
+            }
+
+            if (string.IsNullOrEmpty(selectedStandingsClassFilter))
+            {
+                return driverStandings;
+            }
+
+            return driverStandings
+                .Where(s => string.Equals(s.DriverClass, selectedStandingsClassFilter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private void HandleStandingsClassFilterChanged(ChangeEventArgs e)
+    {
+        selectedStandingsClassFilter = e.Value?.ToString() ?? "";
     }
 
     private void OpenRaceCreate()

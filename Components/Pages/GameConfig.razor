@@ -1,6 +1,7 @@
 @page "/gameconfig"
 @rendermode InteractiveServer
 @using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Shared
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
 @inject ToastService Toast
 
@@ -15,20 +16,12 @@
         Configure the paths Assetto Corsa and Content Manager use for game files, presets, and race results.
     </div>
 
-    <div class="wec-form-field">
-        <label for="config-game-path">Game Path</label>
-        <input id="config-game-path" type="text" placeholder="e.g. C:\Program Files (x86)\Steam\steamapps\common\assettocorsa" @bind="config.GamePath" />
-    </div>
-
-    <div class="wec-form-field">
-        <label for="config-preset-path">Preset Path</label>
-        <input id="config-preset-path" type="text" placeholder="e.g. C:\Users\duong\AppData\Local\AcTools Content Manager\Presets" @bind="config.PresetPath" />
-    </div>
-
-    <div class="wec-form-field">
-        <label for="config-results-path">Race Results Path</label>
-        <input id="config-results-path" type="text" placeholder="e.g. ...\out\race_results\0" @bind="config.RaceResultsPath" />
-    </div>
+    <FolderPicker FieldLabel="Game Path" Title="Select Game Path" InputId="config-game-path"
+                  Value="@config.GamePath" ValueChanged="SetGamePath" />
+    <FolderPicker FieldLabel="Preset Path" Title="Select Preset Path" InputId="config-preset-path"
+                  Value="@config.PresetPath" ValueChanged="SetPresetPath" />
+    <FolderPicker FieldLabel="Race Results Path" Title="Select Race Results Path" InputId="config-results-path"
+                  Value="@config.RaceResultsPath" ValueChanged="SetRaceResultsPath" />
 
     <div class="wec-config__actions">
         <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveAsync" disabled="@isSaving">
@@ -48,6 +41,24 @@
         {
             config = existing;
         }
+    }
+
+    private Task SetGamePath(string? value)
+    {
+        config.GamePath = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task SetPresetPath(string? value)
+    {
+        config.PresetPath = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task SetRaceResultsPath(string? value)
+    {
+        config.RaceResultsPath = value ?? string.Empty;
+        return Task.CompletedTask;
     }
 
     private async Task SaveAsync()

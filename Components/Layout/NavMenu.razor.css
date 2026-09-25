@@ -97,6 +97,33 @@
     display: none;
 }
 
+.wec-nav-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 1rem 0.75rem 0;
+    padding: 0.6rem 0.75rem;
+    background-color: rgba(255, 193, 7, 0.18);
+    border: 1px solid rgba(255, 193, 7, 0.55);
+    border-radius: 4px;
+    color: #ffe08a;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+    .wec-nav-warning i {
+        margin-top: 0.1rem;
+    }
+
+.wec-nav-disabled {
+    color: #8a8a8a;
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: none;
+    background: none;
+    text-decoration: none;
+}
+
 .navbar-toggler:checked ~ .nav-scrollable {
     display: block;
 }

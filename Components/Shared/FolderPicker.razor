@@ -1,0 +1,204 @@
+@inject ToastService Toast
+
+<div class="wec-folder-picker">
+    <div class="wec-form-field">
+        <label for="@($"{InputId}-value")">@FieldLabel</label>
+        <div class="wec-folder-picker__row">
+            <input id="@($"{InputId}-value")" type="text" value="@ValueDisplay" readonly
+                   placeholder="Not set" />
+            <button type="button" class="wec-toolbar__btn" @onclick="Open">
+                <i class="bi bi-folder2-open"></i> Browse...
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (isOpen)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>@Title</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-folder-picker__current">@CurrentPathLabel</div>
+
+                <div class="wec-folder-picker__list">
+                    @if (isLoading)
+                    {
+                        <div class="wec-empty">Loading folders...</div>
+                    }
+                    else if (!entries.Any())
+                    {
+                        <div class="wec-empty">No folders here.</div>
+                    }
+                    else
+                    {
+                        @foreach (var entry in entries)
+                        {
+                            <button type="button" class="wec-folder-picker__row"
+                                    @onclick="() => Navigate(entry)">
+                                <i class="bi @(entry.IsDrive ? "bi-hdd" : "bi-folder-fill")" aria-hidden="true"></i>
+                                <span class="wec-folder-picker__row-name">@entry.Name</span>
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoUp">Up</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoHome">My Computer</button>
+                <span class="wec-folder-picker__spacer"></span>
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="Close">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(currentPath == string.Empty)"
+                        @onclick="SelectCurrent">
+                    Select this folder
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed class FolderEntry
+    {
+        public required string Name { get; set; }
+        public required string FullPath { get; set; }
+        public bool IsDrive { get; set; }
+    }
+
+    [Parameter, EditorRequired]
+    public string FieldLabel { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? InputId { get; set; }
+
+    private bool isOpen;
+    private bool isLoading;
+    private string currentPath = string.Empty;
+    private List<FolderEntry> entries = new();
+
+    private string ValueDisplay => string.IsNullOrWhiteSpace(Value) ? "" : Value;
+
+    private string CurrentPathLabel => currentPath == string.Empty
+        ? "My Computer"
+        : currentPath;
+
+    private void Open()
+    {
+        isOpen = true;
+        currentPath = string.IsNullOrWhiteSpace(Value) ? string.Empty : Value;
+        _ = LoadFoldersAsync();
+    }
+
+    private void Close()
+    {
+        isOpen = false;
+    }
+
+    private async Task Navigate(FolderEntry entry)
+    {
+        currentPath = Path.GetFullPath(entry.FullPath);
+        await LoadFoldersAsync();
+    }
+
+    private async Task GoUp()
+    {
+        if (currentPath == string.Empty)
+        {
+            return;
+        }
+
+        var parent = Directory.GetParent(currentPath);
+
+        if (parent is null)
+        {
+            currentPath = string.Empty;
+        }
+        else
+        {
+            currentPath = parent.FullName;
+        }
+
+        await LoadFoldersAsync();
+    }
+
+    private async Task GoHome()
+    {
+        currentPath = string.Empty;
+        await LoadFoldersAsync();
+    }
+
+    private async Task LoadFoldersAsync()
+    {
+        isLoading = true;
+        entries = new List<FolderEntry>();
+
+        try
+        {
+            if (currentPath == string.Empty)
+            {
+                entries = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady && d.DriveType is DriveType.Fixed or DriveType.Network)
+                    .Select(d => new FolderEntry
+                    {
+                        Name = d.Name,
+                        FullPath = d.Name,
+                        IsDrive = true
+                    })
+                    .OrderBy(f => f.Name)
+                    .ToList();
+            }
+            else
+            {
+                entries = Directory.GetDirectories(currentPath)
+                    .Select(full => new FolderEntry
+                    {
+                        Name = Path.GetFileName(full),
+                        FullPath = full,
+                        IsDrive = false
+                    })
+                    .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not read folder: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectCurrent()
+    {
+        var selected = currentPath != string.Empty
+            ? currentPath
+            : entries.FirstOrDefault(e => e.IsDrive)?.FullPath ?? string.Empty;
+
+        if (selected == string.Empty)
+        {
+            Toast.Show("No folder selected.", isError: true);
+            return;
+        }
+
+        await ValueChanged.InvokeAsync(selected);
+        Close();
+    }
+}

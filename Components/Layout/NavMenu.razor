@@ -6,32 +6,78 @@
     </div>
 </div>
 
+@inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    @if (!isConfigured)
+    {
+        <div class="wec-nav-warning" role="alert">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <span>Game hasn't been configured yet. Open <strong>Game Config</strong> to set it up.</span>
+        </div>
+    }
+
     <nav class="nav flex-column">
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Championship
-            </NavLink>
+            @if (isConfigured)
+            {
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Championship
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-trophy-nav-menu" aria-hidden="true"></span> Championship
+                </span>
+            }
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="teams">
-                <span class="bi bi-car-nav-menu" aria-hidden="true"></span> Teams
-            </NavLink>
+            @if (isConfigured)
+            {
+                <NavLink class="nav-link" href="teams">
+                    <span class="bi bi-car-nav-menu" aria-hidden="true"></span> Teams
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-car-nav-menu" aria-hidden="true"></span> Teams
+                </span>
+            }
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="drivers">
-                <span class="bi bi-helmet-nav-menu" aria-hidden="true"></span> Drivers
-            </NavLink>
+            @if (isConfigured)
+            {
+                <NavLink class="nav-link" href="drivers">
+                    <span class="bi bi-helmet-nav-menu" aria-hidden="true"></span> Drivers
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-helmet-nav-menu" aria-hidden="true"></span> Drivers
+                </span>
+            }
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="races">
-                <span class="bi bi-checkered-flag-nav-menu" aria-hidden="true"></span> Races
-            </NavLink>
+            @if (isConfigured)
+            {
+                <NavLink class="nav-link" href="races">
+                    <span class="bi bi-checkered-flag-nav-menu" aria-hidden="true"></span> Races
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-checkered-flag-nav-menu" aria-hidden="true"></span> Races
+                </span>
+            }
         </div>
 
         <div class="nav-item px-3">
@@ -41,10 +87,29 @@
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="pointsettings">
-                <span class="bi bi-scoreboard-nav-menu" aria-hidden="true"></span> Point Settings
-            </NavLink>
+            @if (isConfigured)
+            {
+                <NavLink class="nav-link" href="pointsettings">
+                    <span class="bi bi-scoreboard-nav-menu" aria-hidden="true"></span> Point Settings
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-scoreboard-nav-menu" aria-hidden="true"></span> Point Settings
+                </span>
+            }
         </div>
     </nav>
 </div>
+
+@code {
+    private bool isConfigured;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var config = await ConfigService.GetAsync();
+        isConfigured = !string.IsNullOrWhiteSpace(config?.GamePath);
+    }
+}
 

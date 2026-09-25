@@ -26,6 +26,25 @@ else
         </button>
     </div>
 
+    <div class="wec-filters">
+        <div class="wec-filters__item">
+            <label for="filter-team-search">Search</label>
+            <input id="filter-team-search" type="text" placeholder="Search team or driver name..."
+                   value="@searchTerm" @oninput="HandleSearchChanged" />
+        </div>
+
+        <div class="wec-filters__item">
+            <label for="filter-team-class">Class</label>
+            <select id="filter-team-class" value="@selectedClassFilter" @onchange="HandleClassFilterChanged">
+                <option value="">All classes</option>
+                @foreach (var cls in TeamClassNames)
+                {
+                    <option value="@cls">@cls</option>
+                }
+            </select>
+        </div>
+    </div>
+
     <div class="wec-table-wrapper">
         <table class="wec-table">
             <thead>
@@ -53,7 +72,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @if (!DisplayTeams.Any())
+                @if (!PagedTeams.Any())
                 {
                     <tr>
                         <td colspan="5" class="wec-empty">No teams found</td>
@@ -61,8 +80,8 @@ else
                 }
                 else
                 {
-                    var index = 0;
-                    @foreach (var team in DisplayTeams)
+                    var index = (currentPage - 1) * PageSize;
+                    @foreach (var team in PagedTeams)
                     {
                         index++;
                         <tr>
@@ -98,6 +117,19 @@ else
                 }
             </tbody>
         </table>
+
+        @if (TotalPages > 1)
+        {
+            <div class="wec-pagination">
+                <button type="button" class="wec-pagination__btn" disabled="@(currentPage <= 1)" @onclick="() => currentPage--">
+                    <i class="bi bi-chevron-left"></i> Prev
+                </button>
+                <span class="wec-pagination__info">Page @currentPage of @TotalPages</span>
+                <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)" @onclick="() => currentPage++">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        }
     </div>
 }
 
@@ -277,6 +309,11 @@ else
     private SortColumn sortColumn = SortColumn.Team;
     private bool sortDescending;
     private int searchSequence;
+    private const int PageSize = 10;
+    private int currentPage = 1;
+    private string selectedClassFilter = "";
+    private string searchTerm = "";
+    private List<DriverModel> activeDrivers = new();
 
     private IEnumerable<TeamModel> DisplayTeams
     {
@@ -287,26 +324,84 @@ else
                 return Array.Empty<TeamModel>();
             }
 
+            IEnumerable<TeamModel> filtered = string.IsNullOrEmpty(selectedClassFilter)
+                ? teams
+                : teams.Where(t => string.Equals(t.TeamClass, selectedClassFilter, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                filtered = filtered.Where(t =>
+                    t.TeamName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    activeDrivers.Any(d => d.TeamId == t.TeamId &&
+                        (d.DriverName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)));
+            }
+
             return sortColumn switch
             {
                 SortColumn.Team => sortDescending
-                    ? teams.OrderByDescending(t => t.TeamName)
-                    : teams.OrderBy(t => t.TeamName),
+                    ? filtered.OrderByDescending(t => t.TeamName)
+                    : filtered.OrderBy(t => t.TeamName),
                 SortColumn.Class => sortDescending
-                    ? teams.OrderByDescending(t => t.TeamClass)
-                    : teams.OrderBy(t => t.TeamClass),
+                    ? filtered.OrderByDescending(t => t.TeamClass)
+                    : filtered.OrderBy(t => t.TeamClass),
                 SortColumn.Status => sortDescending
-                    ? teams.OrderByDescending(t => t.IsActive)
-                    : teams.OrderBy(t => t.IsActive),
-                _ => teams
+                    ? filtered.OrderByDescending(t => t.IsActive)
+                    : filtered.OrderBy(t => t.IsActive),
+                _ => filtered
             };
         }
+    }
+
+    private IEnumerable<string> TeamClassNames =>
+        teams?
+            .Select(t => t.TeamClass)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+        ?? Enumerable.Empty<string>();
+
+    private IEnumerable<TeamModel> PagedTeams
+    {
+        get
+        {
+            var all = DisplayTeams.ToList();
+
+            if (currentPage > TotalPages)
+            {
+                currentPage = TotalPages > 0 ? TotalPages : 1;
+            }
+
+            return all.Skip((currentPage - 1) * PageSize).Take(PageSize);
+        }
+    }
+
+    private int TotalPages
+    {
+        get
+        {
+            var count = DisplayTeams.Count();
+            return count == 0 ? 1 : (int)Math.Ceiling(count / (double)PageSize);
+        }
+    }
+
+    private void HandleClassFilterChanged(ChangeEventArgs e)
+    {
+        selectedClassFilter = e.Value?.ToString() ?? "";
+        currentPage = 1;
+    }
+
+    private void HandleSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        currentPage = 1;
     }
 
     protected override async Task OnInitializedAsync()
     {
         teams = (await TeamService.GetActiveTeamsAsync()).ToList();
         teamClasses = (await TeamClassService.GetActiveTeamClassesAsync()).ToList();
+        activeDrivers = (await DriverService.GetActiveDriversAsync()).ToList();
+        currentPage = 1;
     }
 
     private void SortBy(SortColumn column)
@@ -415,6 +510,9 @@ else
             }
 
             teams = (await TeamService.GetActiveTeamsAsync()).ToList();
+            activeDrivers = (await DriverService.GetActiveDriversAsync()).ToList();
+            currentPage = 1;
+            searchTerm = "";
             isSaving = false;
             Toast.Show(isCreating ? "Team created." : "Team updated.");
             CancelEdit();

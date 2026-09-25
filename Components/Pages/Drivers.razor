@@ -28,6 +28,29 @@ else
         <InputFile id="preset-file" accept=".cmpreset" OnChange="HandlePresetImport" class="d-none" />
     </div>
 
+    <div class="wec-filters">
+        <div class="wec-filters__item">
+            <label for="filter-driver-search">Search</label>
+            <input id="filter-driver-search" type="text" placeholder="Search driver or team name..."
+                   value="@searchTerm" @oninput="HandleSearchChanged" />
+        </div>
+
+        <div class="wec-filters__item">
+            <label for="filter-driver-class">Class</label>
+            <select id="filter-driver-class" value="@selectedClassFilter" @onchange="HandleClassFilterChanged">
+                <option value="">All classes</option>
+                @foreach (var cls in DriverClassNames)
+                {
+                    <option value="@cls">@cls</option>
+                }
+                @if (HasUncategorizedDrivers)
+                {
+                    <option value="@UncategorizedKey">Uncategorized</option>
+                }
+            </select>
+        </div>
+    </div>
+
     <div class="wec-table-wrapper">
         <table class="wec-table">
             <thead>
@@ -56,7 +79,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @if (!DisplayDrivers.Any())
+                @if (!PagedDrivers.Any())
                 {
                     <tr>
                         <td colspan="11" class="wec-empty">No drivers found</td>
@@ -64,8 +87,8 @@ else
                 }
                 else
                 {
-                    var index = 0;
-                    @foreach (var driver in DisplayDrivers)
+                    var index = (currentPage - 1) * PageSize;
+                    @foreach (var driver in PagedDrivers)
                     {
                         index++;
                         <tr>
@@ -79,7 +102,9 @@ else
                             <td>
                                 @if (!string.IsNullOrEmpty(driver.CarImageUrl))
                                 {
-                                    <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car" onerror="this.style.display='none'" />
+                                    <button type="button" class="wec-drivers__car-btn" title="View bigger" @onclick="() => OpenCarImage(driver)">
+                                        <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car" onerror="this.style.display='none'" />
+                                    </button>
                                 }
                             </td>
                             <td>@driver.DriverName</td>
@@ -126,6 +151,19 @@ else
                 }
             </tbody>
         </table>
+
+        @if (TotalPages > 1)
+        {
+            <div class="wec-pagination">
+                <button type="button" class="wec-pagination__btn" disabled="@(currentPage <= 1)" @onclick="() => currentPage--">
+                    <i class="bi bi-chevron-left"></i> Prev
+                </button>
+                <span class="wec-pagination__info">Page @currentPage of @TotalPages</span>
+                <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)" @onclick="() => currentPage++">
+                    Next <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        }
     </div>
 }
 
@@ -250,6 +288,26 @@ else
     </div>
 }
 
+@if (viewingCar is not null)
+{
+    <div class="wec-modal-overlay" @onclick="CloseCarImage">
+        <div class="wec-modal wec-modal--wider" @onclick:stopPropagation="true">
+            <div class="wec-modal__header">
+                <span>@viewingCar.Car@(string.IsNullOrEmpty(viewingCar.CarDisplayName) ? "" : $" — {viewingCar.CarDisplayName}")</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseCarImage">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <img src="@viewingCar.CarImageUrl" class="wec-image-viewer__img" alt="@viewingCar.Car" />
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CloseCarImage">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private enum SortColumn
     {
@@ -267,8 +325,14 @@ else
     private bool isImporting;
     private DriverModel? confirmDeleteDriver;
     private bool isDeleting;
+    private DriverModel? viewingCar;
     private SortColumn sortColumn = SortColumn.Driver;
     private bool sortDescending;
+    private const int PageSize = 10;
+    private int currentPage = 1;
+    private string selectedClassFilter = "";
+    private const string UncategorizedKey = "__uncategorized__";
+    private string searchTerm = "";
 
     private IEnumerable<DriverModel> DisplayDrivers
     {
@@ -279,17 +343,79 @@ else
                 return Array.Empty<DriverModel>();
             }
 
+            IEnumerable<DriverModel> filtered = selectedClassFilter switch
+            {
+                "" => drivers,
+                UncategorizedKey => drivers.Where(d => string.IsNullOrWhiteSpace(d.TeamClassName)),
+                _ => drivers.Where(d => string.Equals(d.TeamClassName, selectedClassFilter, StringComparison.OrdinalIgnoreCase))
+            };
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                filtered = filtered.Where(d =>
+                    d.DriverName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    (d.TeamName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
             return sortColumn switch
             {
                 SortColumn.Driver => sortDescending
-                    ? drivers.OrderByDescending(d => d.DriverName)
-                    : drivers.OrderBy(d => d.DriverName),
+                    ? filtered.OrderByDescending(d => d.DriverName)
+                    : filtered.OrderBy(d => d.DriverName),
                 SortColumn.Status => sortDescending
-                    ? drivers.OrderByDescending(d => d.IsActive)
-                    : drivers.OrderBy(d => d.IsActive),
-                _ => drivers
+                    ? filtered.OrderByDescending(d => d.IsActive)
+                    : filtered.OrderBy(d => d.IsActive),
+                _ => filtered
             };
         }
+    }
+
+    private IEnumerable<string> DriverClassNames =>
+        drivers?
+            .Select(d => d.TeamClassName)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!)
+            .Distinct()
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+        ?? Enumerable.Empty<string>();
+
+    private bool HasUncategorizedDrivers =>
+        drivers?.Any(d => string.IsNullOrWhiteSpace(d.TeamClassName)) ?? false;
+
+    private IEnumerable<DriverModel> PagedDrivers
+    {
+        get
+        {
+            var all = DisplayDrivers.ToList();
+
+            if (currentPage > TotalPages)
+            {
+                currentPage = TotalPages > 0 ? TotalPages : 1;
+            }
+
+            return all.Skip((currentPage - 1) * PageSize).Take(PageSize);
+        }
+    }
+
+    private int TotalPages
+    {
+        get
+        {
+            var count = DisplayDrivers.Count();
+            return count == 0 ? 1 : (int)Math.Ceiling(count / (double)PageSize);
+        }
+    }
+
+    private void HandleClassFilterChanged(ChangeEventArgs e)
+    {
+        selectedClassFilter = e.Value?.ToString() ?? "";
+        currentPage = 1;
+    }
+
+    private void HandleSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        currentPage = 1;
     }
 
     protected override async Task OnInitializedAsync()
@@ -301,6 +427,8 @@ else
     private async Task LoadDriversAsync()
     {
         drivers = (await DriverService.GetActiveDriversAsync()).ToList();
+        currentPage = 1;
+        searchTerm = "";
     }
 
     private void SortBy(SortColumn column)
@@ -359,6 +487,16 @@ else
         }
 
         editingDriver.TeamId = Guid.TryParse(e.Value?.ToString(), out var teamId) ? teamId : null;
+    }
+
+    private void OpenCarImage(DriverModel driver)
+    {
+        viewingCar = driver;
+    }
+
+    private void CloseCarImage()
+    {
+        viewingCar = null;
     }
 
     private string GetClassBadgeClass(string? teamClass)
