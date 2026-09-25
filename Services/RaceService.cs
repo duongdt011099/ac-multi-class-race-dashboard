@@ -210,6 +210,7 @@ public class RaceService : IRaceService
 
         foreach (var row in ordered)
         {
+            if (row.Driver.IsHuman && (sessionType == SessionType.Practice || sessionType == SessionType.Qualifying)) continue;
             builder.AddCar(row.Driver.Car, row.Driver.Skin, row.Driver.DriverName, row.Driver.DriverStrength, row.Driver.DriverAgression);
         }
 
@@ -283,6 +284,7 @@ public class RaceService : IRaceService
             if (row.Driver.IsHuman)
             {
                 builder.SetStartingPosition(qualifyingPositionByDriverId.TryGetValue(row.Driver.DriverId, out var pos) ? pos : 1);
+                continue;
             }
             
             builder.AddCar(row.Driver.Car, row.Driver.Skin, row.Driver.DriverName, row.Driver.DriverStrength, row.Driver.DriverAgression);
