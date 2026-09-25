@@ -1292,3 +1292,22 @@
     font-size: 0.8rem;
     color: #71717a;
 }
+
+.wec-table__position--gold,
+.wec-table__position--silver,
+.wec-table__position--bronze {
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.wec-table__position--gold {
+    color: #d4a017;
+}
+
+.wec-table__position--silver {
+    color: #8b949e;
+}
+
+.wec-table__position--bronze {
+    color: #b87333;
+}

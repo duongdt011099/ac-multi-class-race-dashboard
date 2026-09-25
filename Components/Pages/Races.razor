@@ -181,20 +181,27 @@
                                 {
                                     var standing = driverStandings[i];
                                     <tr>
-                                        <td class="wec-table__position">@(i + 1)</td>
-                                        <td>@standing.DriverName</td>
-                                        <td>@standing.TeamName</td>
-                                        <td><span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span></td>
-                                        <td>@standing.Points</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+                                        <td class="wec-table__position @(i switch
+                                            {
+                                                0 => "wec-table__position--gold",
+                                                1 => "wec-table__position--silver",
+                                                2 => "wec-table__position--bronze",
+                                                _ => ""
+                                            })"">@(i + 1)</td>
+                                <td>@standing.DriverName</td>
+                                <td>@standing.TeamName</td>
+                                <td><span class=" wec-badge @(GetClassBadgeClass(standing.DriverClass))">
+                                    @standing.DriverClass</span></td>
+                                    <td>@standing.Points</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
     </div>
+</div>
 }
 
 @if (editingRace is not null)

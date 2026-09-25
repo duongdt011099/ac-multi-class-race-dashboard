@@ -66,24 +66,22 @@ public class SeasonService : ISeasonService
             throw new InvalidOperationException("Season not found.");
         }
 
-        var raceSessions = (await Task.WhenAll(races.Select(async race =>
-        {
-            var sessions = await _raceRepository.GetSessionsByRaceAsync(race.RaceId);
-
-            if (sessions is null)
+        var raceSessions = (await Task.WhenAll(
+            races.Select(async race =>
             {
-                throw new InvalidOperationException("Sessions not found for race.");
-            }
+                var sessions = await _raceRepository.GetSessionsByRaceAsync(race.RaceId);
 
-            var raceSession = sessions.FirstOrDefault(s => s.SessionType == SessionType.Race);
+                if (sessions is null)
+                {
+                    throw new InvalidOperationException("Sessions not found for race.");
+                }
 
-            if (raceSession is null)
-            {
-                throw new InvalidOperationException("No race sessions found for race.");
-            }
-
-            return raceSession;
-        }).ToArray())).ToList();
+                return sessions.FirstOrDefault(s => s.SessionType == SessionType.Race);
+            })
+        ))
+        .Where(session => session is not null)
+        .Select(session => session!)
+        .ToList();
 
         if (!raceSessions.Any())
         {
