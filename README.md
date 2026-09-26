@@ -57,3 +57,11 @@ Save the configuration once and you are ready to go.
 - If two drivers use the same car and skin combo, load their results once with the right driver selected so they are not mixed up.
 - If a result needs correcting, import the file again in place of the old one.
 - Results come from the Multi_Class output; make sure the folder you enter in Game Config is the one those files are saved to.
+
+## License
+
+This project is licensed under the **MIT License** with additional terms. See the [`LICENSE`](LICENSE) file for the full text.
+
+- You may **read, study, and contribute** to the source code.
+- The **author credit** ("Duong Do") must not be removed or changed in any copy or derivative work.
+- Redistributing or publishing the **complete source code** as a standalone repository or release is **not permitted**.
