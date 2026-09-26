@@ -1,6 +1,10 @@
 # Asetto Corsa Multi-Class Race Dashboard
+<span style="color:red"><strong><em>Prerequisites: This application requires [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) app to work properly in Practice/Qualifying Sessions</em></strong></span>
+
 <img width="1346" height="676" alt="image" src="https://github.com/user-attachments/assets/a791cc09-e3bb-48e2-bf33-be8da80dbabd" />
 <img width="1331" height="590" alt="image" src="https://github.com/user-attachments/assets/f0f622b7-40a6-446e-a582-975373cd0645" />
+<img width="1334" height="846" alt="image" src="https://github.com/user-attachments/assets/8a178ef6-cc41-4093-9a9f-8fffed9ca8a6" />
+
 
 The Multi-Class Race Dashboard helps you run and manage a multi-class racing championship — Hypercar, LMP2 and GT3 — in Assetto Corsa and Content Manager. It covers everything from your entry list to the final race results and championship points, all in one place.
 
@@ -29,7 +33,7 @@ To use the dashboard you need:
 
 - Assetto Corsa installed
 - Content Manager installed
-- The Multi_Class Lua app installed for Content Manager (this is what produces the result files the dashboard reads)
+- The [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) app installed for Content Manager (this is what produces the result files the dashboard reads)
 - The dashboard installed (see above)
 
 ## First-time setup
@@ -48,7 +52,7 @@ Save the configuration once and you are ready to go.
 2. **Create the races.** Open the season and add each race event (name, country, and a point system — create one on the **Point Settings** page first if you haven't).
 3. **Add teams and drivers.** Use the **Teams** and **Drivers** pages. You can create drivers one by one, or add a whole batch from a preset file.
 4. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
-5. **Practice and Qualifying.** After the session, import its result file (the one produced by the Multi_Class app). The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
+5. **Practice and Qualifying.** After the session, import its result file (the one produced by the [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) app). The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
 6. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
 
 ## Tips
@@ -65,3 +69,4 @@ This project is licensed under the **MIT License** with additional terms. See th
 - You may **read, study, and contribute** to the source code.
 - The **author credit** ("Duong Do") must not be removed or changed in any copy or derivative work.
 - Redistributing or publishing the **complete source code** as a standalone repository or release is **not permitted**.
+- Results come from the [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) output; make sure the folder you enter in Game Config is the one those files are saved to.
