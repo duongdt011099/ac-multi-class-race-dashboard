@@ -3,6 +3,8 @@
 
 <img width="1346" height="676" alt="image" src="https://github.com/user-attachments/assets/a791cc09-e3bb-48e2-bf33-be8da80dbabd" />
 <img width="1331" height="590" alt="image" src="https://github.com/user-attachments/assets/f0f622b7-40a6-446e-a582-975373cd0645" />
+<img width="1334" height="846" alt="image" src="https://github.com/user-attachments/assets/8a178ef6-cc41-4093-9a9f-8fffed9ca8a6" />
+
 
 The Multi-Class Race Dashboard helps you run and manage a multi-class racing championship — Hypercar, LMP2 and GT3 — in Assetto Corsa and Content Manager. It covers everything from your entry list to the final race results and championship points, all in one place.
 
