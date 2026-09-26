@@ -50,7 +50,7 @@ Save the configuration once and you are ready to go.
 2. **Create the races.** Open the season and add each race event (name, country, and a point system — create one on the **Point Settings** page first if you haven't).
 3. **Add teams and drivers.** Use the **Teams** and **Drivers** pages. You can create drivers one by one, or add a whole batch from a preset file.
 4. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
-5. **Practice and Qualifying.** After the session, import its result file (the one produced by the Multi_Class app). The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
+5. **Practice and Qualifying.** After the session, import its result file (the one produced by the Multi_Class app). The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager. The Practice/Qualifying sessions could be imported from the Race Leaderboard app.
 6. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
 
 ## Tips
