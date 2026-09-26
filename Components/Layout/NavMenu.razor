@@ -7,8 +7,11 @@
 </div>
 
 @rendermode InteractiveServer
+@using MulticlassRace.ViewModels
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.Abstractions.IDriverService DriverService
 @inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
+@inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
 @inject NavigationManager Nav
 @implements IDisposable
 
@@ -24,6 +27,41 @@
     }
 
     <nav class="nav flex-column">
+        <div class="wec-nav-human">
+            @if (humanDriver is not null)
+            {
+                <div class="wec-nav-human__title">
+                    <span class="bi bi-person-nav" aria-hidden="true"></span> Current Human Driver
+                </div>
+                <div class="wec-nav-human__card">
+                    <div class="wec-nav-human__row">
+                        @if (!string.IsNullOrWhiteSpace(humanDriver.CarImageUrl))
+                        {
+                            <img src="@humanDriver.CarImageUrl" alt="@humanDriver.CarDisplayName" class="wec-nav-human__car-img" onerror="this.style.display='none'" />
+                        }
+                        <div class="wec-nav-human__info">
+                            <span class="wec-nav-human__name">@humanDriver.DriverName</span>
+                            <span class="wec-nav-human__car">@humanDriver.CarDisplayName</span>
+                        </div>
+                    </div>
+                    <div class="wec-nav-human__row wec-nav-human__team">
+                        @if (!string.IsNullOrWhiteSpace(humanDriver.TeamLogo))
+                        {
+                            <img src="@humanDriver.TeamLogo" alt="@humanDriver.TeamName" class="wec-nav-human__logo" />
+                        }
+                        <span>@(humanDriver.TeamName ?? "No team")</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="wec-nav-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                    <span>No human driver selected.</span>
+                </div>
+            }
+        </div>
+
         <div class="nav-item px-3">
             @if (isConfigured)
             {
@@ -109,23 +147,25 @@
 
 @code {
     private bool isConfigured;
+    private DriverModel? humanDriver;
 
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
         ConfigNotifier.Changed += OnConfigChanged;
+        DriverNotifier.Changed += OnDriverChanged;
     }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadConfigAsync();
+        await LoadStateAsync();
     }
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         try
         {
-            await LoadConfigAsync();
+            await LoadStateAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch
@@ -137,7 +177,7 @@
     {
         try
         {
-            await LoadConfigAsync();
+            await LoadStateAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch
@@ -145,16 +185,32 @@
         }
     }
 
-    private async Task LoadConfigAsync()
+    private async void OnDriverChanged()
+    {
+        try
+        {
+            await LoadStateAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task LoadStateAsync()
     {
         var config = await ConfigService.GetAsync();
         isConfigured = !string.IsNullOrWhiteSpace(config?.GamePath);
+
+        var drivers = await DriverService.GetActiveDriversAsync();
+        humanDriver = drivers.FirstOrDefault(d => d.IsHuman);
     }
 
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
         ConfigNotifier.Changed -= OnConfigChanged;
+        DriverNotifier.Changed -= OnDriverChanged;
     }
 }
 

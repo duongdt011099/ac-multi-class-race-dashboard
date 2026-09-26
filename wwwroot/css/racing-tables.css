@@ -847,6 +847,21 @@
     margin-bottom: 0;
 }
 
+.wec-form-field--disabled {
+    cursor: not-allowed;
+}
+
+.wec-form-field--disabled input[type="checkbox"] {
+    cursor: not-allowed;
+    opacity: 0.55;
+    accent-color: #71717a;
+}
+
+.wec-form-field--disabled label {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .wec-form-field--number input {
     width: 5rem;
     padding: 0.35rem 0.5rem;
@@ -1453,6 +1468,16 @@
 
 .wec-folder-picker__list .wec-folder-picker__row:hover {
     background: #fff1f1;
+}
+
+.wec-folder-picker__list .wec-folder-picker__row--selected,
+.wec-folder-picker__list .wec-folder-picker__row--selected:hover {
+    background: #ffe0e0;
+    font-weight: 600;
+}
+
+.wec-folder-picker__list .wec-folder-picker__row .bi-file-earmark-text {
+    color: #71717a;
 }
 
 .wec-folder-picker__list .wec-folder-picker__row .bi {

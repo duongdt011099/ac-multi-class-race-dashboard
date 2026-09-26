@@ -1,17 +1,18 @@
 @inject ToastService Toast
 
-<div class="wec-folder-picker">
+@if (ShowBrowseButton)
+{
     <div class="wec-form-field">
         <label for="@($"{InputId}-value")">@FieldLabel</label>
         <div class="wec-folder-picker__row">
             <input id="@($"{InputId}-value")" type="text" value="@ValueDisplay" readonly
                    placeholder="Not set" />
-            <button type="button" class="wec-toolbar__btn" @onclick="Open">
+            <button type="button" class="wec-toolbar__btn" @onclick="() => Open()">
                 <i class="bi bi-folder2-open"></i> Browse...
             </button>
         </div>
     </div>
-</div>
+}
 
 @if (isOpen)
 {
@@ -29,19 +30,20 @@
                 <div class="wec-folder-picker__list">
                     @if (isLoading)
                     {
-                        <div class="wec-empty">Loading folders...</div>
+                        <div class="wec-empty">Loading...</div>
                     }
                     else if (!entries.Any())
                     {
-                        <div class="wec-empty">No folders here.</div>
+                        <div class="wec-empty">Nothing here.</div>
                     }
                     else
                     {
                         @foreach (var entry in entries)
                         {
-                            <button type="button" class="wec-folder-picker__row"
-                                    @onclick="() => Navigate(entry)">
-                                <i class="bi @(entry.IsDrive ? "bi-hdd" : "bi-folder-fill")" aria-hidden="true"></i>
+                            <button type="button"
+                                    class="wec-folder-picker__row @(IncludeFiles && entry.IsFile && selectedPath == entry.FullPath ? "wec-folder-picker__row--selected" : null)"
+                                    @onclick="() => OnEntryClick(entry)">
+                                <i class="bi @(entry.IsDrive ? "bi-hdd" : entry.IsFile ? "bi-file-earmark-text" : "bi-folder-fill")" aria-hidden="true"></i>
                                 <span class="wec-folder-picker__row-name">@entry.Name</span>
                             </button>
                         }
@@ -53,9 +55,10 @@
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoHome">My Computer</button>
                 <span class="wec-folder-picker__spacer"></span>
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="Close">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(currentPath == string.Empty)"
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(!CanSelect)"
+                        title="@(IncludeFiles ? "Select the highlighted file" : "Select this folder")"
                         @onclick="SelectCurrent">
-                    Select this folder
+                    @(IncludeFiles ? "Select this file" : "Select this folder")
                 </button>
             </div>
         </div>
@@ -68,6 +71,7 @@
         public required string Name { get; set; }
         public required string FullPath { get; set; }
         public bool IsDrive { get; set; }
+        public bool IsFile { get; set; }
     }
 
     [Parameter, EditorRequired]
@@ -85,9 +89,22 @@
     [Parameter]
     public string? InputId { get; set; }
 
+    [Parameter]
+    public bool IncludeFiles { get; set; }
+
+    [Parameter]
+    public string FilePattern { get; set; } = "*.cmpreset";
+
+    [Parameter]
+    public bool ShowBrowseButton { get; set; } = true;
+
+    [Parameter]
+    public string? RootPath { get; set; }
+
     private bool isOpen;
     private bool isLoading;
     private string currentPath = string.Empty;
+    private string? selectedPath;
     private List<FolderEntry> entries = new();
 
     private string ValueDisplay => string.IsNullOrWhiteSpace(Value) ? "" : Value;
@@ -96,11 +113,25 @@
         ? "My Computer"
         : currentPath;
 
-    private void Open()
+    private bool CanSelect => IncludeFiles
+        ? selectedPath is not null
+        : currentPath != string.Empty;
+
+    public void Open(string? startPath = null)
     {
         isOpen = true;
-        currentPath = string.IsNullOrWhiteSpace(Value) ? string.Empty : Value;
-        _ = LoadFoldersAsync();
+
+        var resolved = string.IsNullOrWhiteSpace(startPath) ? Value : startPath;
+        var path = string.IsNullOrWhiteSpace(resolved) ? string.Empty : resolved.Trim();
+
+        if (path != string.Empty && !Directory.Exists(path))
+        {
+            path = string.Empty;
+        }
+
+        currentPath = path;
+        selectedPath = null;
+        _ = LoadEntriesAsync();
     }
 
     private void Close()
@@ -108,10 +139,23 @@
         isOpen = false;
     }
 
+    private async Task OnEntryClick(FolderEntry entry)
+    {
+        if (IncludeFiles && entry.IsFile)
+        {
+            selectedPath = entry.FullPath;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await Navigate(entry);
+    }
+
     private async Task Navigate(FolderEntry entry)
     {
         currentPath = Path.GetFullPath(entry.FullPath);
-        await LoadFoldersAsync();
+        selectedPath = null;
+        await LoadEntriesAsync();
     }
 
     private async Task GoUp()
@@ -127,21 +171,27 @@
         {
             currentPath = string.Empty;
         }
+        else if (RootPath is not null && !IsInsideRoot(parent.FullName))
+        {
+            currentPath = RootPath;
+        }
         else
         {
             currentPath = parent.FullName;
         }
 
-        await LoadFoldersAsync();
+        selectedPath = null;
+        await LoadEntriesAsync();
     }
 
     private async Task GoHome()
     {
         currentPath = string.Empty;
-        await LoadFoldersAsync();
+        selectedPath = null;
+        await LoadEntriesAsync();
     }
 
-    private async Task LoadFoldersAsync()
+    private async Task LoadEntriesAsync()
     {
         isLoading = true;
         entries = new List<FolderEntry>();
@@ -172,6 +222,18 @@
                     })
                     .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList();
+
+                if (IncludeFiles)
+                {
+                    entries.AddRange(Directory.GetFiles(currentPath, FilePattern)
+                        .Select(full => new FolderEntry
+                        {
+                            Name = Path.GetFileName(full),
+                            FullPath = full,
+                            IsFile = true
+                        })
+                        .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase));
+                }
             }
         }
         catch (Exception ex)
@@ -188,17 +250,41 @@
 
     private async Task SelectCurrent()
     {
-        var selected = currentPath != string.Empty
-            ? currentPath
-            : entries.FirstOrDefault(e => e.IsDrive)?.FullPath ?? string.Empty;
-
-        if (selected == string.Empty)
+        if (!CanSelect)
         {
-            Toast.Show("No folder selected.", isError: true);
+            Toast.Show(IncludeFiles
+                ? "Select a file first."
+                : "No folder selected.", isError: true);
+            return;
+        }
+
+        var selected = IncludeFiles
+            ? selectedPath
+            : currentPath != string.Empty
+                ? currentPath
+                : entries.FirstOrDefault(e => e.IsDrive)?.FullPath ?? string.Empty;
+
+        if (string.IsNullOrEmpty(selected))
+        {
+            Toast.Show(IncludeFiles
+                ? "Select a file first."
+                : "No folder selected.", isError: true);
             return;
         }
 
         await ValueChanged.InvokeAsync(selected);
         Close();
+    }
+
+    private bool IsInsideRoot(string path)
+    {
+        var rootFull = Path.GetFullPath(
+            RootPath!.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+            Path.DirectorySeparatorChar);
+
+        var full = Path.GetFullPath(path);
+
+        return full.Equals(rootFull, StringComparison.OrdinalIgnoreCase) ||
+               full.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
     }
 }

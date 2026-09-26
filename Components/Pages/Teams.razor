@@ -5,6 +5,7 @@
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
 @inject MulticlassRace.Services.Abstractions.ITeamClassService TeamClassService
 @inject MulticlassRace.Services.Abstractions.IDriverService DriverService
+@inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject ToastService Toast
 
@@ -514,6 +515,7 @@ else
             currentPage = 1;
             searchTerm = "";
             isSaving = false;
+            DriverNotifier.NotifyChanged();
             Toast.Show(isCreating ? "Team created." : "Team updated.");
             CancelEdit();
         }

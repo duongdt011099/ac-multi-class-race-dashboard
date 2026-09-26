@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IPointSettingService, PointSettingService>();
         services.AddScoped<ToastService>();
         services.AddScoped<GameConfigChangeNotifier>();
+        services.AddScoped<DriverDataChangeNotifier>();
 
         return services;
     }

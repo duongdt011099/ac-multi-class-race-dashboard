@@ -8,6 +8,8 @@ namespace MulticlassRace.Services;
 
 public class DriverService : IDriverService
 {
+    private const long MaxPresetSizeBytes = 2 * 1024 * 1024;
+
     private readonly IDriverRepository _driverRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly ITeamRepository _teamRepository;
@@ -45,6 +47,11 @@ public class DriverService : IDriverService
 
     public async Task CreateDriverAsync(DriverFormModel model)
     {
+        if (model.IsHuman)
+        {
+            await _driverRepository.UnsetHumanFlagAsync();
+        }
+
         var driver = new Driver
         {
             DriverId = Guid.NewGuid(),
@@ -71,6 +78,11 @@ public class DriverService : IDriverService
         if (driver is null)
         {
             return;
+        }
+
+        if (model.IsHuman)
+        {
+            await _driverRepository.UnsetHumanFlagAsync(model.DriverId);
         }
 
         driver.DriverName = model.DriverName.Trim();
@@ -143,6 +155,24 @@ public class DriverService : IDriverService
             Added = added,
             Skipped = drivers.Count - added
         };
+    }
+
+    public async Task<PresetImportResult> ImportAssettoCorsaPresetFileAsync(string presetFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(presetFilePath) || !File.Exists(presetFilePath))
+        {
+            throw new InvalidOperationException("The selected preset file no longer exists.");
+        }
+
+        var file = new FileInfo(presetFilePath);
+
+        if (file.Length > MaxPresetSizeBytes)
+        {
+            throw new InvalidOperationException("Preset file must be 2MB or smaller.");
+        }
+
+        await using var stream = file.OpenRead();
+        return await ImportAssettoCorsaPresetAsync(stream, file.Name);
     }
 
     private async Task<string?> GetGamePathAsync()

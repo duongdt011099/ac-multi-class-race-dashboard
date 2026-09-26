@@ -81,4 +81,11 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
 
         return toAdd.Count;
     }
+
+    public async Task UnsetHumanFlagAsync(Guid? exceptDriverId = null)
+    {
+        await _context.Driver
+            .Where(d => d.IsHuman && (exceptDriverId == null || d.DriverId != exceptDriverId.Value))
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.IsHuman, false));
+    }
 }

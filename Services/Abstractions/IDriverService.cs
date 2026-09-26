@@ -11,4 +11,5 @@ public interface IDriverService
     Task UpdateDriverAsync(DriverFormModel model);
     Task DeleteDriverAsync(Guid driverId);
     Task<PresetImportResult> ImportAssettoCorsaPresetAsync(Stream presetStream, string presetName);
+    Task<PresetImportResult> ImportAssettoCorsaPresetFileAsync(string presetFilePath);
 }
