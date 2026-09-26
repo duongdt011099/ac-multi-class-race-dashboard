@@ -6,6 +6,7 @@ using MulticlassRace.Data;
 using MulticlassRace.Repositories;
 using MulticlassRace.Services;
 using MulticlassRace.Services.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService();
@@ -35,6 +36,24 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();
+
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value;
+    var isProtected = path is "/" or "/teams" or "/drivers" or "/races" or "/pointsettings";
+    if (isProtected)
+    {
+        var configService = context.RequestServices.GetRequiredService<IAssettoCorsaGameConfigService>();
+        var config = await configService.GetAsync();
+        if (config is null || string.IsNullOrWhiteSpace(config.GamePath))
+        {
+            context.Response.Redirect("/gameconfig");
+            return;
+        }
+    }
+
+    await next();
+});
 
 var uploadsRoot = Path.Combine(
     app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"),

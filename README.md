@@ -17,7 +17,7 @@ The Multi-Class Race Dashboard helps you run and manage a multi-class racing cha
 ## Installing the app
 
 1. Open the **GitHub Releases** page for this project.
-2. Download the installer (`Multi-Class-Race-Dashboard-Setup.exe`).
+2. Download the installer (`EnduranceRaceDashboardSetup.exe`).
 3. Run the installer. If Windows shows a security prompt, choose **More info → Run anyway**.
 4. Follow the on-screen steps and choose where to install it.
 5. When finished, open your browser and go to `http://127.0.0.1:5000` — bookmark it for easy access.

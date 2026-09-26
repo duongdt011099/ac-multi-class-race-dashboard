@@ -3,6 +3,7 @@
 @using MulticlassRace.ViewModels
 @using multi_class_race_dashboard.Components.Shared
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
 @inject ToastService Toast
 
 <PageTitle>Game Config</PageTitle>
@@ -73,6 +74,7 @@
         try
         {
             var created = await ConfigService.SaveAsync(config);
+            ConfigNotifier.NotifyChanged();
             Toast.Show(created ? "Configuration created." : "Configuration saved.");
         }
         finally

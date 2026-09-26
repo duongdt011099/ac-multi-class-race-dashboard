@@ -1,0 +1,46 @@
+@inject NavigationManager Nav
+@inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+
+@if (showContent)
+{
+    <RouteView RouteData="RouteData" DefaultLayout="typeof(Layout.MainLayout)" />
+    <FocusOnNavigate RouteData="RouteData" Selector="h1" />
+}
+
+@code {
+    [Parameter]
+    public RouteData RouteData { get; set; } = default!;
+
+    private bool showContent = true;
+    private bool isConfigured = true;
+
+    private bool IsGameConfigRoute
+    {
+        get
+        {
+            var path = Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+            return string.Equals(path, "gameconfig", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsGameConfigRoute)
+        {
+            showContent = true;
+            return;
+        }
+
+        var config = await ConfigService.GetAsync();
+        isConfigured = !string.IsNullOrWhiteSpace(config?.GamePath);
+        showContent = isConfigured;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!isConfigured && !IsGameConfigRoute && RendererInfo.IsInteractive)
+        {
+            Nav.NavigateTo("gameconfig", replace: true);
+        }
+    }
+}

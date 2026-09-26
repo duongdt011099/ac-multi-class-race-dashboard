@@ -177,39 +177,74 @@
                         </select>
                     </div>
 
-                    <div class="wec-table-scroll">
-                        <table class="wec-table">
-                            <thead>
-                                <tr>
-                                    <th>Pos</th>
-                                    <th>Driver</th>
-                                    <th>Team</th>
-                                    <th>Class</th>
-                                    <th>Points</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (int i = 0; i < FilteredStandings.Count; i++)
+                    var podium = FilteredStandings.Take(3).ToList();
+                    var podiumSlots = new[] { 1, 0, 2 };
+                    var podiumPositions = new[] { 2, 1, 3 };
+                    var podiumStyles = new[] { "second", "first", "third" };
+                    <div class="wec-podium">
+                        @for (int slot = 0; slot < 3; slot++)
+                        {
+                            var pos = podiumPositions[slot];
+                            var standing = podium.Count > podiumSlots[slot] ? podium[podiumSlots[slot]] : null;
+                            <div class="wec-podium__slot @(podiumStyles[slot])">
+                                @if (standing is not null)
                                 {
-                                    var standing = FilteredStandings[i];
-                                    <tr>
-                                        <td class="wec-table__position @(i switch
+                                    <div class="wec-podium__card wec-podium__card--@(podiumStyles[slot])">
+                                        <div class="wec-podium__pos">@pos</div>
+                                        <div class="wec-podium__logo-wrap">
+                                            @if (!string.IsNullOrWhiteSpace(standing.TeamLogoUrl))
                                             {
-                                                0 => "wec-table__position--gold",
-                                                1 => "wec-table__position--silver",
-                                                2 => "wec-table__position--bronze",
-                                                _ => ""
-                                            })"">@(i + 1)</td>
-                                <td>@standing.DriverName</td>
-                                <td>@standing.TeamName</td>
-                                <td><span class=" wec-badge @(GetClassBadgeClass(standing.DriverClass))">
-                                    @standing.DriverClass</span></td>
-                                    <td>@standing.Points</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                                                <img src="@standing.TeamLogoUrl" alt="@standing.TeamName" class="wec-podium__logo" />
+                                            }
+                                            else
+                                            {
+                                                <span class="wec-podium__logo wec-podium__logo--fallback">
+                                                    @standing.TeamName[..Math.Min(2, standing.TeamName.Length)].ToUpper()
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="wec-podium__name">@standing.DriverName</div>
+                                        <div class="wec-podium__points">@standing.Points<span class="wec-podium__points-label"> pts</span></div>
+                                        <div>
+                                            <span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span>
+                                        </div>
+                                    </div>
+                                }
+                                <div class="wec-podium__step wec-podium__step--@(podiumStyles[slot])"></div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (FilteredStandings.Count > 3)
+                    {
+                        var remainingStandings = FilteredStandings.Skip(3).ToList();
+                        <div class="wec-table-scroll">
+                            <table class="wec-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pos</th>
+                                        <th>Driver</th>
+                                        <th>Team</th>
+                                        <th>Class</th>
+                                        <th>Points</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < remainingStandings.Count; i++)
+                                    {
+                                        var standing = remainingStandings[i];
+                                        <tr>
+                                            <td class="wec-table__position">@(i + 4)</td>
+                                            <td>@standing.DriverName</td>
+                                            <td>@standing.TeamName</td>
+                                            <td><span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span></td>
+                                            <td>@standing.Points</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
             }
         </div>
     </div>

@@ -6,7 +6,11 @@
     </div>
 </div>
 
+@rendermode InteractiveServer
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
+@inject NavigationManager Nav
+@implements IDisposable
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
@@ -106,10 +110,51 @@
 @code {
     private bool isConfigured;
 
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        ConfigNotifier.Changed += OnConfigChanged;
+    }
+
     protected override async Task OnInitializedAsync()
+    {
+        await LoadConfigAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        try
+        {
+            await LoadConfigAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+        }
+    }
+
+    private async void OnConfigChanged()
+    {
+        try
+        {
+            await LoadConfigAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task LoadConfigAsync()
     {
         var config = await ConfigService.GetAsync();
         isConfigured = !string.IsNullOrWhiteSpace(config?.GamePath);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        ConfigNotifier.Changed -= OnConfigChanged;
     }
 }
 
