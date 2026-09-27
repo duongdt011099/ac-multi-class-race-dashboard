@@ -2,6 +2,7 @@ using multi_class_race_dashboard.Components;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using MulticlassRace.Configuration;
 using MulticlassRace.Data;
 using MulticlassRace.Repositories;
 using MulticlassRace.Services;
@@ -17,6 +18,15 @@ builder.Services.AddRazorComponents()
 builder.Services.RegisterDbContext(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.RegisterRepositories();
 builder.Services.RegisterServices();
+
+builder.Services.Configure<UpdateCheckOptions>(builder.Configuration.GetSection(UpdateCheckOptions.SectionName));
+builder.Services.AddSingleton<AppVersionProvider>();
+builder.Services.AddSingleton<UpdateStateService>();
+builder.Services.AddHttpClient(UpdateCheckWorker.HttpClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHostedService<UpdateCheckWorker>();
 
 var app = builder.Build();
 

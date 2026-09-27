@@ -16,6 +16,8 @@ DefaultDirName={autopf}\EnduranceRace
 DefaultGroupName={#MyAppName}
 
 OutputDir=installer
+; Must match UpdateCheck:InstallerFileName in appsettings.json - the update
+; notification links the .exe produced by OutputBaseFilename as its download.
 OutputBaseFilename=EnduranceRaceDashboardSetup
 Compression=lzma
 SolidCompression=yes

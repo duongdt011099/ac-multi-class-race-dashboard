@@ -30,6 +30,8 @@ public class AppDbContext : DbContext
 
     public DbSet<PointSetting> PointSettings => Set<PointSetting>();
 
+    public DbSet<AppUpdateState> AppUpdateStates => Set<AppUpdateState>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Race>()

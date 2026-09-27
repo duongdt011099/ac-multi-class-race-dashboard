@@ -1,0 +1,145 @@
+@rendermode InteractiveServer
+@using System.Globalization
+@using multi_class_race_dashboard.Components.Shared
+@inject UpdateStateService StateService
+@inject AppVersionProvider VersionProvider
+@inject MulticlassRace.Services.Abstractions.IAppUpdatePreferenceService UpdatePreferences
+@implements IDisposable
+
+@if (availability is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal">
+            <div class="wec-modal__header">
+                <span>Update Available</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="DismissAsync">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <p class="wec-update__summary">
+                    Version <strong>v@(availability.LatestVersion)</strong> is available.
+                    You are running <strong>v@(currentVersion)</strong>.
+                </p>
+                <p class="wec-update__published">
+                    Published @availability.PublishedAt.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                </p>
+                @if (availability.Installer is not null)
+                {
+                    <p class="wec-update__asset">
+                        <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
+                        <span>@availability.Installer.Name (@FormatSize(availability.Installer.SizeInBytes))</span>
+                    </p>
+                }
+                @if (!string.IsNullOrWhiteSpace(truncatedNotes))
+                {
+                    <div class="wec-update__notes">@truncatedNotes</div>
+                }
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
+                    Later
+                </button>
+                <a class="wec-modal__btn wec-modal__btn--secondary" href="@availability.ReleaseUrl" target="_blank" rel="noopener">
+                    View Release
+                </a>
+                @if (availability.Installer is not null)
+                {
+                    <a class="wec-modal__btn wec-modal__btn--primary" href="@availability.Installer.DownloadUrl" target="_blank" rel="noopener"
+                       @onclick="DismissAsync">
+                        Download Update
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const int MaxNotesLength = 1500;
+
+    private UpdateAvailability? availability;
+    private string? truncatedNotes;
+    private string currentVersion = string.Empty;
+    private bool isDismissing;
+
+    protected override void OnInitialized()
+    {
+        currentVersion = VersionProvider.CurrentVersion;
+        ApplyAvailability(StateService.Current);
+        StateService.AvailabilityChanged += OnAvailabilityChanged;
+    }
+
+    private void OnAvailabilityChanged()
+    {
+        InvokeAsync(() =>
+        {
+            ApplyAvailability(StateService.Current);
+            StateHasChanged();
+        });
+    }
+
+    private void ApplyAvailability(UpdateAvailability? value)
+    {
+        availability = value;
+        truncatedNotes = Truncate(value?.ReleaseNotes);
+        isDismissing = false;
+    }
+
+    private async Task DismissAsync()
+    {
+        if (isDismissing || availability is null)
+        {
+            return;
+        }
+
+        isDismissing = true;
+
+        try
+        {
+            await UpdatePreferences.MarkSeenAsync(availability.TagName);
+            StateService.Clear();
+        }
+        catch
+        {
+            isDismissing = false;
+        }
+    }
+
+    private static string? Truncate(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        var trimmed = notes.Trim();
+
+        return trimmed.Length <= MaxNotesLength
+            ? trimmed
+            : string.Concat(trimmed.AsSpan(0, MaxNotesLength).TrimEnd(), "...");
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["KB", "MB", "GB"];
+
+        double size = bytes;
+        var unitIndex = -1;
+
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex < 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{bytes} B")
+            : string.Create(CultureInfo.InvariantCulture, $"{size:0.0} {units[unitIndex]}");
+    }
+
+    public void Dispose()
+    {
+        StateService.AvailabilityChanged -= OnAvailabilityChanged;
+    }
+}

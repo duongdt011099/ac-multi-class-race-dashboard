@@ -92,11 +92,19 @@
                         <label for="setting-name">Name</label>
                         <input id="setting-name" type="text" placeholder="e.g. WEC Season" @bind="editingSetting.SettingName" />
                     </div>
-                    <div class="wec-form-field wec-form-field--checkbox">
-                        <input id="setting-default" type="checkbox" @bind="editingSetting.IsDefault" />
+                    <div class="wec-form-field wec-form-field--checkbox @(CanToggleDefault ? null : "wec-form-field--disabled")" title="@(CanToggleDefault ? null : $"Another point setting is already the default: {DefaultSettingName}")">
+                        <input id="setting-default" type="checkbox" @bind="editingSetting.IsDefault" disabled="@(!CanToggleDefault)" />
                         <label for="setting-default">Is Default</label>
                     </div>
                 </div>
+
+                @if (!CanToggleDefault)
+                {
+                    <p class="wec-form-hint">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <span><strong>@DefaultSettingName</strong> is currently the default. Uncheck it first to make this the default.</span>
+                    </p>
+                }
 
                 <div class="wec-setting-entries">
                     <div class="wec-setting-entries__header">Points Table</div>
@@ -113,9 +121,7 @@
                             {
                                 var index = i;
                                 <tr>
-                                    <td>
-                                        <input class="wec-setting-entry-input" type="number" min="1" step="1" placeholder="1" @bind="editingSetting.Entries[index].Position" />
-                                    </td>
+                                    <td class="wec-setting-entry-position">@editingSetting.Entries[index].Position</td>
                                     <td>
                                         <input class="wec-setting-entry-input" type="number" min="0" step="1" placeholder="25" @bind="editingSetting.Entries[index].Points" />
                                     </td>
@@ -173,6 +179,14 @@
     private bool isSaving;
     private PointSettingModel? confirmDelete;
     private bool isDeleting;
+
+    private PointSettingModel? DefaultSetting => settings?.FirstOrDefault(s => s.IsDefault);
+
+    private string? DefaultSettingName => DefaultSetting?.SettingName;
+
+    private bool CanToggleDefault =>
+        DefaultSetting is null ||
+        (editingSetting is not null && editingSetting.SettingId == DefaultSetting.SettingId);
 
     protected override async Task OnInitializedAsync()
     {
@@ -232,7 +246,20 @@
 
     private void AddEntry()
     {
-        editingSetting?.Entries.Add(new PointSettingEntryModel());
+        if (editingSetting is null)
+        {
+            return;
+        }
+
+        var nextPosition = editingSetting.Entries
+            .Select(e => int.TryParse(e.Position, out var position) ? position : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        editingSetting.Entries.Add(new PointSettingEntryModel
+        {
+            Position = nextPosition.ToString()
+        });
     }
 
     private void RemoveEntry(int index)

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <Version>1.0.1</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>multi_class_race_dashboard</RootNamespace>
@@ -23,5 +24,9 @@
     <CopyToPublishDirectory>Never</CopyToPublishDirectory>
   </Content>
 </ItemGroup>
+
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**</DefaultItemExcludes>
+  </PropertyGroup>
 
 </Project>

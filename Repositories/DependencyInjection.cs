@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<IRaceRepository, RaceRepository>();
         services.AddScoped<IAssettoCorsaGameConfigRepository, AssettoCorsaGameConfigRepository>();
         services.AddScoped<IPointSettingRepository, PointSettingRepository>();
+        services.AddScoped<IAppUpdateStateRepository, AppUpdateStateRepository>();
         return services;
     }
 }
