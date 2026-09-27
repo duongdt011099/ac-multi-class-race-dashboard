@@ -77,6 +77,7 @@
                     </button>
                 </th>
                 <th>Country</th>
+                <th>Point Setting</th>
                 <th>
                     <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
                         Status
@@ -91,19 +92,19 @@
             @if (!hasSeason)
             {
                 <tr>
-                    <td colspan="4" class="wec-empty">Select a championship and a season to view races.</td>
+                    <td colspan="5" class="wec-empty">Select a championship and a season to view races.</td>
                 </tr>
             }
             else if (races is null)
             {
                 <tr>
-                    <td colspan="4" class="wec-empty">Loading races...</td>
+                    <td colspan="5" class="wec-empty">Loading races...</td>
                 </tr>
             }
             else if (!DisplayRaces.Any())
             {
                 <tr>
-                    <td colspan="4" class="wec-empty">No races found. Click Add Race to create one.</td>
+                    <td colspan="5" class="wec-empty">No races found. Click Add Race to create one.</td>
                 </tr>
             }
             else
@@ -122,6 +123,7 @@
                             }
                             @(string.IsNullOrWhiteSpace(race.Country) ? "—" : race.Country)
                         </td>
+                        <td>@(string.IsNullOrWhiteSpace(race.PointSettingName) ? "—" : race.PointSettingName)</td>
                         <td>
                             <span class="wec-status @StatusClass(race.Status)">
                                 @StatusLabel(race.Status)
@@ -357,7 +359,7 @@
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
-            <div class="wec-modal__body">
+            <div class="wec-modal__body wec-modal__body--loading-host">
                 <div class="wec-tabs">
                     <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "")"
                             @onclick="SetTeamsTab">Teams</button>
@@ -503,7 +505,7 @@
                     }
                 else if (sessionsCache is null)
                     {
-                        <div class="wec-empty wec-empty--block">Loading sessions...</div>
+                        <div class="wec-empty wec-empty--block">Sessions are unavailable for this race.</div>
                     }
                     else if (!DisplaySessions.Any())
                     {
@@ -565,6 +567,16 @@
                         }
                     }
                 </div>
+
+                @if (isLoadingRacePopup)
+                {
+                    <div class="wec-loading-overlay">
+                        <div class="wec-spinner-block">
+                            <div class="wec-spinner" role="status" aria-live="polite"></div>
+                            <span class="wec-spinner__label">Loading race data...</span>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     }
@@ -585,6 +597,7 @@
     private SortColumn sortColumn = SortColumn.Race;
     private bool sortDescending;
     private RaceModel? viewingSessionsFor;
+    private bool isLoadingRacePopup;
     private RacePopupTab selectedTab = RacePopupTab.Race;
     private List<PointSettingModel> pointSettings = new();
     private SessionType selectedSessionType = SessionType.Race;
@@ -990,14 +1003,28 @@ editingRace.PointSettingId);
     private async Task ViewSessionsAsync(RaceModel race)
     {
         viewingSessionsFor = race;
-        selectedTeamIds = (await RaceService.GetRaceTeamsAsync(race.RaceId)).Select(t => t.TeamId).ToHashSet();
-        availableTeams = (await TeamService.GetActiveTeamsAsync()).ToList();
-        selectedTeamClassFilter = "";
-        selectedStandingClassFilter = "";
-        selectedSessionType = SessionType.Race;
-        selectedTab = selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
-        sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
-        await LoadResultFilesAsync();
+        isLoadingRacePopup = true;
+
+        try
+        {
+            selectedTeamIds = (await RaceService.GetRaceTeamsAsync(race.RaceId)).Select(t => t.TeamId).ToHashSet();
+            availableTeams = (await TeamService.GetActiveTeamsAsync()).ToList();
+            selectedTeamClassFilter = "";
+            selectedStandingClassFilter = "";
+            selectedSessionType = SessionType.Race;
+            selectedTab = selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
+            sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
+            await LoadResultFilesAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not load race: {ex.Message}", isError: true);
+            viewingSessionsFor = null;
+        }
+        finally
+        {
+            isLoadingRacePopup = false;
+        }
     }
 
     private async Task CloseSessionsAsync()

@@ -3,10 +3,13 @@
 @using MulticlassRace.Models
 @using MulticlassRace.ViewModels
 @using multi_class_race_dashboard.Components.Shared
+@implements IDisposable
 @inject MulticlassRace.Services.Abstractions.IDriverService DriverService
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.Abstractions.IAssettoCorsaContentService CarContentService
 @inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
+@inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
 @inject ToastService Toast
 
 <PageTitle>Drivers</PageTitle>
@@ -173,7 +176,7 @@ else
 @if (editingDriver is not null)
 {
     <div class="wec-modal-overlay">
-        <div class="wec-modal">
+        <div class="wec-modal wec-modal--wide">
             <div class="wec-modal__header">
                 <span>@(isCreating ? "New Driver" : "Edit Driver")</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
@@ -181,66 +184,109 @@ else
                 </button>
             </div>
             <div class="wec-modal__body">
-                <div class="wec-form-field">
-                    <label for="driver-name">Driver Name</label>
-                    <input id="driver-name" type="text" @bind="editingDriver.DriverName" />
+                <div class="wec-form-row">
+                    <div class="wec-form-field">
+                        <label for="driver-name">Driver Name</label>
+                        <input id="driver-name" type="text" @bind="editingDriver.DriverName" />
+                    </div>
+
+                    <div class="wec-form-field">
+                        <label for="driver-car-display">Car Display Name</label>
+                        <input id="driver-car-display" type="text" @bind="editingDriver.CarDisplayName" />
+                    </div>
                 </div>
 
-                <div class="wec-form-field">
-                    <label for="driver-car">Car</label>
-                    <input id="driver-car" type="text" @bind="editingDriver.Car" />
-                </div>
+                <div class="wec-form-row">
+                    <div class="wec-form-field">
+                        <label for="driver-car">Car</label>
+                        <select id="driver-car" value="@editingDriver.Car" @onchange="HandleCarChanged"
+                                disabled="@isLoadingCarContent">
+                            <option value="">@(isLoadingCarContent ? "Loading cars..." : "Select car...")</option>
+                            @if (!string.IsNullOrEmpty(editingDriver.Car) && !carOptions.Contains(editingDriver.Car))
+                            {
+                                <option value="@editingDriver.Car">@editingDriver.Car (not found on disk)</option>
+                            }
+                            @foreach (var car in carOptions)
+                            {
+                                <option value="@car">@car</option>
+                            }
+                        </select>
+                    </div>
 
-                <div class="wec-form-field">
-                    <label for="driver-car-display">Car Display Name</label>
-                    <input id="driver-car-display" type="text" @bind="editingDriver.CarDisplayName" />
-                </div>
-
-                <div class="wec-form-field">
-                    <label for="driver-skin">Skin</label>
-                    <input id="driver-skin" type="text" @bind="editingDriver.Skin" />
-                </div>
-
-                <div class="wec-form-field">
-                    <label for="driver-nationality">Nationality</label>
-                    <select id="driver-nationality" @bind="editingDriver.Nationality">
-                        <option value="">Select nationality...</option>
-                        @if (!string.IsNullOrEmpty(editingDriver.Nationality) && !Countries.All.Contains(editingDriver.Nationality))
+                    <div class="wec-form-field">
+                        <label for="driver-skin">Skin</label>
+                        <select id="driver-skin" @bind="editingDriver.Skin"
+                                disabled="@(string.IsNullOrWhiteSpace(editingDriver.Car) || isLoadingSkinContent || skinOptions.Count == 0)">
+                            <option value="">@SkinPlaceholder</option>
+                            @if (!string.IsNullOrEmpty(editingDriver.Skin) && !skinOptions.Contains(editingDriver.Skin))
+                            {
+                                <option value="@editingDriver.Skin">@editingDriver.Skin (not found on disk)</option>
+                            }
+                            @foreach (var skin in skinOptions)
+                            {
+                                <option value="@skin">@skin</option>
+                            }
+                        </select>
+                        @if (!string.IsNullOrWhiteSpace(editingDriver.Car) && !isLoadingSkinContent && skinOptions.Count == 0)
                         {
-                            <option value="@editingDriver.Nationality">@editingDriver.Nationality</option>
+                            <p class="wec-form-hint">No skins found for this car.</p>
                         }
-                        @foreach (var country in Countries.All)
-                        {
-                            <option value="@country">@Countries.GetFlag(country) @country</option>
-                        }
-                    </select>
+                    </div>
                 </div>
 
-                <div class="wec-form-field">
-                    <label for="driver-team">Team</label>
-                    <select id="driver-team" value="@(editingDriver.TeamId?.ToString())" @onchange="HandleTeamChanged">
-                        <option value="">No team</option>
-                        @if (editingDriver.TeamId is { } currentTeamId && !teamOptions.Any(t => t.TeamId == currentTeamId))
-                        {
-                            <option value="@currentTeamId">@(editingDriver.TeamName)</option>
-                        }
-                        @foreach (var team in teamOptions)
-                        {
-                            <option value="@team.TeamId">@team.TeamName</option>
-                        }
-                    </select>
-                </div>
+                @if (!string.IsNullOrWhiteSpace(skinPreviewUrl))
+                {
+                    <div class="wec-skin-preview">
+                        <img src="@skinPreviewUrl" class="wec-skin-preview__img" alt="@(editingDriver.Skin) preview"
+                             onerror="this.parentElement.style.display='none'" />
+                    </div>
+                }
 
-                <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
-                    <label for="driver-age">Age</label>
-                    <input id="driver-age" type="number" min="0" @bind="editingDriver.Age" />
+                <div class="wec-form-row">
+                    <div class="wec-form-field">
+                        <label for="driver-nationality">Nationality</label>
+                        <select id="driver-nationality" @bind="editingDriver.Nationality">
+                            <option value="">Select nationality...</option>
+                            @if (!string.IsNullOrEmpty(editingDriver.Nationality) && !Countries.All.Contains(editingDriver.Nationality))
+                            {
+                                <option value="@editingDriver.Nationality">@editingDriver.Nationality</option>
+                            }
+                            @foreach (var country in Countries.All)
+                            {
+                                <option value="@country">@Countries.GetFlag(country) @country</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="wec-form-field">
+                        <label for="driver-team">Team</label>
+                        <select id="driver-team" value="@(editingDriver.TeamId?.ToString())" @onchange="HandleTeamChanged">
+                            <option value="">No team</option>
+                            @if (editingDriver.TeamId is { } currentTeamId && !teamOptions.Any(t => t.TeamId == currentTeamId))
+                            {
+                                <option value="@currentTeamId">@(editingDriver.TeamName)</option>
+                            }
+                            @foreach (var team in teamOptions)
+                            {
+                                <option value="@team.TeamId">@team.TeamName</option>
+                            }
+                        </select>
+                    </div>
                 </div>
 
                 <div class="wec-form-row">
                     <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
+                        <label for="driver-age">Age</label>
+                        <input id="driver-age" type="number" min="0" @bind="editingDriver.Age" />
+                    </div>
+
+                    <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
                         <label for="driver-strength">AI Strength</label>
                         <input id="driver-strength" type="number" min="0" @bind="editingDriver.DriverStrength" />
                     </div>
+                </div>
+
+                <div class="wec-form-row">
                     <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
                         <label for="driver-agression">AI Aggression</label>
                         <input id="driver-agression" type="number" min="0" @bind="editingDriver.DriverAgression" />
@@ -340,6 +386,32 @@ else
     private string searchTerm = "";
     private string presetPath = "";
     private FolderPicker presetPicker = default!;
+    private List<string> carOptions = new();
+    private List<string> skinOptions = new();
+    private bool isLoadingCarContent;
+    private bool isLoadingSkinContent;
+
+    private string? skinPreviewUrl => editingDriver is null
+        ? null
+        : CarContentService.BuildSkinPreviewUrl(editingDriver.Car, editingDriver.Skin);
+
+    private string SkinPlaceholder
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(editingDriver?.Car))
+            {
+                return "Select a car first...";
+            }
+
+            if (isLoadingSkinContent)
+            {
+                return "Loading skins...";
+            }
+
+            return skinOptions.Count == 0 ? "No skins" : "Select skin...";
+        }
+    }
 
     private DriverModel? HumanDriver => drivers?.FirstOrDefault(d => d.IsHuman);
 
@@ -433,12 +505,96 @@ else
         currentPage = 1;
     }
 
+    protected override void OnInitialized()
+    {
+        ConfigNotifier.Changed += OnConfigChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var config = await ConfigService.GetAsync();
         presetPath = config?.PresetPath ?? string.Empty;
         teamOptions = (await TeamService.GetActiveTeamsAsync()).ToList();
+        await LoadCarsAsync();
         await LoadDriversAsync();
+    }
+
+    private async void OnConfigChanged()
+    {
+        try
+        {
+            var config = await ConfigService.GetAsync();
+            presetPath = config?.PresetPath ?? string.Empty;
+            await LoadCarsAsync();
+            if (editingDriver is not null && !string.IsNullOrWhiteSpace(editingDriver.Car))
+            {
+                await LoadSkinsAsync(editingDriver.Car);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task LoadCarsAsync()
+    {
+        isLoadingCarContent = true;
+
+        try
+        {
+            carOptions = (await CarContentService.GetCarsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not read car list: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isLoadingCarContent = false;
+        }
+    }
+
+    private async Task LoadSkinsAsync(string? car)
+    {
+        skinOptions = new();
+
+        if (string.IsNullOrWhiteSpace(car))
+        {
+            return;
+        }
+
+        isLoadingSkinContent = true;
+
+        try
+        {
+            skinOptions = (await CarContentService.GetSkinsAsync(car)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not read skins: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isLoadingSkinContent = false;
+        }
+    }
+
+    private async Task HandleCarChanged(ChangeEventArgs e)
+    {
+        if (editingDriver is null)
+        {
+            return;
+        }
+
+        editingDriver.Car = e.Value?.ToString() ?? string.Empty;
+        editingDriver.Skin = string.Empty;
+        await LoadSkinsAsync(editingDriver.Car);
+    }
+
+    public void Dispose()
+    {
+        ConfigNotifier.Changed -= OnConfigChanged;
     }
 
     private async Task LoadDriversAsync()
@@ -464,6 +620,7 @@ else
     private void OpenCreate()
     {
         isCreating = true;
+        skinOptions = new();
         editingDriver = new DriverFormModel
         {
             DriverId = Guid.NewGuid(),
@@ -475,7 +632,7 @@ else
         };
     }
 
-    private void OpenEdit(DriverModel driver)
+    private async Task OpenEdit(DriverModel driver)
     {
         isCreating = false;
         editingDriver = new DriverFormModel
@@ -494,6 +651,8 @@ else
             IsActive = driver.IsActive,
             IsHuman = driver.IsHuman
         };
+
+        await LoadSkinsAsync(driver.Car);
     }
 
     private void HandleTeamChanged(ChangeEventArgs e)
@@ -542,6 +701,7 @@ else
 
         editingDriver = null;
         isCreating = false;
+        skinOptions = new();
     }
 
     private async Task SaveDriverAsync()
