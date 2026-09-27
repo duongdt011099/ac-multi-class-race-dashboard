@@ -13,6 +13,9 @@
 @inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
 @inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
 @inject NavigationManager Nav
+@inject MulticlassRace.Services.AppVersionProvider VersionProvider
+@inject MulticlassRace.Services.UpdateStateService UpdateState
+@inject MulticlassRace.Services.UpdateNotificationRequest UpdateRequest
 @implements IDisposable
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
@@ -27,6 +30,15 @@
     }
 
     <nav class="nav flex-column">
+        <button type="button" class="wec-nav-version" @onclick="OpenUpdateDialog" title="@VersionTitle">
+            <span class="wec-nav-version__label">Version</span>
+            <span class="wec-nav-version__number">v@(VersionProvider.CurrentVersion)</span>
+            @if (hasUpdate)
+            {
+                <span class="wec-nav-version__dot" aria-label="Update available"></span>
+            }
+        </button>
+
         <div class="wec-nav-human">
             @if (humanDriver is not null)
             {
@@ -147,13 +159,20 @@
 
 @code {
     private bool isConfigured;
+    private bool hasUpdate;
     private DriverModel? humanDriver;
+
+    private string VersionTitle => hasUpdate
+        ? "Update available - click to view"
+        : "Click to view version status";
 
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
         ConfigNotifier.Changed += OnConfigChanged;
         DriverNotifier.Changed += OnDriverChanged;
+        UpdateState.AvailabilityChanged += OnUpdateStateChanged;
+        hasUpdate = UpdateState.Current is { IsUpdateAvailable: true };
     }
 
     protected override async Task OnInitializedAsync()
@@ -206,11 +225,26 @@
         humanDriver = drivers.FirstOrDefault(d => d.IsHuman);
     }
 
+    private void OnUpdateStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            hasUpdate = UpdateState.Current is { IsUpdateAvailable: true };
+            StateHasChanged();
+        });
+    }
+
+    private void OpenUpdateDialog()
+    {
+        UpdateRequest.Request();
+    }
+
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
         ConfigNotifier.Changed -= OnConfigChanged;
         DriverNotifier.Changed -= OnDriverChanged;
+        UpdateState.AvailabilityChanged -= OnUpdateStateChanged;
     }
 }
 

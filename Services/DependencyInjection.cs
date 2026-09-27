@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<ToastService>();
         services.AddScoped<GameConfigChangeNotifier>();
         services.AddScoped<DriverDataChangeNotifier>();
+        services.AddScoped<UpdateNotificationRequest>();
         services.AddScoped<IAppUpdatePreferenceService, AppUpdatePreferenceService>();
 
         return services;

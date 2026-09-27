@@ -3,54 +3,81 @@
 @using multi_class_race_dashboard.Components.Shared
 @inject UpdateStateService StateService
 @inject AppVersionProvider VersionProvider
+@inject UpdateNotificationRequest UpdateRequest
 @inject MulticlassRace.Services.Abstractions.IAppUpdatePreferenceService UpdatePreferences
 @implements IDisposable
 
-@if (availability is not null)
+@if (isOpen && result is not null)
 {
     <div class="wec-modal-overlay">
         <div class="wec-modal">
             <div class="wec-modal__header">
-                <span>Update Available</span>
+                <span>@HeaderTitle</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="DismissAsync">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
             <div class="wec-modal__body">
-                <p class="wec-update__summary">
-                    Version <strong>v@(availability.LatestVersion)</strong> is available.
-                    You are running <strong>v@(currentVersion)</strong>.
-                </p>
-                <p class="wec-update__published">
-                    Published @availability.PublishedAt.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)
-                </p>
-                @if (availability.Installer is not null)
+                @if (result.IsUpdateAvailable)
                 {
-                    <p class="wec-update__asset">
-                        <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
-                        <span>@availability.Installer.Name (@FormatSize(availability.Installer.SizeInBytes))</span>
+                    <p class="wec-update__summary">
+                        Version <strong>v@(result.LatestVersion)</strong> is available.
+                        You are running <strong>v@(result.CurrentVersion)</strong>.
+                    </p>
+                    @if (result.PublishedAt is { } publishedAt)
+                    {
+                        <p class="wec-update__published">
+                            Published @publishedAt.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                        </p>
+                    }
+                    @if (result.Installer is not null)
+                    {
+                        <p class="wec-update__asset">
+                            <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
+                            <span>@result.Installer.Name (@FormatSize(result.Installer.SizeInBytes))</span>
+                        </p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(truncatedNotes))
+                    {
+                        <div class="wec-update__notes">@truncatedNotes</div>
+                    }
+                }
+                else if (result.HasError)
+                {
+                    <p class="wec-update__summary">Could not check for updates.</p>
+                    <p class="wec-update__error">@result.ErrorMessage</p>
+                    <p class="wec-update__published">
+                        You are running <strong>v@(result.CurrentVersion)</strong>.
                     </p>
                 }
-                @if (!string.IsNullOrWhiteSpace(truncatedNotes))
+                else
                 {
-                    <div class="wec-update__notes">@truncatedNotes</div>
+                    <p class="wec-update__summary">
+                        You are running <strong>v@(result.CurrentVersion)</strong>, which is the latest version.
+                    </p>
+                    <p class="wec-update__published">
+                        Checked @result.CheckedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+                    </p>
                 }
             </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
-                    Later
-                </button>
-                <a class="wec-modal__btn wec-modal__btn--secondary" href="@availability.ReleaseUrl" target="_blank" rel="noopener">
-                    View Release
-                </a>
-                @if (availability.Installer is not null)
-                {
-                    <a class="wec-modal__btn wec-modal__btn--primary" href="@availability.Installer.DownloadUrl" target="_blank" rel="noopener"
-                       @onclick="DismissAsync">
-                        Download Update
+            @if (result.IsUpdateAvailable)
+            {
+                <div class="wec-modal__footer">
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
+                        Later
+                    </button>
+                    <a class="wec-modal__btn wec-modal__btn--secondary" href="@result.ReleaseUrl" target="_blank" rel="noopener">
+                        View Release
                     </a>
-                }
-            </div>
+                    @if (result.Installer is not null)
+                    {
+                        <a class="wec-modal__btn wec-modal__btn--primary" href="@result.Installer.DownloadUrl" target="_blank" rel="noopener"
+                           @onclick="DismissAsync">
+                            Download Update
+                        </a>
+                    }
+                </div>
+            }
         </div>
     </div>
 }
@@ -58,52 +85,112 @@
 @code {
     private const int MaxNotesLength = 1500;
 
-    private UpdateAvailability? availability;
+    private UpdateCheckResult? result;
     private string? truncatedNotes;
-    private string currentVersion = string.Empty;
+    private string lastSeen = string.Empty;
+    private bool isOpen;
     private bool isDismissing;
+
+    private string HeaderTitle => result switch
+    {
+        { IsUpdateAvailable: true } => "Update Available",
+        { HasError: true } => "Update Status",
+        _ => "Up To Date"
+    };
 
     protected override void OnInitialized()
     {
-        currentVersion = VersionProvider.CurrentVersion;
-        ApplyAvailability(StateService.Current);
+        ApplyResult(StateService.Current);
         StateService.AvailabilityChanged += OnAvailabilityChanged;
+        UpdateRequest.Requested += OnOpenRequested;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lastSeen = await UpdatePreferences.GetLastSeenVersionAsync() ?? string.Empty;
+        }
+        catch
+        {
+            lastSeen = string.Empty;
+        }
+
+        if (ShouldAutoOpen())
+        {
+            isOpen = true;
+        }
     }
 
     private void OnAvailabilityChanged()
     {
         InvokeAsync(() =>
         {
-            ApplyAvailability(StateService.Current);
+            ApplyResult(StateService.Current);
+
+            if (ShouldAutoOpen())
+            {
+                isOpen = true;
+            }
+
             StateHasChanged();
         });
     }
 
-    private void ApplyAvailability(UpdateAvailability? value)
+    private void OnOpenRequested()
     {
-        availability = value;
+        InvokeAsync(() =>
+        {
+            ApplyResult(StateService.Current);
+            isOpen = result is not null;
+            StateHasChanged();
+        });
+    }
+
+    private void ApplyResult(UpdateCheckResult? value)
+    {
+        result = value;
         truncatedNotes = Truncate(value?.ReleaseNotes);
         isDismissing = false;
     }
 
+    private bool ShouldAutoOpen()
+    {
+        if (result is not { IsUpdateAvailable: true } available)
+        {
+            return false;
+        }
+
+        return !string.Equals(available.TagName, lastSeen, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task DismissAsync()
     {
-        if (isDismissing || availability is null)
+        if (isDismissing || result is null)
         {
             return;
         }
 
-        isDismissing = true;
+        if (result.IsUpdateAvailable)
+        {
+            isDismissing = true;
+        }
 
-        try
+        isOpen = false;
+
+        if (result is { IsUpdateAvailable: true, TagName: not null } available)
         {
-            await UpdatePreferences.MarkSeenAsync(availability.TagName);
-            StateService.Clear();
+            try
+            {
+                await UpdatePreferences.MarkSeenAsync(available.TagName);
+                lastSeen = available.TagName;
+            }
+            catch
+            {
+            }
         }
-        catch
-        {
-            isDismissing = false;
-        }
+
+        isDismissing = false;
     }
 
     private static string? Truncate(string? notes)
@@ -141,5 +228,6 @@
     public void Dispose()
     {
         StateService.AvailabilityChanged -= OnAvailabilityChanged;
+        UpdateRequest.Requested -= OnOpenRequested;
     }
 }

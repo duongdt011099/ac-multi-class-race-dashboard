@@ -924,6 +924,7 @@
     text-transform: uppercase;
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    text-align: center;
 }
 
 .wec-modal__btn--primary {
@@ -973,6 +974,16 @@ a.wec-modal__btn {
     color: #6b6b73;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+}
+
+.wec-update__error {
+    margin: 0 0 0.85rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 4px;
+    background-color: #fdf1f1;
+    color: #a02a2a;
+    font-size: 0.8rem;
+    word-break: break-word;
 }
 
 .wec-update__asset {

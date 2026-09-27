@@ -74,27 +74,33 @@ public class UpdateCheckWorker : BackgroundService
 
     private async Task CheckAsync(CancellationToken cancellationToken)
     {
+        var checkedAt = DateTimeOffset.UtcNow;
+        var currentVersion = _versionProvider.CurrentVersion;
+
         try
         {
             var release = await FetchLatestReleaseAsync(cancellationToken);
 
-            if (release is null || string.IsNullOrWhiteSpace(release.TagName))
+            if (release is null)
             {
-                _stateService.Clear();
+                _stateService.Set(UpdateCheckResult.Failed(
+                    currentVersion,
+                    checkedAt,
+                    "Could not reach GitHub to check for updates.",
+                    _stateService.Current));
                 return;
             }
 
             await MarkCheckedAsync();
 
-            var availability = await BuildAvailabilityAsync(release, cancellationToken);
+            var result = BuildResult(release, currentVersion, checkedAt);
 
-            if (availability is null)
+            if (result.HasError)
             {
-                _stateService.Clear();
-                return;
+                _logger.LogInformation("Update check did not produce a comparison: {Error}", result.ErrorMessage);
             }
 
-            _stateService.Set(availability);
+            _stateService.Set(result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -102,6 +108,12 @@ public class UpdateCheckWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to check for updates.");
+
+            _stateService.Set(UpdateCheckResult.Failed(
+                currentVersion,
+                checkedAt,
+                ex.Message,
+                _stateService.Current));
         }
     }
 
@@ -127,36 +139,37 @@ public class UpdateCheckWorker : BackgroundService
         return await response.Content.ReadFromJsonAsync<GithubRelease>(_jsonOptions, cancellationToken);
     }
 
-    private async Task<UpdateAvailability?> BuildAvailabilityAsync(GithubRelease release, CancellationToken cancellationToken)
+    private UpdateCheckResult BuildResult(GithubRelease release, string currentVersionText, DateTimeOffset checkedAt)
     {
         if (string.IsNullOrWhiteSpace(release.TagName))
         {
-            return null;
+            return UpdateCheckResult.Failed(
+                currentVersionText,
+                checkedAt,
+                "The latest GitHub release has no version tag.",
+                _stateService.Current);
         }
 
-        var currentVersion = ParseVersion(_versionProvider.CurrentVersion);
+        var currentVersion = ParseVersion(currentVersionText);
         var latestVersion = ParseVersion(release.TagName);
 
         if (currentVersion is null || latestVersion is null)
         {
             _logger.LogInformation(
-                "Skipping update notification: could not compare current '{Current}' against tag '{Tag}'.",
-                _versionProvider.CurrentVersion,
+                "Could not compare current '{Current}' against tag '{Tag}'.",
+                currentVersionText,
                 release.TagName);
-            return null;
+
+            return UpdateCheckResult.Failed(
+                currentVersionText,
+                checkedAt,
+                $"Could not compare version {currentVersionText} against release tag {release.TagName}.",
+                _stateService.Current);
         }
 
         if (latestVersion <= currentVersion)
         {
-            return null;
-        }
-
-        var lastSeenVersion = await GetLastSeenVersionAsync();
-        var lastSeen = ParseVersion(lastSeenVersion);
-
-        if (lastSeen is not null && lastSeen >= latestVersion)
-        {
-            return null;
+            return UpdateCheckResult.UpToDate(currentVersionText, latestVersion.ToString(), checkedAt);
         }
 
         var options = _options.Value;
@@ -164,13 +177,17 @@ public class UpdateCheckWorker : BackgroundService
             ? $"{ReleasesBaseUrl}/{options.Owner.Trim()}/{options.Repository.Trim()}/releases/latest"
             : release.HtmlUrl;
 
-        return new UpdateAvailability(
+        return new UpdateCheckResult(
+            currentVersionText,
             latestVersion.ToString(),
             release.TagName,
             releaseUrl,
             release.Body,
             release.PublishedAt,
-            SelectInstaller(release));
+            SelectInstaller(release),
+            true,
+            checkedAt,
+            null);
     }
 
     private ReleaseAsset? SelectInstaller(GithubRelease release)
@@ -210,21 +227,6 @@ public class UpdateCheckWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to record the update check timestamp.");
-        }
-    }
-
-    private async Task<string> GetLastSeenVersionAsync()
-    {
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var preferences = scope.ServiceProvider.GetRequiredService<IAppUpdatePreferenceService>();
-            return await preferences.GetLastSeenVersionAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read the last seen release version.");
-            return string.Empty;
         }
     }
 
