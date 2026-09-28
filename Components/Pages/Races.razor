@@ -1709,6 +1709,9 @@
     private bool hasSelectedSessionData =>
         sessionsCache?.Any(s => s.SessionType == selectedSessionType && s.DriverStandings.Any()) == true;
 
+    private bool hasQualifyingData =>
+        sessionsCache?.Any(s => s.SessionType == SessionType.Qualifying && s.DriverStandings.Any()) == true;
+
     private bool hasRaceTrack =>
         !string.IsNullOrWhiteSpace(viewingSessionsFor?.TrackName);
 
@@ -1717,7 +1720,9 @@
     private bool exceedsPitCapacity =>
         hasRaceTrack && trackPitCount is > 0 && enteredCarCount > trackPitCount.Value;
 
-    private bool canStartSession => !missingTrack && !exceedsPitCapacity && !hasSelectedSessionData;
+    private bool canStartSession =>
+        !missingTrack && !exceedsPitCapacity && !hasSelectedSessionData &&
+        (selectedSessionType != SessionType.Race || hasQualifyingData);
 
     private string? startSessionTitle =>
         missingTrack
@@ -1725,9 +1730,11 @@
             : exceedsPitCapacity
                 ? $"The number of cars ({enteredCarCount}) is more than the number of pits ({trackPitCount}). " +
                   "Please change the race track or layout."
-                : hasSelectedSessionData
-                    ? $"A {SessionTypeLabel(selectedSessionType).ToLowerInvariant()} session already has data."
-                    : null;
+                : selectedSessionType == SessionType.Race && !hasQualifyingData
+                    ? "Run a qualifying session and import its results before starting the race."
+                    : hasSelectedSessionData
+                        ? $"A {SessionTypeLabel(selectedSessionType).ToLowerInvariant()} session already has data."
+                        : null;
 
     private bool showTrackPreview =>
         !string.IsNullOrWhiteSpace(editingRace?.TrackName) &&

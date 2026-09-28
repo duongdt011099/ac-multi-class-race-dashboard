@@ -194,7 +194,39 @@ public class RaceService : IRaceService
 
         var human = drivers.FirstOrDefault(d => d.IsHuman);
 
-        var raceIni = BuildRaceIni(race, sessionType, human, drivers);
+        var playerStartPosition = 1;
+
+        if (sessionType == SessionType.Race)
+        {
+            var qualifying = (await _raceRepository.GetSessionsByRaceAsync(raceId))
+                .Where(s => s.SessionType == SessionType.Qualifying && s.DriverStandings.Any(d => d.Driver != null))
+                .OrderByDescending(s => s.SessionDate)
+                .FirstOrDefault();
+
+            if (qualifying is null)
+            {
+                throw new InvalidOperationException(
+                    "A qualifying session with results is required before starting the race.");
+            }
+
+            var qualifyingPositionByDriverId = qualifying.DriverStandings
+                .Where(d => d.Driver != null)
+                .GroupBy(d => d.Driver!.DriverId)
+                .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
+
+            drivers = drivers
+                .OrderBy(d => ClassOrderIndex(d.Team?.TeamClass?.TeamClassName))
+                .ThenBy(d => qualifyingPositionByDriverId.TryGetValue(d.DriverId, out var pos) ? pos : int.MaxValue)
+                .ThenBy(d => d.Team?.TeamName)
+                .ThenBy(d => d.DriverName)
+                .ToList();
+
+            playerStartPosition = human is null
+                ? 1
+                : drivers.TakeWhile(d => d.DriverId != human.DriverId).Count() + 1;
+        }
+
+        var raceIni = BuildRaceIni(race, sessionType, human, drivers, playerStartPosition);
 
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");
@@ -222,7 +254,7 @@ public class RaceService : IRaceService
         });
     }
 
-    private static string BuildRaceIni(Race race, SessionType sessionType, Driver? human, IReadOnlyList<Driver> drivers)
+    private static string BuildRaceIni(Race race, SessionType sessionType, Driver? human, IReadOnlyList<Driver> drivers, int playerStartPosition = 1)
     {
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
@@ -298,7 +330,16 @@ public class RaceService : IRaceService
         builder.Append("NAME=").AppendLine(sessionName);
         builder.Append("TYPE=").AppendLine(sessionTypeValue.ToString());
         builder.Append("DURATION_MINUTES=").AppendLine(durationMinutes.ToString());
-        builder.Append("SPAWN_SET=PIT\r\n");
+
+        if (sessionType == SessionType.Race)
+        {
+            builder.Append("STARTING_POSITION=").AppendLine(playerStartPosition.ToString());
+            builder.Append("SPAWN_SET=START\r\n");
+        }
+        else
+        {
+            builder.Append("SPAWN_SET=PIT\r\n");
+        }
 
         return builder.ToString();
     }
