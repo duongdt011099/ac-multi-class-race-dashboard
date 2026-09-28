@@ -297,7 +297,8 @@ public class RaceService : IRaceService
         builder.Append("RESTRICTOR=0\r\n");
         builder.Append("DRIVER_NAME=").AppendLine(human?.DriverName ?? string.Empty);
         builder.Append("NATIONALITY=").AppendLine(human?.Nationality ?? string.Empty);
-        builder.Append("NATION_CODE=\r\n\r\n");
+        builder.Append("NATION_CODE=").AppendLine(Countries.GetNationCode(human?.Nationality));
+        builder.Append("\r\n");
 
         for (var i = 0; i < opponents.Count; i++)
         {
@@ -309,7 +310,8 @@ public class RaceService : IRaceService
             builder.Append("RESTRICTOR=0\r\n");
             builder.Append("DRIVER_NAME=").AppendLine(driver.DriverName?.Trim());
             builder.Append("NATIONALITY=").AppendLine(driver.Nationality?.Trim() ?? string.Empty);
-            builder.Append("NATION_CODE=\r\n\r\n");
+            builder.Append("NATION_CODE=").AppendLine(Countries.GetNationCode(driver.Nationality));
+            builder.Append("\r\n");
         }
 
         builder.Append("[GHOST_CAR]\r\nRECORDING=0\r\nPLAYING=0\r\nLOAD=0\r\nFILE=\r\nENABLED=0\r\nSECONDS_ADVANTAGE=0\r\n\r\n");
