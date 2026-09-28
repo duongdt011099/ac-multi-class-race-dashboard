@@ -9,8 +9,10 @@
 @inject MulticlassRace.Services.Abstractions.ISeasonService SeasonService
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
 @inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
+@inject MulticlassRace.Services.Abstractions.ITrackService TrackService
 @inject ToastService Toast
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Races</PageTitle>
 
@@ -77,6 +79,7 @@
                     </button>
                 </th>
                 <th>Country</th>
+                <th>Track</th>
                 <th>Point Setting</th>
                 <th>
                     <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
@@ -92,19 +95,19 @@
             @if (!hasSeason)
             {
                 <tr>
-                    <td colspan="5" class="wec-empty">Select a championship and a season to view races.</td>
+                    <td colspan="6" class="wec-empty">Select a championship and a season to view races.</td>
                 </tr>
             }
             else if (races is null)
             {
                 <tr>
-                    <td colspan="5" class="wec-empty">Loading races...</td>
+                    <td colspan="6" class="wec-empty">Loading races...</td>
                 </tr>
             }
             else if (!DisplayRaces.Any())
             {
                 <tr>
-                    <td colspan="5" class="wec-empty">No races found. Click Add Race to create one.</td>
+                    <td colspan="6" class="wec-empty">No races found. Click Add Race to create one.</td>
                 </tr>
             }
             else
@@ -122,6 +125,25 @@
                                 <span class="wec-race-flag-emoji">@countryFlag</span>
                             }
                             @(string.IsNullOrWhiteSpace(race.Country) ? "—" : race.Country)
+                        </td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(race.TrackName))
+                            {
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                <div class="wec-race-track">
+                                    <img class="wec-race-track__thumb" src="@BuildTrackImageUrl(race.TrackName, race.TrackLayout, "preview")" alt="Track preview" />
+                                    <div class="wec-race-track__meta">
+                                        <span class="wec-race-track__name">@race.TrackName</span>
+                                        @if (!string.IsNullOrWhiteSpace(race.TrackLayout))
+                                        {
+                                            <span class="wec-race-track__layout">@race.TrackLayout</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
                         </td>
                         <td>@(string.IsNullOrWhiteSpace(race.PointSettingName) ? "—" : race.PointSettingName)</td>
                         <td>
@@ -256,14 +278,14 @@
 @if (editingRace is not null)
 {
     <div class="wec-modal-overlay">
-        <div class="wec-modal">
+        <div class="wec-modal wec-modal--form wec-modal--wider">
             <div class="wec-modal__header">
                 <span>@(isCreatingRace ? "New Race" : "Edit Race")</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelRaceEdit">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
-            <div class="wec-modal__body">
+            <div class="wec-modal__body wec-modal__body--two-col">
                 <div class="wec-context">
                     @(selectedChampionship?.ChampionshipName) › @(selectedSeason?.SeasonName)
                 </div>
@@ -289,6 +311,61 @@
                 </div>
 
                 <div class="wec-form-field">
+                    <label for="race-track">Track</label>
+                    <select id="race-track" @bind="editingRace.TrackName" @bind:after="HandleRaceTrackChangedAsync">
+                        <option value="">Select track...</option>
+                        @foreach (var track in availableTracks)
+                        {
+                            <option value="@track">@track</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="race-track-layout">Track Layout</label>
+                    <select id="race-track-layout" @bind="editingRace.TrackLayout" @bind:after="HandleRaceLayoutChangedAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(editingRace.TrackName))">
+                        @if (string.IsNullOrWhiteSpace(editingRace.TrackName))
+                        {
+                            <option value="">Select a track first...</option>
+                        }
+                        else if (trackLayouts.Count == 0)
+                        {
+                            <option value="">(Default)</option>
+                        }
+                        else
+                        {
+                            <option value="">Select layout...</option>
+                            @foreach (var trackLayout in trackLayouts)
+                            {
+                                <option value="@trackLayout">@trackLayout</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="wec-form-field">
+                    <label for="race-laps">Laps: <strong>@(editingRace.NumberOfLaps ?? 0)</strong></label>
+                    <input id="race-laps" type="range" min="1" max="120" step="1"
+                           title="Number of laps (1–120). The label and estimated time update live as you drag."
+                           value="@(editingRace.NumberOfLaps ?? 10)" @oninput="HandleLapsChanged" />
+
+                    <div class="wec-text-muted">
+                        @if (editingRace.NumberOfLaps is > 0 && estimatedLapTimeMs is > 0)
+                        {
+                            var durationSeconds = (int)Math.Round((double)editingRace.NumberOfLaps.Value * estimatedLapTimeMs.Value / 1000.0);
+                            <span>
+                                Estimated race time: @FormatDuration(durationSeconds)
+                            </span>
+                        }
+                        else
+                        {
+                            <span>No lap data recorded for this track yet. Complete a lap in-game to enable the estimate.</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="wec-form-field">
                     <label for="race-point-setting">Point Setting</label>
                     <select id="race-point-setting" @bind="editingRace.PointSettingId">
                         <option value="@Guid.Empty">Select point setting...</option>
@@ -297,20 +374,49 @@
                             <option value="@setting.SettingId">@setting.SettingName@(setting.IsDefault ? " (default)" : "")</option>
                         }
                     </select>
+
+                    <div class="wec-text-muted">
+                        @if (editingRace.PointSettingId != Guid.Empty)
+                        {
+                            var selectedSetting = pointSettings.FirstOrDefault(p => p.SettingId == editingRace.PointSettingId);
+                            if (selectedSetting is not null)
+                            {
+                                var preview = string.Join(" › ", selectedSetting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv =>
+                $"{kv.Key}:{kv.Value}"));
+                                <span>@preview</span>
+                            }
+                        }
+                    </div>
                 </div>
 
-                <div class="wec-text-muted">
-                    @if (editingRace.PointSettingId != Guid.Empty)
-                    {
-                        var selectedSetting = pointSettings.FirstOrDefault(p => p.SettingId == editingRace.PointSettingId);
-                        if (selectedSetting is not null)
-                        {
-                            var preview = string.Join(" › ", selectedSetting.Config.OrderBy(kv => int.Parse(kv.Key)).Select(kv =>
-                $"{kv.Key}:{kv.Value}"));
-                            <span>@preview</span>
-                        }
-                    }
+                <div class="wec-form-field">
+                    <label for="race-practice-minutes" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session.">Practice Time (min)</label>
+                    <input id="race-practice-minutes" type="number" min="1" step="1" inputmode="numeric"
+                           placeholder="20" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session."
+                           value="@(editingRace.PracticeSessionMinutes?.ToString() ?? "")"
+                           @oninput="e => HandleSessionMinutesChanged(e, isPractice: true)" />
                 </div>
+                <div class="wec-form-field">
+                    <label for="race-qualifying-minutes" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session.">Qualifying Time (min)</label>
+                    <input id="race-qualifying-minutes" type="number" min="1" step="1" inputmode="numeric"
+                           placeholder="20" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session."
+                           value="@(editingRace.QualifyingSessionMinutes?.ToString() ?? "")"
+                           @oninput="e => HandleSessionMinutesChanged(e, isPractice: false)" />
+                </div>
+
+                @if (showTrackPreview)
+                {
+                    <div class="wec-track-preview">
+                        <div class="wec-track-preview__item">
+                            <img class="wec-track-preview__img" src="@BuildTrackImageUrl(editingRace.TrackName, string.IsNullOrWhiteSpace(editingRace.TrackLayout) ? null : editingRace.TrackLayout, "outline")" alt="Track map" />
+                            <span class="wec-track-preview__label">Map</span>
+                        </div>
+                        <div class="wec-track-preview__item">
+                            <img class="wec-track-preview__img" src="@BuildTrackImageUrl(editingRace.TrackName, string.IsNullOrWhiteSpace(editingRace.TrackLayout) ? null : editingRace.TrackLayout, "preview")" alt="Track preview" />
+                            <span class="wec-track-preview__label">Preview</span>
+                        </div>
+                    </div>
+                }
             </div>
             <div class="wec-modal__footer">
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
@@ -352,17 +458,18 @@
 @if (viewingSessionsFor is not null)
 {
     <div class="wec-modal-overlay wec-modal-overlay--top">
-        <div class="wec-modal wec-modal--wider">
+        <div class="wec-modal wec-modal--wider @(isLoadingRacePopup ? "wec-modal--loading" : "")">
             <div class="wec-modal__header">
                 <span>Sessions — @viewingSessionsFor.RaceName</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseSessionsAsync">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
-            <div class="wec-modal__body wec-modal__body--loading-host">
+            <div class="wec-modal__body wec-modal__body--loading-host @(isLoadingRacePopup ? "wec-modal__body--loading" : "")">
                 <div class="wec-tabs">
-                    <button type="button" class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "")"
-                            @onclick="SetTeamsTab">Teams</button>
+                    <button type="button"
+                            class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "") @(hasSessionData ? "wec-tab--disabled" : "")"
+                            disabled="@hasSessionData" @onclick="SetTeamsTab">Teams</button>
                     <button type="button"
                             class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
                             disabled="@(!hasEnteredTeams)"
@@ -379,18 +486,17 @@
                 @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
                 {
                     <div class="wec-session-actions">
-                        <PresetExporter ExportHandler="@(async human => await ExportGridPresetAsync(human))" />
+                        <ContentManagerActions
+                            ExportGridHandler="@(async human => await ExportGridPresetAsync(human))"
+                            ExportRaceHandler="@ExportRacePresetAsync"
+                            ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
 
-                        @if (selectedTab == RacePopupTab.Qualifying)
-                        {
-                            <div class="wec-preset-export">
-                                <button type="button"
-                                        class="wec-toolbar__btn @(isExportingRacePreset ? "wec-toolbar__btn--disabled" : "")"
-                                        @onclick="ExportRacePresetAsync" disabled="@isExportingRacePreset">
-                                    @(isExportingRacePreset ? "Exporting..." : "Export Preset For Race")
-                                </button>
-                            </div>
-                        }
+                        <span class="wec-btn-title" title="@startSessionTitle">
+                            <button type="button" class="wec-toolbar__btn @(isStartingSession || !canStartSession ? "wec-toolbar__btn--disabled" : "")"
+                                    @onclick="StartSessionAsync" disabled="@(isStartingSession || !canStartSession)">
+                                <i class="bi bi-play-fill"></i> @(isStartingSession ? "Starting..." : "Start Session")
+                            </button>
+                        </span>
 
                         <div class="wec-preset-export">
                             <label for="session-result-file"
@@ -405,27 +511,36 @@
 
                 @if (selectedTab == RacePopupTab.Race)
                 {
-                    <div class="wec-preset-export">
-                        <span class="wec-preset-export__label">Import Result</span>
-                        <select class="wec-result-file-select" value="@selectedRaceResultFile"
-                                @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
-                            @if (raceResultFiles is null || raceResultFiles.Count == 0)
-                            {
-                                <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
-                            }
-                            else
-                            {
-                                @foreach (var file in raceResultFiles)
+                    <div class="wec-session-actions">
+                        <span class="wec-btn-title" title="@startSessionTitle">
+                            <button type="button" class="wec-toolbar__btn @(isStartingSession || !canStartSession ? "wec-toolbar__btn--disabled" : "")"
+                                    @onclick="StartSessionAsync" disabled="@(isStartingSession || !canStartSession)">
+                                <i class="bi bi-play-fill"></i> @(isStartingSession ? "Starting..." : "Start Session")
+                            </button>
+                        </span>
+
+                        <div class="wec-preset-export">
+                            <span class="wec-preset-export__label">Import Result</span>
+                            <select class="wec-result-file-select" value="@selectedRaceResultFile"
+                                    @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
+                                @if (raceResultFiles is null || raceResultFiles.Count == 0)
                                 {
-                                    <option value="@file.FileName">@file.FileName — @file.Track</option>
+                                    <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
                                 }
-                            }
-                        </select>
-                        <button type="button"
-                                class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
-                                disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
-                            @(isImportingRaceResult ? "Importing..." : "Import")
-                        </button>
+                                else
+                                {
+                                    @foreach (var file in raceResultFiles)
+                                    {
+                                        <option value="@file.FileName">@file.FileName — @file.Track</option>
+                                    }
+                                }
+                            </select>
+                            <button type="button"
+                                    class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
+                                    disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
+                                @(isImportingRaceResult ? "Importing..." : "Import")
+                            </button>
+                        </div>
                     </div>
                 }
 
@@ -570,9 +685,9 @@
 
                 @if (isLoadingRacePopup)
                 {
-                    <div class="wec-loading-overlay">
-                        <div class="wec-spinner-block">
-                            <div class="wec-spinner" role="status" aria-live="polite"></div>
+                    <div class="wec-loading-overlay" role="status" aria-live="polite">
+                        <div class="wec-loading-overlay__content">
+                            <div class="wec-spinner"></div>
                             <span class="wec-spinner__label">Loading race data...</span>
                         </div>
                     </div>
@@ -610,7 +725,12 @@
     private string? selectedRaceResultFile;
     private bool isImportingRaceResult;
     private bool isImportingSessionResult;
-    private bool isExportingRacePreset;
+    private bool isStartingSession;
+    private List<string> availableTracks = new();
+    private List<string> trackLayouts = new();
+    private int? estimatedLapTimeMs;
+    private int? trackPitCount;
+    private int enteredCarCount;
     private bool isOpeningStandings;
     private List<DriverStandingsModel>? driverStandings;
     private string selectedStandingClassFilter = "";
@@ -629,6 +749,8 @@
     }
 
     private bool hasEnteredTeams => selectedTeamIds.Count > 0;
+
+    private bool hasSessionData => sessionsCache?.Any(s => s.DriverStandings.Any()) == true;
 
     private IOrderedEnumerable<string> ClassNames =>
         availableTeams
@@ -708,16 +830,23 @@
         selectedStandingClassFilter = e.Value?.ToString() ?? "";
     }
 
+    private const string ChampionshipStorageKey = "wec.races.selectedChampionshipId";
+    private const string SeasonStorageKey = "wec.races.selectedSeasonId";
+    private bool preferencesRestored;
+
     protected override async Task OnInitializedAsync()
     {
         championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
         pointSettings = (await PointSettingService.GetAllAsync()).ToList();
+        availableTracks = (await TrackService.GetTrackNamesAsync()).ToList();
 
         var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
+        var hasQuerySelection = false;
 
         if (query.TryGetValue("championshipId", out var championshipId) &&
             Guid.TryParse(championshipId.ToString(), out var parsedChampionshipId))
         {
+            hasQuerySelection = true;
             selectedChampionshipId = parsedChampionshipId.ToString();
             selectedChampionship = championships.FirstOrDefault(c => c.ChampionshipId == parsedChampionshipId);
             await LoadSeasonsAsync();
@@ -733,6 +862,105 @@
             {
                 await LoadRacesAsync();
             }
+        }
+
+        if (!hasQuerySelection)
+        {
+            await RestoreSelectionFromStorageAsync();
+        }
+        else
+        {
+            preferencesRestored = true;
+            await PersistSelectionAsync();
+        }
+    }
+
+    private async Task RestoreSelectionFromStorageAsync()
+    {
+        preferencesRestored = true;
+
+        string? storedChampionshipId = null;
+        string? storedSeasonId = null;
+
+        try
+        {
+            storedChampionshipId = await JS.InvokeAsync<string?>("wecLocalStorage.get", ChampionshipStorageKey);
+            storedSeasonId = await JS.InvokeAsync<string?>("wecLocalStorage.get", SeasonStorageKey);
+        }
+        catch (JSException)
+        {
+            return;
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(storedChampionshipId, out var parsedChampionshipId))
+        {
+            await ClearStoredSelectionAsync();
+            return;
+        }
+
+        selectedChampionship = championships?.FirstOrDefault(c => c.ChampionshipId == parsedChampionshipId);
+        if (selectedChampionship is null)
+        {
+            await ClearStoredSelectionAsync();
+            return;
+        }
+
+        selectedChampionshipId = selectedChampionship.ChampionshipId.ToString();
+        await LoadSeasonsAsync();
+
+        if (Guid.TryParse(storedSeasonId, out var parsedSeasonId))
+        {
+            selectedSeason = seasons.FirstOrDefault(s => s.SeasonId == parsedSeasonId);
+        }
+
+        if (selectedSeason is not null)
+        {
+            selectedSeasonId = selectedSeason.SeasonId.ToString();
+            await LoadRacesAsync();
+        }
+        else
+        {
+            selectedSeasonId = null;
+            await PersistSelectionAsync();
+        }
+    }
+
+    private async Task PersistSelectionAsync()
+    {
+        if (!preferencesRestored)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("wecLocalStorage.set", ChampionshipStorageKey, selectedChampionshipId ?? "");
+            await JS.InvokeVoidAsync("wecLocalStorage.set", SeasonStorageKey, selectedSeasonId ?? "");
+        }
+        catch (JSException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task ClearStoredSelectionAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("wecLocalStorage.remove", ChampionshipStorageKey);
+            await JS.InvokeVoidAsync("wecLocalStorage.remove", SeasonStorageKey);
+        }
+        catch (JSException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
         }
     }
 
@@ -786,6 +1014,8 @@
         {
             selectedChampionship = null;
         }
+
+        await PersistSelectionAsync();
     }
 
     private async Task LoadSeasonsAsync()
@@ -814,6 +1044,8 @@
         {
             await LoadRacesAsync();
         }
+
+        await PersistSelectionAsync();
     }
 
     private async Task LoadRacesAsync()
@@ -892,11 +1124,16 @@
             RaceId = Guid.NewGuid(),
             RaceName = string.Empty,
             SeasonId = selectedSeason.SeasonId,
-            PointSettingId = defaultPointSetting?.SettingId ?? Guid.Empty
+            PointSettingId = defaultPointSetting?.SettingId ?? Guid.Empty,
+            NumberOfLaps = 10,
+            PracticeSessionMinutes = 20,
+            QualifyingSessionMinutes = 20
         };
+        trackLayouts = new List<string>();
+        estimatedLapTimeMs = null;
     }
 
-    private void OpenRaceEdit(RaceModel race)
+    private async Task OpenRaceEdit(RaceModel race)
     {
         if (selectedSeason is null)
         {
@@ -910,8 +1147,23 @@
             RaceName = race.RaceName,
             Country = race.Country,
             SeasonId = selectedSeason.SeasonId,
-            PointSettingId = race.PointSettingId
+            PointSettingId = race.PointSettingId,
+            TrackName = race.TrackName,
+            TrackLayout = race.TrackLayout,
+            NumberOfLaps = race.NumberOfLaps,
+            PracticeSessionMinutes = race.PracticeSessionMinutes,
+            QualifyingSessionMinutes = race.QualifyingSessionMinutes
         };
+
+        trackLayouts = string.IsNullOrWhiteSpace(editingRace.TrackName)
+            ? new List<string>()
+            : (await TrackService.GetTrackLayoutsAsync(editingRace.TrackName)).ToList();
+
+        estimatedLapTimeMs = string.IsNullOrWhiteSpace(editingRace.TrackName)
+            ? null
+            : await TrackService.GetBestLapTimeAsync(
+                editingRace.TrackName,
+                string.IsNullOrWhiteSpace(editingRace.TrackLayout) ? null : editingRace.TrackLayout);
     }
 
     private void CancelRaceEdit()
@@ -944,14 +1196,17 @@
             return;
         }
 
+        editingRace.RaceDuration = editingRace.NumberOfLaps is > 0 && estimatedLapTimeMs is > 0
+            ? (int)Math.Round((double)editingRace.NumberOfLaps.Value * estimatedLapTimeMs.Value / 1000.0)
+            : null;
+
         isSavingRace = true;
 
         try
         {
             if (isCreatingRace)
             {
-                await RaceService.CreateRaceAsync(editingRace.SeasonId, editingRace.RaceName, editingRace.Country,
-editingRace.PointSettingId);
+                await RaceService.CreateRaceAsync(editingRace);
             }
             else
             {
@@ -959,6 +1214,7 @@ editingRace.PointSettingId);
             }
 
             await LoadRacesAsync();
+            await RefreshPitCapacityAsync();
             isSavingRace = false;
             Toast.Show(isCreatingRace ? "Race created." : "Race updated.");
             CancelRaceEdit();
@@ -1012,8 +1268,13 @@ editingRace.PointSettingId);
             selectedTeamClassFilter = "";
             selectedStandingClassFilter = "";
             selectedSessionType = SessionType.Race;
-            selectedTab = selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
             sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
+
+            await RefreshPitCapacityAsync();
+
+            selectedTab = hasSessionData
+                ? RacePopupTab.Race
+                : selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
             await LoadResultFilesAsync();
         }
         catch (Exception ex)
@@ -1025,6 +1286,33 @@ editingRace.PointSettingId);
         {
             isLoadingRacePopup = false;
         }
+    }
+
+    private async Task RefreshPitCapacityAsync()
+    {
+        if (viewingSessionsFor is null)
+        {
+            return;
+        }
+
+        var race = await RaceService.GetRaceByIdAsync(viewingSessionsFor.RaceId);
+
+        if (race is null)
+        {
+            return;
+        }
+
+        viewingSessionsFor.RaceName = race.RaceName;
+        viewingSessionsFor.TrackName = race.TrackName;
+        viewingSessionsFor.TrackLayout = race.TrackLayout;
+
+        trackPitCount = string.IsNullOrWhiteSpace(race.TrackName)
+            ? null
+            : await TrackService.GetPitCountAsync(
+                race.TrackName,
+                string.IsNullOrWhiteSpace(race.TrackLayout) ? null : race.TrackLayout);
+
+        enteredCarCount = await RaceService.GetEnteredCarCountAsync(viewingSessionsFor.RaceId);
     }
 
     private async Task CloseSessionsAsync()
@@ -1160,7 +1448,104 @@ editingRace.PointSettingId);
 
     private void SetTeamsTab()
     {
+        if (hasSessionData)
+        {
+            return;
+        }
+
         selectedTab = RacePopupTab.Teams;
+    }
+
+    private async Task HandleRaceTrackChangedAsync()
+    {
+        if (editingRace is null)
+        {
+            return;
+        }
+
+        editingRace.TrackLayout = null;
+        trackLayouts = string.IsNullOrWhiteSpace(editingRace.TrackName)
+            ? new List<string>()
+            : (await TrackService.GetTrackLayoutsAsync(editingRace.TrackName)).ToList();
+
+        await RefreshEstimatedLapTimeAsync();
+    }
+
+    private async Task HandleRaceLayoutChangedAsync()
+    {
+        await RefreshEstimatedLapTimeAsync();
+    }
+
+    private async Task RefreshEstimatedLapTimeAsync()
+    {
+        if (editingRace is null || string.IsNullOrWhiteSpace(editingRace.TrackName))
+        {
+            estimatedLapTimeMs = null;
+            return;
+        }
+
+        estimatedLapTimeMs = await TrackService.GetBestLapTimeAsync(
+            editingRace.TrackName,
+            string.IsNullOrWhiteSpace(editingRace.TrackLayout) ? null : editingRace.TrackLayout);
+    }
+
+    private void HandleLapsChanged(ChangeEventArgs e)
+    {
+        if (editingRace is null)
+        {
+            return;
+        }
+
+        editingRace.NumberOfLaps = int.TryParse(e.Value?.ToString(), out var laps) ? laps : null;
+    }
+
+    private void HandleSessionMinutesChanged(ChangeEventArgs e, bool isPractice)
+    {
+        if (editingRace is null)
+        {
+            return;
+        }
+
+        var raw = e.Value?.ToString();
+        int? minutes = null;
+
+        if (!string.IsNullOrWhiteSpace(raw) && int.TryParse(raw, out var parsed))
+        {
+            minutes = Math.Max(1, parsed);
+        }
+
+        if (isPractice)
+        {
+            editingRace.PracticeSessionMinutes = minutes;
+        }
+        else
+        {
+            editingRace.QualifyingSessionMinutes = minutes;
+        }
+    }
+
+    private async Task StartSessionAsync()
+    {
+        if (viewingSessionsFor is null || !canStartSession)
+        {
+            return;
+        }
+
+        isStartingSession = true;
+
+        try
+        {
+            await RaceService.LaunchSessionAsync(viewingSessionsFor.RaceId, selectedSessionType);
+            Toast.Show($"Started {SessionTypeLabel(selectedSessionType)} session in Assetto Corsa.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isStartingSession = false;
+        }
     }
 
     private void SetSessionTab(SessionType type)
@@ -1221,6 +1606,7 @@ editingRace.PointSettingId);
         }
 
         selectedTeamIds = (await RaceService.GetRaceTeamsAsync(viewingSessionsFor.RaceId)).Select(t => t.TeamId).ToHashSet();
+        await RefreshPitCapacityAsync();
     }
 
     private async Task<PresetExportResult> ExportGridPresetAsync(bool humanClassOnly)
@@ -1262,25 +1648,12 @@ editingRace.PointSettingId);
             throw new InvalidOperationException("No championship or season selected.");
         }
 
-        isExportingRacePreset = true;
-
-        try
-        {
-            var result = await RaceService.ExportRaceGridPresetAsync(
+        var result = await RaceService.ExportRaceGridPresetAsync(
                 viewingSessionsFor.RaceId,
                 selectedSeason.SeasonName,
                 selectedChampionship.ChampionshipName);
 
-            Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
-        }
-        catch (Exception ex)
-        {
-            Toast.Show(ex.Message, isError: true);
-        }
-        finally
-        {
-            isExportingRacePreset = false;
-        }
+        Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
     }
 
     private string GetClassBadgeClass(string teamClass)
@@ -1319,5 +1692,56 @@ editingRace.PointSettingId);
 
         var time = TimeSpan.FromMilliseconds(bestLapTimeMs);
         return $"{(int)time.TotalMinutes}:{time.Seconds:00}.{time.Milliseconds:000}";
+    }
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+
+        if (time.TotalHours >= 1)
+        {
+            return $"{(int)time.TotalHours}h {time.Minutes:00}m";
+        }
+
+        return $"{time.Minutes}m {time.Seconds:00}s";
+    }
+
+    private bool hasSelectedSessionData =>
+        sessionsCache?.Any(s => s.SessionType == selectedSessionType && s.DriverStandings.Any()) == true;
+
+    private bool hasRaceTrack =>
+        !string.IsNullOrWhiteSpace(viewingSessionsFor?.TrackName);
+
+    private bool missingTrack => !hasRaceTrack;
+
+    private bool exceedsPitCapacity =>
+        hasRaceTrack && trackPitCount is > 0 && enteredCarCount > trackPitCount.Value;
+
+    private bool canStartSession => !missingTrack && !exceedsPitCapacity && !hasSelectedSessionData;
+
+    private string? startSessionTitle =>
+        missingTrack
+            ? "Select a track for this race before starting a session."
+            : exceedsPitCapacity
+                ? $"The number of cars ({enteredCarCount}) is more than the number of pits ({trackPitCount}). " +
+                  "Please change the race track or layout."
+                : hasSelectedSessionData
+                    ? $"A {SessionTypeLabel(selectedSessionType).ToLowerInvariant()} session already has data."
+                    : null;
+
+    private bool showTrackPreview =>
+        !string.IsNullOrWhiteSpace(editingRace?.TrackName) &&
+        (!string.IsNullOrWhiteSpace(editingRace.TrackLayout) || trackLayouts.Count == 0);
+
+    private static string BuildTrackImageUrl(string track, string? layout, string imageType)
+    {
+        var query = $"track={Uri.EscapeDataString(track)}&type={imageType}";
+
+        if (!string.IsNullOrWhiteSpace(layout))
+        {
+            query += $"&layout={Uri.EscapeDataString(layout)}";
+        }
+
+        return $"/track-image?{query}";
     }
 }

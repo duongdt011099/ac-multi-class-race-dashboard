@@ -121,4 +121,49 @@ app.MapGet("/car-image", async (
     return Results.File(fullPath, contentType);
 });
 
+app.MapGet("/track-image", async (
+    string? track,
+    string? layout,
+    string? type,
+    IAssettoCorsaGameConfigService configService) =>
+{
+    var fileName = type switch
+    {
+        "outline" => "outline.png",
+        "preview" => "preview.png",
+        _ => null
+    };
+
+    if (fileName is null ||
+        string.IsNullOrWhiteSpace(track) ||
+        track.Contains('\\') || track.Contains('/') ||
+        layout?.Contains('\\') == true || layout?.Contains('/') == true)
+    {
+        return Results.NotFound();
+    }
+
+    var config = await configService.GetAsync();
+
+    if (config is null || string.IsNullOrWhiteSpace(config.GamePath))
+    {
+        return Results.NotFound();
+    }
+
+    var tracksRoot = Path.GetFullPath(Path.Combine(config.GamePath.Trim(), "content", "tracks"));
+
+    var relative = string.IsNullOrWhiteSpace(layout)
+        ? Path.Combine(track.Trim(), "ui", fileName)
+        : Path.Combine(track.Trim(), "ui", layout.Trim(), fileName);
+
+    var fullPath = Path.GetFullPath(Path.Combine(tracksRoot, relative));
+
+    if (!fullPath.StartsWith(tracksRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+        !File.Exists(fullPath))
+    {
+        return Results.NotFound();
+    }
+
+    return Results.File(fullPath, "image/png");
+});
+
 app.Run();

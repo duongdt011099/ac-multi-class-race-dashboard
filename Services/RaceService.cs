@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
@@ -12,6 +14,7 @@ public class RaceService : IRaceService
     private readonly ISeasonRepository _seasonRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
+    private readonly ITrackService _trackService;
 
     private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
     {
@@ -22,19 +25,19 @@ public class RaceService : IRaceService
         IRaceRepository raceRepository,
         ISeasonRepository seasonRepository,
         IAssettoCorsaGameConfigRepository configRepository,
-        IPointSettingRepository pointSettingRepository)
+        IPointSettingRepository pointSettingRepository,
+        ITrackService trackService)
     {
         _raceRepository = raceRepository;
         _seasonRepository = seasonRepository;
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
+        _trackService = trackService;
     }
 
-    public async Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId)
+    private static RaceModel MapRace(Race r)
     {
-        var races = await _raceRepository.GetRacesBySeasonAsync(seasonId);
-
-        return races.Select(r => new RaceModel
+        return new RaceModel
         {
             RaceId = r.RaceId,
             RaceName = r.RaceName,
@@ -42,20 +45,40 @@ public class RaceService : IRaceService
             Status = r.Status,
             PointSettingId = r.PointSettingId,
             PointSettingName = r.PointSetting.SettingName,
+            TrackName = r.TrackName,
+            TrackLayout = r.TrackLayout,
+            NumberOfLaps = r.NumberOfLaps,
+            RaceDuration = r.RaceDuration,
+            PracticeSessionMinutes = r.PracticeSessionMinutes,
+            QualifyingSessionMinutes = r.QualifyingSessionMinutes,
             StandingCount = r.Sessions.Sum(s => s.DriverStandings.Count)
-        });
+        };
     }
 
-    public async Task CreateRaceAsync(Guid seasonId, string raceName, string country, Guid pointSettingId)
+    public async Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId)
     {
-        var season = await _seasonRepository.GetByIdAsync(seasonId);
+        var races = await _raceRepository.GetRacesBySeasonAsync(seasonId);
+
+        return races.Select(MapRace);
+    }
+
+    public async Task<RaceModel?> GetRaceByIdAsync(Guid raceId)
+    {
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        return race is null ? null : MapRace(race);
+    }
+
+    public async Task CreateRaceAsync(RaceFormModel model)
+    {
+        var season = await _seasonRepository.GetByIdAsync(model.SeasonId);
 
         if (season is null)
         {
             throw new InvalidOperationException("Season not found.");
         }
 
-        var pointSetting = await _pointSettingRepository.GetByIdAsync(pointSettingId);
+        var pointSetting = await _pointSettingRepository.GetByIdAsync(model.PointSettingId);
 
         if (pointSetting is null)
         {
@@ -65,9 +88,15 @@ public class RaceService : IRaceService
         var race = new Race
         {
             RaceId = Guid.NewGuid(),
-            RaceName = raceName.Trim(),
-            Country = country?.Trim() ?? string.Empty,
+            RaceName = model.RaceName.Trim(),
+            Country = model.Country?.Trim() ?? string.Empty,
             Status = RaceStatus.NotStarted,
+            TrackName = NormalizeNullable(model.TrackName),
+            TrackLayout = NormalizeNullable(model.TrackLayout),
+            NumberOfLaps = model.NumberOfLaps,
+            RaceDuration = model.RaceDuration,
+            PracticeSessionMinutes = model.PracticeSessionMinutes,
+            QualifyingSessionMinutes = model.QualifyingSessionMinutes,
             PointSettingId = pointSetting.SettingId,
             PointSetting = pointSetting,
             Season = season,
@@ -89,6 +118,12 @@ public class RaceService : IRaceService
 
         race.RaceName = model.RaceName.Trim();
         race.Country = model.Country?.Trim() ?? string.Empty;
+        race.TrackName = NormalizeNullable(model.TrackName);
+        race.TrackLayout = NormalizeNullable(model.TrackLayout);
+        race.NumberOfLaps = model.NumberOfLaps;
+        race.RaceDuration = model.RaceDuration;
+        race.PracticeSessionMinutes = model.PracticeSessionMinutes;
+        race.QualifyingSessionMinutes = model.QualifyingSessionMinutes;
 
         if (model.PointSettingId != Guid.Empty && race.PointSettingId != model.PointSettingId)
         {
@@ -107,6 +142,170 @@ public class RaceService : IRaceService
     public async Task DeleteRaceAsync(Guid raceId)
     {
         await _raceRepository.DeleteAsync(raceId);
+    }
+
+    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType)
+    {
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        if (race is null)
+        {
+            throw new InvalidOperationException("Race not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(race.TrackName))
+        {
+            throw new InvalidOperationException("Select a track for this race before starting a session.");
+        }
+
+        if (sessionType == SessionType.Race && race.NumberOfLaps is not > 0)
+        {
+            throw new InvalidOperationException("Set the number of laps for this race before starting the session.");
+        }
+
+        var config = await _configRepository.GetAsync();
+        var gamePath = config?.GamePath?.Trim();
+
+        if (string.IsNullOrWhiteSpace(gamePath))
+        {
+            throw new InvalidOperationException("Game path is not configured. Set it on the Game Config page.");
+        }
+
+        var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
+
+        var activeDriverCount = teams.Sum(t => t.Drivers.Count(d => d.IsActive));
+        var pitCount = await _trackService.GetPitCountAsync(
+            race.TrackName,
+            string.IsNullOrWhiteSpace(race.TrackLayout) ? null : race.TrackLayout);
+
+        if (pitCount is > 0 && activeDriverCount > pitCount.Value)
+        {
+            throw new InvalidOperationException(
+                $"The number of cars ({activeDriverCount}) is more than the number of pits ({pitCount}). " +
+                "Please change the race track or layout.");
+        }
+
+        var drivers = teams
+            .SelectMany(t => t.Drivers.Where(d => d.IsActive))
+            .OrderBy(d => d.Team?.TeamClass?.TeamClassName)
+            .ThenBy(d => d.Team?.TeamName)
+            .ThenBy(d => d.DriverName)
+            .ToList();
+
+        var human = drivers.FirstOrDefault(d => d.IsHuman);
+
+        var raceIni = BuildRaceIni(race, sessionType, human, drivers);
+
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");
+        Directory.CreateDirectory(cfgDir);
+        await File.WriteAllTextAsync(Path.Combine(cfgDir, "race.ini"), raceIni);
+
+        var executable = Path.Combine(gamePath, "acs.exe");
+
+        if (!File.Exists(executable))
+        {
+            executable = Path.Combine(gamePath, "AssettoCorsa.exe");
+        }
+
+        if (!File.Exists(executable))
+        {
+            throw new InvalidOperationException(
+                $"Assetto Corsa executable not found in the configured game path: {gamePath}");
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = gamePath,
+            UseShellExecute = true
+        });
+    }
+
+    private static string BuildRaceIni(Race race, SessionType sessionType, Driver? human, IReadOnlyList<Driver> drivers)
+    {
+        var opponents = drivers.Where(d => !d.IsHuman).ToList();
+        var playerCar = human?.Car?.Trim();
+        var playerSkin = human?.Skin?.Trim();
+
+        const string model = "[BENCHMARK]\r\nACTIVE=0\r\n\r\n" +
+            "[REPLAY]\r\nACTIVE=0\r\n\r\n" +
+            "[REMOTE]\r\nACTIVE=0\r\nSERVER_IP=\r\nSERVER_PORT=\r\nNAME=\r\nTEAM=\r\nGUID=\r\nREQUESTED_CAR=\r\nPASSWORD=\r\n\r\n" +
+            "[RESTART]\r\nACTIVE=0\r\n\r\n" +
+            "[__PREVIEW_GENERATION]\r\nACTIVE=0\r\n\r\n" +
+            "[LIGHTING]\r\nSUN_ANGLE=16.08\r\nTIME_MULT=10.0\r\nCLOUD_SPEED=0.200\r\n\r\n";
+
+        var builder = new StringBuilder();
+        builder.Append(model);
+        builder.Append("[RACE]\r\n");
+        builder.Append("MODEL=").AppendLine(string.IsNullOrWhiteSpace(playerCar) ? "-" : playerCar);
+        builder.Append("MODEL_CONFIG=\r\n");
+        builder.Append("SKIN=").AppendLine(string.IsNullOrWhiteSpace(playerSkin) ? "-" : playerSkin);
+        builder.Append("TRACK=").AppendLine(race.TrackName);
+        builder.Append("CONFIG_TRACK=").AppendLine(race.TrackLayout ?? string.Empty);
+        builder.Append("AI_LEVEL=100\r\n");
+        builder.Append("CARS=").AppendLine((opponents.Count + 1).ToString());
+        builder.Append("DRIFT_MODE=0\r\n");
+        builder.Append("FIXED_SETUP=0\r\n");
+        builder.Append("PENALTIES=1\r\n");
+        builder.Append("JUMP_START_PENALTY=0\r\n");
+        builder.Append("RACE_LAPS=").AppendLine((race.NumberOfLaps ?? 0).ToString());
+        builder.Append("\r\n");
+
+        builder.Append("[OPTIONS]\r\nUSE_MPH=0\r\n\r\n");
+        builder.Append("[HEADER]\r\nVERSION=2\r\n__CM_FEATURE_SET=2\r\n\r\n");
+        builder.Append("[LAP_INVALIDATOR]\r\nALLOWED_TYRES_OUT=-1\r\n\r\n");
+
+        builder.Append("[CAR_0]\r\n");
+        builder.Append("SETUP=\r\n");
+        builder.Append("SKIN=").AppendLine(string.IsNullOrWhiteSpace(playerSkin) ? "-" : playerSkin);
+        builder.Append("MODEL=-\r\n");
+        builder.Append("MODEL_CONFIG=\r\n");
+        builder.Append("BALLAST=0\r\n");
+        builder.Append("RESTRICTOR=0\r\n");
+        builder.Append("DRIVER_NAME=").AppendLine(human?.DriverName ?? string.Empty);
+        builder.Append("NATIONALITY=").AppendLine(human?.Nationality ?? string.Empty);
+        builder.Append("NATION_CODE=\r\n\r\n");
+
+        for (var i = 0; i < opponents.Count; i++)
+        {
+            var driver = opponents[i];
+            builder.Append($"[CAR_{i + 1}]\r\n");
+            builder.Append("MODEL=").AppendLine(driver.Car?.Trim());
+            builder.Append("SKIN=").AppendLine(driver.Skin?.Trim());
+            builder.Append("BALLAST=0\r\n");
+            builder.Append("RESTRICTOR=0\r\n");
+            builder.Append("DRIVER_NAME=").AppendLine(driver.DriverName?.Trim());
+            builder.Append("NATIONALITY=").AppendLine(driver.Nationality?.Trim() ?? string.Empty);
+            builder.Append("NATION_CODE=\r\n\r\n");
+        }
+
+        builder.Append("[GHOST_CAR]\r\nRECORDING=0\r\nPLAYING=0\r\nLOAD=0\r\nFILE=\r\nENABLED=0\r\nSECONDS_ADVANTAGE=0\r\n\r\n");
+        builder.Append("[GROOVE]\r\nVIRTUAL_LAPS=10\r\nMAX_LAPS=30\r\nSTARTING_LAPS=0\r\n\r\n");
+        builder.Append("[TEMPERATURE]\r\nAMBIENT=18\r\nROAD=14\r\n\r\n");
+        builder.Append("[WEATHER]\r\nNAME=2_light_fog\r\n\r\n");
+        builder.Append("[WIND]\r\nSPEED_KMH_MIN=5.5\r\nSPEED_KMH_MAX=5.5\r\nDIRECTION_DEG=340\r\n\r\n");
+        builder.Append("[DYNAMIC_TRACK]\r\nSESSION_START=200\r\nRANDOMNESS=200\r\nLAP_GAIN=132\r\nSESSION_TRANSFER=200\r\n\r\n");
+
+        var (sessionName, sessionTypeValue, durationMinutes) = sessionType switch
+        {
+            SessionType.Practice => ("Practice", 1, race.PracticeSessionMinutes is > 0 ? race.PracticeSessionMinutes : 20),
+            SessionType.Qualifying => ("Qualifying", 2, race.QualifyingSessionMinutes is > 0 ? race.QualifyingSessionMinutes : 20),
+            _ => ("Race", 3, 0)
+        };
+
+        builder.Append("[SESSION_0]\r\n");
+        builder.Append("NAME=").AppendLine(sessionName);
+        builder.Append("TYPE=").AppendLine(sessionTypeValue.ToString());
+        builder.Append("DURATION_MINUTES=").AppendLine(durationMinutes.ToString());
+        builder.Append("SPAWN_SET=PIT\r\n");
+
+        return builder.ToString();
+    }
+
+    private static string? NormalizeNullable(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     public async Task<IEnumerable<SessionModel>> GetRaceSessionsAsync(Guid raceId)
@@ -133,6 +332,15 @@ public class RaceService : IRaceService
                 })
                 .ToList()
         });
+    }
+
+    public async Task<int> GetEnteredCarCountAsync(Guid raceId)
+    {
+        var teams = await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId);
+
+        return teams
+            .SelectMany(t => t.Drivers)
+            .Count(d => d.IsActive);
     }
 
     public async Task<IEnumerable<TeamModel>> GetRaceTeamsAsync(Guid raceId)
