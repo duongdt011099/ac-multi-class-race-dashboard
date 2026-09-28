@@ -10,13 +10,14 @@ public sealed class RaceIniBuilder
         SessionType sessionType,
         Driver? human,
         IReadOnlyList<Driver> drivers,
+        string weather,
         int playerStartPosition = 1)
     {
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
         var playerSkin = human?.Skin?.Trim();
 
-        const string model = "[BENCHMARK]\r\nACTIVE=0\r\n\r\n" +
+        var model = "[BENCHMARK]\r\nACTIVE=0\r\n\r\n" +
             "[REPLAY]\r\nACTIVE=0\r\n\r\n" +
             "[REMOTE]\r\nACTIVE=0\r\nSERVER_IP=\r\nSERVER_PORT=\r\nNAME=\r\nTEAM=\r\nGUID=\r\nREQUESTED_CAR=\r\nPASSWORD=\r\n\r\n" +
             "[RESTART]\r\nACTIVE=0\r\n\r\n" +
@@ -73,7 +74,8 @@ public sealed class RaceIniBuilder
         builder.Append("[GHOST_CAR]\r\nRECORDING=0\r\nPLAYING=0\r\nLOAD=0\r\nFILE=\r\nENABLED=0\r\nSECONDS_ADVANTAGE=0\r\n\r\n");
         builder.Append("[GROOVE]\r\nVIRTUAL_LAPS=10\r\nMAX_LAPS=30\r\nSTARTING_LAPS=0\r\n\r\n");
         builder.Append("[TEMPERATURE]\r\nAMBIENT=18\r\nROAD=14\r\n\r\n");
-        builder.Append("[WEATHER]\r\nNAME=2_light_fog\r\n\r\n");
+        builder.Append("[WEATHER]\r\nNAME=").AppendLine(string.IsNullOrWhiteSpace(weather) ? "2_light_fog" : weather.Trim());
+        builder.Append("\r\n");
         builder.Append("[WIND]\r\nSPEED_KMH_MIN=5.5\r\nSPEED_KMH_MAX=5.5\r\nDIRECTION_DEG=340\r\n\r\n");
         builder.Append("[DYNAMIC_TRACK]\r\nSESSION_START=200\r\nRANDOMNESS=200\r\nLAP_GAIN=132\r\nSESSION_TRANSFER=200\r\n\r\n");
 
@@ -103,4 +105,5 @@ public sealed class RaceIniBuilder
 
         return builder.ToString();
     }
+
 }

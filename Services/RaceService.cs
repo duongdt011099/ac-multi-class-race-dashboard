@@ -145,7 +145,7 @@ public class RaceService : IRaceService
         await _raceRepository.DeleteAsync(raceId);
     }
 
-    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType)
+    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType, string weather)
     {
         var race = await _raceRepository.GetByIdAsync(raceId);
 
@@ -227,7 +227,13 @@ public class RaceService : IRaceService
                 : drivers.TakeWhile(d => d.DriverId != human.DriverId).Count() + 1;
         }
 
-        var raceIni = new RaceIniBuilder().Build(race, sessionType, human, drivers, playerStartPosition);
+        var raceIni = new RaceIniBuilder().Build(
+            race,
+            sessionType,
+            human,
+            drivers,
+            weather,
+            playerStartPosition);
 
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");

@@ -491,13 +491,6 @@
                             ExportRaceHandler="@ExportRacePresetAsync"
                             ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
 
-                        <span class="wec-btn-title" title="@startSessionTitle">
-                            <button type="button" class="wec-toolbar__btn @(isStartingSession || !canStartSession ? "wec-toolbar__btn--disabled" : "")"
-                                    @onclick="StartSessionAsync" disabled="@(isStartingSession || !canStartSession)">
-                                <i class="bi bi-play-fill"></i> @(isStartingSession ? "Starting..." : "Start Session")
-                            </button>
-                        </span>
-
                         <div class="wec-preset-export">
                             <label for="session-result-file"
                                    class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
@@ -506,19 +499,30 @@
                             <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport"
                                        class="d-none" />
                         </div>
-                    </div>
-                }
 
-                @if (selectedTab == RacePopupTab.Race)
-                {
-                    <div class="wec-session-actions">
+                        <div class="wec-session-setting wec-weather-setting">
+                            <select id="race-session-weather" class="wec-weather-select" aria-label="Weather"
+                                    value="@selectedWeather" @onchange="HandleWeatherChanged">
+                                <option value="" disabled>Select weather...</option>
+                                @foreach (var weather in WeatherOptions)
+                                {
+                                    <option value="@weather.Value">@weather.Label</option>
+                                }
+                            </select>
+                        </div>
+
                         <span class="wec-btn-title" title="@startSessionTitle">
                             <button type="button" class="wec-toolbar__btn @(isStartingSession || !canStartSession ? "wec-toolbar__btn--disabled" : "")"
                                     @onclick="StartSessionAsync" disabled="@(isStartingSession || !canStartSession)">
                                 <i class="bi bi-play-fill"></i> @(isStartingSession ? "Starting..." : "Start Session")
                             </button>
                         </span>
+                    </div>
+                }
 
+                @if (selectedTab == RacePopupTab.Race)
+                {
+                    <div class="wec-session-actions">
                         <div class="wec-preset-export">
                             <span class="wec-preset-export__label">Import Result</span>
                             <select class="wec-result-file-select" value="@selectedRaceResultFile"
@@ -541,6 +545,24 @@
                                 @(isImportingRaceResult ? "Importing..." : "Import")
                             </button>
                         </div>
+
+                        <div class="wec-session-setting wec-weather-setting">
+                            <select id="race-session-weather" class="wec-weather-select" aria-label="Weather"
+                                    value="@selectedWeather" @onchange="HandleWeatherChanged">
+                                <option value="" disabled>Select weather...</option>
+                                @foreach (var weather in WeatherOptions)
+                                {
+                                    <option value="@weather.Value">@weather.Label</option>
+                                }
+                            </select>
+                        </div>
+
+                        <span class="wec-btn-title" title="@startSessionTitle">
+                            <button type="button" class="wec-toolbar__btn @(isStartingSession || !canStartSession ? "wec-toolbar__btn--disabled" : "")"
+                                    @onclick="StartSessionAsync" disabled="@(isStartingSession || !canStartSession)">
+                                <i class="bi bi-play-fill"></i> @(isStartingSession ? "Starting..." : "Start Session")
+                            </button>
+                        </span>
                     </div>
                 }
 
@@ -731,6 +753,7 @@
     private int? estimatedLapTimeMs;
     private int? trackPitCount;
     private int enteredCarCount;
+    private string selectedWeather = "2_light_fog";
     private bool isOpeningStandings;
     private List<DriverStandingsModel>? driverStandings;
     private string selectedStandingClassFilter = "";
@@ -739,6 +762,21 @@
     private const string UncategorizedKey = "__uncategorized__";
 
     private const long MaxResultFileBytes = 2 * 1024 * 1024;
+
+    private static readonly (string Value, string Label)[] WeatherOptions =
+    {
+        ("clear", "Clear"),
+        ("2_light_fog", "Light Fog"),
+        ("3_fog", "Fog"),
+        ("4_heavy_fog", "Heavy Fog"),
+        ("5_light_clouds", "Light Clouds"),
+        ("6_clouds", "Clouds"),
+        ("7_heavy_clouds", "Heavy Clouds"),
+        ("8_light_rain", "Light Rain"),
+        ("9_rain", "Rain"),
+        ("10_heavy_rain", "Heavy Rain"),
+        ("11_thunderstorm", "Thunderstorm")
+    };
 
     private enum RacePopupTab
     {
@@ -1268,6 +1306,7 @@
             selectedTeamClassFilter = "";
             selectedStandingClassFilter = "";
             selectedSessionType = SessionType.Race;
+            selectedWeather = "2_light_fog";
             sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
 
             await RefreshPitCapacityAsync();
@@ -1524,6 +1563,11 @@
         }
     }
 
+    private void HandleWeatherChanged(ChangeEventArgs e)
+    {
+        selectedWeather = e.Value?.ToString() ?? "2_light_fog";
+    }
+
     private async Task StartSessionAsync()
     {
         if (viewingSessionsFor is null || !canStartSession)
@@ -1535,7 +1579,10 @@
 
         try
         {
-            await RaceService.LaunchSessionAsync(viewingSessionsFor.RaceId, selectedSessionType);
+            await RaceService.LaunchSessionAsync(
+                viewingSessionsFor.RaceId,
+                selectedSessionType,
+                selectedWeather);
             Toast.Show($"Started {SessionTypeLabel(selectedSessionType)} session in Assetto Corsa.");
         }
         catch (Exception ex)

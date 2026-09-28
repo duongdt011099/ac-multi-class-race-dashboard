@@ -10,7 +10,7 @@ public interface IRaceService
     Task CreateRaceAsync(RaceFormModel model);
     Task UpdateRaceAsync(RaceFormModel model);
     Task DeleteRaceAsync(Guid raceId);
-    Task LaunchSessionAsync(Guid raceId, SessionType sessionType);
+    Task LaunchSessionAsync(Guid raceId, SessionType sessionType, string weather);
     Task<IEnumerable<SessionModel>> GetRaceSessionsAsync(Guid raceId);
     Task<IEnumerable<TeamModel>> GetRaceTeamsAsync(Guid raceId);
     Task<int> GetEnteredCarCountAsync(Guid raceId);
