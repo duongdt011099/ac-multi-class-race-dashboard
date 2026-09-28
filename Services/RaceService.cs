@@ -331,15 +331,17 @@ public class RaceService : IRaceService
         builder.Append("[SESSION_0]\r\n");
         builder.Append("NAME=").AppendLine(sessionName);
         builder.Append("TYPE=").AppendLine(sessionTypeValue.ToString());
-        builder.Append("DURATION_MINUTES=").AppendLine(durationMinutes.ToString());
 
         if (sessionType == SessionType.Race)
         {
+            builder.Append("LAPS=").AppendLine((race.NumberOfLaps ?? 0).ToString());
+            builder.Append("DURATION_MINUTES=0\r\n");
             builder.Append("STARTING_POSITION=").AppendLine(playerStartPosition.ToString());
             builder.Append("SPAWN_SET=START\r\n");
         }
         else
         {
+            builder.Append("DURATION_MINUTES=").AppendLine(durationMinutes.ToString());
             builder.Append("SPAWN_SET=PIT\r\n");
         }
 
