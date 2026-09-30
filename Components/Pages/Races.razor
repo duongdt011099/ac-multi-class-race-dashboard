@@ -1,5 +1,6 @@
 @page "/races"
 @rendermode InteractiveServer
+@implements IDisposable
 @using Microsoft.AspNetCore.WebUtilities
 @using MulticlassRace.Models
 @using MulticlassRace.ViewModels
@@ -11,6 +12,7 @@
 @inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
 @inject MulticlassRace.Services.Abstractions.ITrackService TrackService
 @inject MulticlassRace.Services.Abstractions.ILuaResultImportService LuaResultImportService
+@inject MulticlassRace.Services.RaceSessionChangeNotifier RaceSessionChangeNotifier
 @inject ToastService Toast
 @inject NavigationManager Nav
 @inject IJSRuntime JS
@@ -312,8 +314,8 @@
                 </div>
 
                 <div class="wec-form-field">
-                    <label for="race-track">Track</label>
-                    <select id="race-track" @bind="editingRace.TrackName" @bind:after="HandleRaceTrackChangedAsync">
+                    <label for="race-track">Track <span class="wec-required" aria-hidden="true">*</span></label>
+                    <select id="race-track" required @bind="editingRace.TrackName" @bind:after="HandleRaceTrackChangedAsync">
                         <option value="">Select track...</option>
                         @foreach (var track in availableTracks)
                         {
@@ -323,8 +325,15 @@
                 </div>
 
                 <div class="wec-form-field">
-                    <label for="race-track-layout">Track Layout</label>
+                    <label for="race-track-layout">
+                        Track Layout
+                        @if (trackLayouts.Count > 0)
+                        {
+                            <span class="wec-required" aria-hidden="true">*</span>
+                        }
+                    </label>
                     <select id="race-track-layout" @bind="editingRace.TrackLayout" @bind:after="HandleRaceLayoutChangedAsync"
+                            required="@(trackLayouts.Count > 0)"
                             disabled="@(string.IsNullOrWhiteSpace(editingRace.TrackName))">
                         @if (string.IsNullOrWhiteSpace(editingRace.TrackName))
                         {
@@ -391,17 +400,17 @@
                 </div>
 
                 <div class="wec-form-field">
-                    <label for="race-practice-minutes" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session.">Practice Time (min)</label>
-                    <input id="race-practice-minutes" type="number" min="1" step="1" inputmode="numeric"
-                           placeholder="20" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session."
-                           value="@(editingRace.PracticeSessionMinutes?.ToString() ?? "")"
+                    <label for="race-practice-minutes">Practice Time: <strong>@PracticeMinutesLabel</strong></label>
+                    <input id="race-practice-minutes" type="range" min="0" max="90" step="1"
+                           title="Practice duration from 0 to 90 minutes. Set to 0 to skip practice."
+                           value="@PracticeMinutesSliderValue"
                            @oninput="e => HandleSessionMinutesChanged(e, isPractice: true)" />
                 </div>
                 <div class="wec-form-field">
-                    <label for="race-qualifying-minutes" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session.">Qualifying Time (min)</label>
-                    <input id="race-qualifying-minutes" type="number" min="1" step="1" inputmode="numeric"
-                           placeholder="20" title="Session duration in minutes. Defaults to 20 minutes when left empty or when starting a session."
-                           value="@(editingRace.QualifyingSessionMinutes?.ToString() ?? "")"
+                    <label for="race-qualifying-minutes">Qualifying Time: <strong>@QualifyingMinutesSliderValue min</strong></label>
+                    <input id="race-qualifying-minutes" type="range" min="5" max="90" step="1"
+                           title="Qualifying duration from 5 to 90 minutes."
+                           value="@QualifyingMinutesSliderValue"
                            @oninput="e => HandleSessionMinutesChanged(e, isPractice: false)" />
                 </div>
 
@@ -472,16 +481,16 @@
                             class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "") @(hasSessionData ? "wec-tab--disabled" : "")"
                             disabled="@hasSessionData" @onclick="SetTeamsTab">Teams</button>
                     <button type="button"
-                            class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
-                            disabled="@(!hasEnteredTeams)"
+                            class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(canOpenPracticeTab ? "" : "wec-tab--disabled")"
+                            disabled="@(!canOpenPracticeTab)"
                             @onclick="() => SetSessionTab(SessionType.Practice)">Practice</button>
                     <button type="button"
-                            class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
-                            disabled="@(!hasEnteredTeams)"
+                            class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(canOpenQualifyingTab ? "" : "wec-tab--disabled")"
+                            disabled="@(!canOpenQualifyingTab)"
                             @onclick="() => SetSessionTab(SessionType.Qualifying)">Qualifying</button>
                     <button type="button"
-                            class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(hasEnteredTeams ? "" : "wec-tab--disabled")"
-                            disabled="@(!hasEnteredTeams)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
+                            class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(canOpenRaceTab ? "" : "wec-tab--disabled")"
+                            disabled="@(!canOpenRaceTab)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
                 </div>
 
                 @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
@@ -509,6 +518,14 @@
                                     <option value="@weather.Value">@weather.Label</option>
                                 }
                             </select>
+                        </div>
+
+                        <div class="wec-session-setting wec-penalties-setting">
+                            <label class="wec-penalties-setting__label">
+                                <input type="checkbox" checked="@CurrentConditions.Penalties"
+                                       @onchange="HandlePenaltiesChanged" />
+                                <span>Penalties</span>
+                            </label>
                         </div>
 
                         <div class="wec-session-setting wec-weather-setting">
@@ -565,6 +582,14 @@
                                     <option value="@weather.Value">@weather.Label</option>
                                 }
                             </select>
+                        </div>
+
+                        <div class="wec-session-setting wec-penalties-setting">
+                            <label class="wec-penalties-setting__label">
+                                <input type="checkbox" checked="@CurrentConditions.Penalties"
+                                       @onchange="HandlePenaltiesChanged" />
+                                <span>Penalties</span>
+                            </label>
                         </div>
 
                         <div class="wec-session-setting wec-weather-setting">
@@ -810,26 +835,36 @@
         ("Sunset (18:00)", 80)
     };
 
-    private const string DefaultWeather = "2_light_fog";
+    private const string DefaultWeather = "3_clear";
     private const double DefaultSunAngle = -16;
+
+    private int PracticeMinutesSliderValue =>
+        Math.Clamp(editingRace?.PracticeSessionMinutes ?? 20, 0, 90);
+
+    private int QualifyingMinutesSliderValue =>
+        Math.Clamp(editingRace?.QualifyingSessionMinutes ?? 20, 5, 90);
+
+    private string PracticeMinutesLabel => PracticeMinutesSliderValue == 0
+        ? "Skip (0 min)"
+        : $"{PracticeMinutesSliderValue} min";
 
     /// <summary>
     /// The conditions a session launches under, held per tab so practice, qualifying
     /// and the race can each be set up once and left alone.
     /// </summary>
-    private sealed record SessionConditions(string Weather, double SunAngle);
+    private sealed record SessionConditions(string Weather, double SunAngle, bool Penalties);
 
     private readonly Dictionary<SessionType, SessionConditions> sessionConditions = new()
     {
-        [SessionType.Practice] = new(DefaultWeather, DefaultSunAngle),
-        [SessionType.Qualifying] = new(DefaultWeather, DefaultSunAngle),
-        [SessionType.Race] = new(DefaultWeather, DefaultSunAngle)
+        [SessionType.Practice] = new(DefaultWeather, DefaultSunAngle, true),
+        [SessionType.Qualifying] = new(DefaultWeather, DefaultSunAngle, true),
+        [SessionType.Race] = new(DefaultWeather, DefaultSunAngle, true)
     };
 
     private SessionConditions CurrentConditions =>
         sessionConditions.TryGetValue(selectedSessionType, out var conditions)
             ? conditions
-            : new SessionConditions(DefaultWeather, DefaultSunAngle);
+            : new SessionConditions(DefaultWeather, DefaultSunAngle, true);
 
     /// <summary>The dropdown's value is the label, so the current angle needs its label back.</summary>
     private string CurrentSunAngleLabel =>
@@ -838,9 +873,9 @@
 
     private void ResetSessionConditions()
     {
-        sessionConditions[SessionType.Practice] = new SessionConditions(DefaultWeather, DefaultSunAngle);
-        sessionConditions[SessionType.Qualifying] = new SessionConditions(DefaultWeather, DefaultSunAngle);
-        sessionConditions[SessionType.Race] = new SessionConditions(DefaultWeather, DefaultSunAngle);
+        sessionConditions[SessionType.Practice] = new SessionConditions(DefaultWeather, DefaultSunAngle, true);
+        sessionConditions[SessionType.Qualifying] = new SessionConditions(DefaultWeather, DefaultSunAngle, true);
+        sessionConditions[SessionType.Race] = new SessionConditions(DefaultWeather, DefaultSunAngle, true);
     }
 
     private enum RacePopupTab
@@ -936,6 +971,42 @@
     private const string ChampionshipStorageKey = "wec.races.selectedChampionshipId";
     private const string SeasonStorageKey = "wec.races.selectedSeasonId";
     private bool preferencesRestored;
+
+    protected override void OnInitialized()
+    {
+        RaceSessionChangeNotifier.Imported += OnLuaResultImported;
+    }
+
+    private void OnLuaResultImported(Guid raceId, SessionType sessionType)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            if (viewingSessionsFor?.RaceId != raceId)
+            {
+                return;
+            }
+
+            try
+            {
+                sessionsCache = (await RaceService.GetRaceSessionsAsync(raceId)).ToList();
+                if (sessionType == SessionType.Race)
+                {
+                    await LoadRacesAsync();
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Toast.Show($"Could not refresh imported session results: {ex.Message}", isError: true);
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        RaceSessionChangeNotifier.Imported -= OnLuaResultImported;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -1293,11 +1364,38 @@
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(editingRace.TrackName))
+        {
+            Toast.Show("Select a track.", isError: true);
+            return;
+        }
+
+        if (trackLayouts.Count > 0 && string.IsNullOrWhiteSpace(editingRace.TrackLayout))
+        {
+            Toast.Show("Select a track layout.", isError: true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editingRace.TrackName))
+        {
+            Toast.Show("Select a track.", isError: true);
+            return;
+        }
+
+        if (trackLayouts.Count > 0 && string.IsNullOrWhiteSpace(editingRace.TrackLayout))
+        {
+            Toast.Show("Select a track layout.", isError: true);
+            return;
+        }
+
         if (editingRace.PointSettingId == Guid.Empty)
         {
             Toast.Show("Select a point setting.", isError: true);
             return;
         }
+
+        editingRace.PracticeSessionMinutes = PracticeMinutesSliderValue;
+        editingRace.QualifyingSessionMinutes = QualifyingMinutesSliderValue;
 
         editingRace.RaceDuration = editingRace.NumberOfLaps is > 0 && estimatedLapTimeMs is > 0
             ? (int)Math.Round((double)editingRace.NumberOfLaps.Value * estimatedLapTimeMs.Value / 1000.0)
@@ -1376,9 +1474,7 @@
 
             await RefreshPitCapacityAsync();
 
-            selectedTab = hasSessionData
-                ? RacePopupTab.Race
-                : selectedTeamIds.Count == 0 ? RacePopupTab.Teams : RacePopupTab.Race;
+            SelectInitialSessionTab();
             await LoadResultFilesAsync();
         }
         catch (Exception ex)
@@ -1389,6 +1485,30 @@
         finally
         {
             isLoadingRacePopup = false;
+        }
+    }
+
+    private void SelectInitialSessionTab()
+    {
+        if (!hasEnteredTeams)
+        {
+            selectedTab = RacePopupTab.Teams;
+            selectedSessionType = SessionType.Race;
+        }
+        else if (hasQualifyingData)
+        {
+            selectedTab = RacePopupTab.Race;
+            selectedSessionType = SessionType.Race;
+        }
+        else if (canOpenPracticeTab && !hasPracticeData)
+        {
+            selectedTab = RacePopupTab.Practice;
+            selectedSessionType = SessionType.Practice;
+        }
+        else
+        {
+            selectedTab = RacePopupTab.Qualifying;
+            selectedSessionType = SessionType.Qualifying;
         }
     }
 
@@ -1633,21 +1753,16 @@
             return;
         }
 
-        var raw = e.Value?.ToString();
-        int? minutes = null;
-
-        if (!string.IsNullOrWhiteSpace(raw) && int.TryParse(raw, out var parsed))
+        if (int.TryParse(e.Value?.ToString(), out var parsed))
         {
-            minutes = Math.Max(1, parsed);
-        }
-
-        if (isPractice)
-        {
-            editingRace.PracticeSessionMinutes = minutes;
-        }
-        else
-        {
-            editingRace.QualifyingSessionMinutes = minutes;
+            if (isPractice)
+            {
+                editingRace.PracticeSessionMinutes = Math.Clamp(parsed, 0, 90);
+            }
+            else
+            {
+                editingRace.QualifyingSessionMinutes = Math.Clamp(parsed, 5, 90);
+            }
         }
     }
 
@@ -1658,7 +1773,8 @@
 
         sessionConditions[selectedSessionType] = new SessionConditions(
             string.IsNullOrWhiteSpace(weather) ? DefaultWeather : weather,
-            current.SunAngle);
+            current.SunAngle,
+            current.Penalties);
     }
 
     private void HandleTimeOfDayChanged(ChangeEventArgs e)
@@ -1668,7 +1784,18 @@
 
         sessionConditions[selectedSessionType] = new SessionConditions(
             current.Weather,
-            match.Label is null ? DefaultSunAngle : match.SunAngle);
+            match.Label is null ? DefaultSunAngle : match.SunAngle,
+            current.Penalties);
+    }
+
+    private void HandlePenaltiesChanged(ChangeEventArgs e)
+    {
+        var current = CurrentConditions;
+        var penalties = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        sessionConditions[selectedSessionType] = current with { Penalties = penalties };
     }
 
     private async Task StartSessionAsync()
@@ -1688,7 +1815,8 @@
                 viewingSessionsFor.RaceId,
                 selectedSessionType,
                 conditions.Weather,
-                conditions.SunAngle);
+                conditions.SunAngle,
+                conditions.Penalties);
             Toast.Show($"Started {SessionTypeLabel(selectedSessionType)} session in Assetto Corsa.");
         }
         catch (Exception ex)
@@ -1703,9 +1831,10 @@
 
     private void SetSessionTab(SessionType type)
     {
-        if (!hasEnteredTeams)
+        if (type == SessionType.Practice && !canOpenPracticeTab
+            || type == SessionType.Qualifying && !canOpenQualifyingTab
+            || type == SessionType.Race && !canOpenRaceTab)
         {
-            selectedTab = RacePopupTab.Teams;
             return;
         }
 
@@ -1865,6 +1994,16 @@
     private bool hasQualifyingData =>
         sessionsCache?.Any(s => s.SessionType == SessionType.Qualifying && s.DriverStandings.Any()) == true;
 
+    private bool hasPracticeData =>
+        sessionsCache?.Any(s => s.SessionType == SessionType.Practice && s.DriverStandings.Any()) == true;
+
+    private bool canOpenPracticeTab =>
+        hasEnteredTeams && viewingSessionsFor?.PracticeSessionMinutes != 0;
+
+    private bool canOpenQualifyingTab => hasEnteredTeams;
+
+    private bool canOpenRaceTab => hasEnteredTeams && hasQualifyingData;
+
     private bool hasRaceTrack =>
         !string.IsNullOrWhiteSpace(viewingSessionsFor?.TrackName);
 
@@ -1875,7 +2014,9 @@
 
     private bool canStartSession =>
         !missingTrack && !exceedsPitCapacity && !hasSelectedSessionData &&
-        (selectedSessionType != SessionType.Race || hasQualifyingData);
+        (selectedSessionType != SessionType.Practice || canOpenPracticeTab) &&
+        (selectedSessionType != SessionType.Qualifying || canOpenQualifyingTab) &&
+        (selectedSessionType != SessionType.Race || canOpenRaceTab);
 
     private string? startSessionTitle =>
         missingTrack
@@ -1883,7 +2024,11 @@
             : exceedsPitCapacity
                 ? $"The number of cars ({enteredCarCount}) is more than the number of pits ({trackPitCount}). " +
                   "Please change the race track or layout."
-                : selectedSessionType == SessionType.Race && !hasQualifyingData
+                : selectedSessionType == SessionType.Practice && !canOpenPracticeTab
+                    ? "Practice is disabled for this race because its duration is set to 0 minutes."
+                    : selectedSessionType == SessionType.Qualifying && !canOpenQualifyingTab
+                        ? "Enter at least one team before starting a session."
+                    : selectedSessionType == SessionType.Race && !canOpenRaceTab
                     ? "Run a qualifying session and import its results before starting the race."
                     : hasSelectedSessionData
                         ? $"A {SessionTypeLabel(selectedSessionType).ToLowerInvariant()} session already has data."

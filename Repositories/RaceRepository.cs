@@ -34,14 +34,19 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Race>> GetIncompleteRacesAsync(string? trackName)
+    public async Task<IEnumerable<Race>> GetCandidateRacesAsync(string? trackName, bool includeFinished)
     {
         var query = _context.Races
             .Include(r => r.Sessions)
             .Include(r => r.Season)
                 .ThenInclude(s => s.Championship)
             .Include(r => r.PointSetting)
-            .Where(r => r.Status != RaceStatus.Finished);
+            .AsQueryable();
+
+        if (!includeFinished)
+        {
+            query = query.Where(r => r.Status != RaceStatus.Finished);
+        }
 
         if (!string.IsNullOrWhiteSpace(trackName))
         {

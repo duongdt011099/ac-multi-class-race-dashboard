@@ -13,7 +13,8 @@ public sealed class RaceIniBuilder
         IReadOnlyList<Driver> drivers,
         string weather,
         double sunAngle,
-        int playerStartPosition = 1)
+        int playerStartPosition = 1,
+        bool penalties = true)
     {
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
@@ -40,7 +41,7 @@ public sealed class RaceIniBuilder
         builder.Append("CARS=").AppendLine((opponents.Count + 1).ToString());
         builder.Append("DRIFT_MODE=0\r\n");
         builder.Append("FIXED_SETUP=0\r\n");
-        builder.Append("PENALTIES=1\r\n");
+        builder.Append("PENALTIES=").AppendLine(penalties ? "1" : "0");
         builder.Append("JUMP_START_PENALTY=0\r\n");
         builder.Append("RACE_LAPS=").AppendLine((race.NumberOfLaps ?? 0).ToString());
         builder.Append("\r\n");
@@ -78,15 +79,15 @@ public sealed class RaceIniBuilder
         builder.Append("[GHOST_CAR]\r\nRECORDING=0\r\nPLAYING=0\r\nLOAD=0\r\nFILE=\r\nENABLED=0\r\nSECONDS_ADVANTAGE=0\r\n\r\n");
         builder.Append("[GROOVE]\r\nVIRTUAL_LAPS=10\r\nMAX_LAPS=30\r\nSTARTING_LAPS=0\r\n\r\n");
         builder.Append("[TEMPERATURE]\r\nAMBIENT=18\r\nROAD=14\r\n\r\n");
-        builder.Append("[WEATHER]\r\nNAME=").AppendLine(string.IsNullOrWhiteSpace(weather) ? "2_light_fog" : weather.Trim());
+        builder.Append("[WEATHER]\r\nNAME=").AppendLine(string.IsNullOrWhiteSpace(weather) ? "3_clear" : weather.Trim());
         builder.Append("\r\n");
         builder.Append("[WIND]\r\nSPEED_KMH_MIN=5.5\r\nSPEED_KMH_MAX=5.5\r\nDIRECTION_DEG=340\r\n\r\n");
         builder.Append("[DYNAMIC_TRACK]\r\nSESSION_START=200\r\nRANDOMNESS=200\r\nLAP_GAIN=132\r\nSESSION_TRANSFER=200\r\n\r\n");
 
         var (sessionName, sessionTypeValue, durationMinutes) = sessionType switch
         {
-            SessionType.Practice => ("Practice", 1, race.PracticeSessionMinutes is > 0 ? race.PracticeSessionMinutes : 20),
-            SessionType.Qualifying => ("Qualifying", 2, race.QualifyingSessionMinutes is > 0 ? race.QualifyingSessionMinutes : 20),
+            SessionType.Practice => ("Practice", 1, Math.Clamp(race.PracticeSessionMinutes ?? 20, 0, 90)),
+            SessionType.Qualifying => ("Qualifying", 2, Math.Clamp(race.QualifyingSessionMinutes ?? 20, 5, 90)),
             _ => ("Race", 3, 0)
         };
 

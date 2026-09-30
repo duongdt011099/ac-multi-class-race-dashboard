@@ -31,6 +31,59 @@ public class TrackService : ITrackService
             .ToList();
     }
 
+    public async Task<string?> ResolveTrackNameAsync(string? trackName)
+    {
+        if (string.IsNullOrWhiteSpace(trackName))
+        {
+            return null;
+        }
+
+        var requested = trackName.Trim();
+        var tracksRoot = await GetTracksRootAsync();
+        if (tracksRoot is null || !Directory.Exists(tracksRoot))
+        {
+            return requested;
+        }
+
+        var trackDirectories = Directory.GetDirectories(tracksRoot);
+        var directMatch = trackDirectories.FirstOrDefault(directory =>
+            string.Equals(Path.GetFileName(directory), requested, StringComparison.OrdinalIgnoreCase));
+        if (directMatch is not null)
+        {
+            return Path.GetFileName(directMatch);
+        }
+
+        foreach (var directory in trackDirectories)
+        {
+            var uiDirectory = Path.Combine(directory, "ui");
+            foreach (var fileName in new[] { "ui_track.json", "dlc_ui_track.json" })
+            {
+                var path = Path.Combine(uiDirectory, fileName);
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await using var stream = File.OpenRead(path);
+                    using var document = await JsonDocument.ParseAsync(stream);
+                    if (document.RootElement.TryGetProperty("name", out var displayName)
+                        && string.Equals(displayName.GetString(), requested, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Path.GetFileName(directory);
+                    }
+                }
+                catch
+                {
+                    // An invalid optional UI metadata file should not prevent track matching.
+                }
+            }
+        }
+
+        return requested;
+    }
+
     public async Task<IReadOnlyList<string>> GetTrackLayoutsAsync(string trackName)
     {
         if (IsValidSegment(trackName) is false)

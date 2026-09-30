@@ -30,6 +30,7 @@ builder.Services.AddHostedService<UpdateCheckWorker>();
 
 builder.Services.AddSingleton<SessionLaunchTracker>();
 builder.Services.AddSingleton<LuaResultImportState>();
+builder.Services.AddSingleton<RaceSessionChangeNotifier>();
 builder.Services.AddHostedService<LuaResultImportWorker>();
 
 var app = builder.Build();

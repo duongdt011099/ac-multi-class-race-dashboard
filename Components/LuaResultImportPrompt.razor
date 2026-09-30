@@ -11,7 +11,7 @@
 
 @if (current is not null)
 {
-    <div class="wec-modal-overlay">
+    <div class="wec-modal-overlay wec-modal-overlay--import">
         <div class="wec-modal wec-modal--small">
             <div class="wec-modal__header">
                 <span>Session Result Ready</span>
@@ -44,7 +44,11 @@
 
                 <div class="wec-form-field">
                     <label for="lua-result-race">Import into</label>
-                    @if (raceOptions.Count > 0)
+                    @if (isLoadingRaceOptions)
+                    {
+                        <p class="wec-text-muted">Loading matching races...</p>
+                    }
+                    else if (raceOptions.Count > 0)
                     {
                         <select id="lua-result-race" class="wec-weather-select" @onchange="HandleRaceChanged">
                             @foreach (var option in raceOptions)
@@ -58,8 +62,7 @@
                     else
                     {
                         <p class="wec-update__error">
-                            No unfinished race is available for this track. Set the Lua app's result
-                            folder on the Game Config page, or import the file manually.
+                            No race matches this result's track. Check the race track name or import the file manually.
                         </p>
                     }
                 </div>
@@ -70,9 +73,25 @@
                     No
                 </button>
                 <button type="button" class="wec-modal__btn wec-modal__btn--primary"
-                        @onclick="ConfirmAsync" disabled="@(isBusy || selectedRaceId is null)">
+                        @onclick="ConfirmAsync" disabled="@(isBusy || isLoadingRaceOptions || selectedRaceId is null)">
                     @(isBusy ? "Importing..." : "Yes")
                 </button>
+            </div>
+        </div>
+    </div>
+}
+else if (isScanning)
+{
+    <div class="wec-modal-overlay wec-modal-overlay--import" aria-live="polite">
+        <div class="wec-modal wec-modal--small wec-lua-import-loading" role="status">
+            <div class="wec-modal__header">
+                <span>Checking for session results</span>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-lua-import-loading__message">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>Waiting for Assetto Corsa results...</span>
+                </div>
             </div>
         </div>
     </div>
@@ -83,28 +102,47 @@
     private List<RaceOption> raceOptions = new();
     private Guid? selectedRaceId;
     private bool isBusy;
+    private bool isScanning;
+    private bool isLoadingRaceOptions;
+    private int raceOptionsRequestId;
 
     protected override void OnInitialized()
     {
         State.Changed += OnChanged;
+        isScanning = State.IsScanning;
         Apply(State.Current, invokeStateHasChanged: false);
     }
 
     private void OnChanged()
     {
-        InvokeAsync(() => Apply(State.Current, invokeStateHasChanged: true));
+        _ = InvokeAsync(() =>
+        {
+            isScanning = State.IsScanning;
+            var next = State.Current;
+            if (next?.FullPath != current?.FullPath)
+            {
+                Apply(next, invokeStateHasChanged: true);
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        });
     }
 
     private void Apply(PendingLuaResult? value, bool invokeStateHasChanged)
     {
+        var requestId = ++raceOptionsRequestId;
         current = value;
+        isScanning = State.IsScanning;
         selectedRaceId = value?.TargetRaceId;
         raceOptions = new List<RaceOption>();
         isBusy = false;
+        isLoadingRaceOptions = value is not null;
 
         if (value is not null)
         {
-            _ = LoadRaceOptionsAsync(value);
+            _ = LoadRaceOptionsAsync(value, requestId);
         }
 
         if (invokeStateHasChanged)
@@ -113,20 +151,29 @@
         }
     }
 
-    private async Task LoadRaceOptionsAsync(PendingLuaResult value)
+    private async Task LoadRaceOptionsAsync(PendingLuaResult value, int requestId)
     {
+        List<RaceOption> loadedOptions;
         try
         {
-            var races = await RaceService.GetCandidateRacesAsync(value.Track);
+            var races = await RaceService.GetCandidateRacesAsync(value.Track, value.SessionType);
 
-            raceOptions = races
+            loadedOptions = races
                 .Select(r => new RaceOption(r.RaceId, $"{r.RaceName} — {r.TrackName}"))
                 .ToList();
         }
         catch
         {
-            raceOptions = new List<RaceOption>();
+            loadedOptions = new List<RaceOption>();
         }
+
+        if (requestId != raceOptionsRequestId || current?.FullPath != value.FullPath)
+        {
+            return;
+        }
+
+        raceOptions = loadedOptions;
+        isLoadingRaceOptions = false;
 
         if (selectedRaceId is not null && raceOptions.All(o => o.RaceId != selectedRaceId))
         {

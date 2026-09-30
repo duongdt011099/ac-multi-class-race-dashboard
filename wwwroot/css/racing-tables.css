@@ -395,6 +395,26 @@
     min-width: 0;
 }
 
+.wec-penalties-setting {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.wec-penalties-setting__label {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.wec-penalties-setting__label input {
+    margin: 0;
+    accent-color: #e10600;
+}
+
 .wec-weather-select {
     width: 12rem;
 }
@@ -787,6 +807,18 @@
     justify-content: center;
     z-index: 1050;
     padding: 1rem;
+}
+
+.wec-modal-overlay--import {
+    z-index: 1200;
+}
+
+.wec-lua-import-loading__message {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3rem;
+    color: #52525b;
 }
 
 .wec-modal {

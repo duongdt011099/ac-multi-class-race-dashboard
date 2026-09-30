@@ -73,9 +73,14 @@ public class RaceService : IRaceService
         return race is null ? null : MapRace(race);
     }
 
-    public async Task<IEnumerable<RaceModel>> GetCandidateRacesAsync(string? trackName)
+    public async Task<IEnumerable<RaceModel>> GetCandidateRacesAsync(string? trackName, SessionType sessionType)
     {
-        var races = await _raceRepository.GetIncompleteRacesAsync(trackName);
+        // Race results replace a race session and may target a race already marked Finished.
+        // Practice and Qualifying choices remain limited to unfinished races.
+        var canonicalTrackName = await _trackService.ResolveTrackNameAsync(trackName);
+        var races = await _raceRepository.GetCandidateRacesAsync(
+            canonicalTrackName,
+            includeFinished: sessionType == SessionType.Race);
 
         return races.Select(MapRace);
     }
@@ -96,6 +101,8 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("A point setting must be selected.");
         }
 
+        await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
+
         var race = new Race
         {
             RaceId = Guid.NewGuid(),
@@ -106,8 +113,8 @@ public class RaceService : IRaceService
             TrackLayout = NormalizeNullable(model.TrackLayout),
             NumberOfLaps = model.NumberOfLaps,
             RaceDuration = model.RaceDuration,
-            PracticeSessionMinutes = model.PracticeSessionMinutes,
-            QualifyingSessionMinutes = model.QualifyingSessionMinutes,
+            PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0),
+            QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5),
             PointSettingId = pointSetting.SettingId,
             PointSetting = pointSetting,
             Season = season,
@@ -127,14 +134,16 @@ public class RaceService : IRaceService
             return;
         }
 
+        await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
+
         race.RaceName = model.RaceName.Trim();
         race.Country = model.Country?.Trim() ?? string.Empty;
         race.TrackName = NormalizeNullable(model.TrackName);
         race.TrackLayout = NormalizeNullable(model.TrackLayout);
         race.NumberOfLaps = model.NumberOfLaps;
         race.RaceDuration = model.RaceDuration;
-        race.PracticeSessionMinutes = model.PracticeSessionMinutes;
-        race.QualifyingSessionMinutes = model.QualifyingSessionMinutes;
+        race.PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0);
+        race.QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5);
 
         if (model.PointSettingId != Guid.Empty && race.PointSettingId != model.PointSettingId)
         {
@@ -155,7 +164,12 @@ public class RaceService : IRaceService
         await _raceRepository.DeleteAsync(raceId);
     }
 
-    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType, string weather, double sunAngle)
+    public async Task LaunchSessionAsync(
+        Guid raceId,
+        SessionType sessionType,
+        string weather,
+        double sunAngle,
+        bool penalties = true)
     {
         var race = await _raceRepository.GetByIdAsync(raceId);
 
@@ -172,6 +186,11 @@ public class RaceService : IRaceService
         if (sessionType == SessionType.Race && race.NumberOfLaps is not > 0)
         {
             throw new InvalidOperationException("Set the number of laps for this race before starting the session.");
+        }
+
+        if (sessionType == SessionType.Practice && race.PracticeSessionMinutes == 0)
+        {
+            throw new InvalidOperationException("Practice is disabled for this race because its duration is set to 0 minutes.");
         }
 
         var config = await _configRepository.GetAsync();
@@ -244,7 +263,8 @@ public class RaceService : IRaceService
             drivers,
             weather,
             sunAngle,
-            playerStartPosition);
+            playerStartPosition,
+            penalties);
 
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");
@@ -297,6 +317,36 @@ public class RaceService : IRaceService
     private static string? NormalizeNullable(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private async Task ValidateRaceTrackAsync(string? trackName, string? trackLayout)
+    {
+        if (string.IsNullOrWhiteSpace(trackName))
+        {
+            throw new InvalidOperationException("Select a track.");
+        }
+
+        var layouts = (await _trackService.GetTrackLayoutsAsync(trackName.Trim())).ToList();
+        if (layouts.Count == 0)
+        {
+            // Single-layout tracks use AC's default layout, represented by an empty value.
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(trackLayout))
+        {
+            throw new InvalidOperationException("Select a track layout.");
+        }
+
+        if (!layouts.Contains(trackLayout.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Select a valid layout for the chosen track.");
+        }
+    }
+
+    private static int NormalizeSessionMinutes(int? minutes, int min)
+    {
+        return Math.Clamp(minutes ?? 20, min, 90);
     }
 
     public async Task<IEnumerable<SessionModel>> GetRaceSessionsAsync(Guid raceId)

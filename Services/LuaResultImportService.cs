@@ -10,15 +10,18 @@ public class LuaResultImportService : ILuaResultImportService
 {
     private readonly IRaceService _raceService;
     private readonly IImportedLuaResultRepository _importedRepository;
+    private readonly RaceSessionChangeNotifier _sessionChangeNotifier;
     private readonly ILogger<LuaResultImportService> Logger;
 
     public LuaResultImportService(
         IRaceService raceService,
         IImportedLuaResultRepository importedRepository,
+        RaceSessionChangeNotifier sessionChangeNotifier,
         ILogger<LuaResultImportService> logger)
     {
         _raceService = raceService;
         _importedRepository = importedRepository;
+        _sessionChangeNotifier = sessionChangeNotifier;
         Logger = logger;
     }
 
@@ -45,6 +48,7 @@ public class LuaResultImportService : ILuaResultImportService
                     result.FileName);
             }
 
+            _sessionChangeNotifier.NotifyImported(raceId, result.SessionType);
             await UpsertAsync(result, imported: true, importCount: 1, error: null);
 
             return new LuaResultImportOutcome(
@@ -54,6 +58,10 @@ public class LuaResultImportService : ILuaResultImportService
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Failed to import Lua result {FileName} into race {RaceId}.",
+                result.FileName,
+                raceId);
+
             // Recorded so the same broken file is not offered again on every restart.
             // It stays available through the manual import controls. The bookkeeping must
             // never mask the real import error, so a failure here is logged, not rethrown.
@@ -65,7 +73,7 @@ public class LuaResultImportService : ILuaResultImportService
             {
                 Logger.LogWarning(
                     recordEx,
-                    "Imported the result but could not record {FileName}; it may be offered again.",
+                    "Could not record the import attempt for {FileName}; it may be offered again.",
                     result.FileName);
             }
 
@@ -128,14 +136,12 @@ public class LuaResultImportService : ILuaResultImportService
         string? error)
     {
         var existing = await _importedRepository.FindByFullPathAsync(result.FullPath);
+        var isNew = existing is null;
 
-        if (existing is null)
+        existing ??= new ImportedLuaResult
         {
-            existing = new ImportedLuaResult
-            {
-                ImportedLuaResultId = Guid.NewGuid(),
-            };
-        }
+            ImportedLuaResultId = Guid.NewGuid(),
+        };
 
         // Every field is assigned before the single write so a new row is never persisted
         // in a half-built state.
@@ -148,6 +154,13 @@ public class LuaResultImportService : ILuaResultImportService
         existing.ImportedAtUtc = imported ? DateTime.UtcNow : null;
         existing.LastError = error;
 
-        await _importedRepository.UpdateAsync(existing);
+        if (isNew)
+        {
+            await _importedRepository.AddAsync(existing);
+        }
+        else
+        {
+            await _importedRepository.UpdateAsync(existing);
+        }
     }
 }

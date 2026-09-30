@@ -20,10 +20,37 @@ public class LuaResultImportState
     private readonly object _gate = new();
     private readonly Queue<PendingLuaResult> _queue = new();
     private readonly HashSet<string> _knownPaths = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isScanning;
 
     public event Action? Changed;
 
     public PendingLuaResult? Current { get; private set; }
+
+    public bool IsScanning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _isScanning;
+            }
+        }
+    }
+
+    public void SetScanning(bool isScanning)
+    {
+        bool notify;
+        lock (_gate)
+        {
+            notify = _isScanning != isScanning;
+            _isScanning = isScanning;
+        }
+
+        if (notify)
+        {
+            Changed?.Invoke();
+        }
+    }
 
     public int PendingCount
     {

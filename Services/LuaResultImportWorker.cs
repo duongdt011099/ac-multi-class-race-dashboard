@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
+using MulticlassRace.Services.Abstractions;
 
 namespace MulticlassRace.Services;
 
@@ -57,14 +58,12 @@ public class LuaResultImportWorker : BackgroundService
 
                     if (!gameIsRunning)
                     {
-                        await ScanAsync(stoppingToken);
+                        await ScanWithIndicatorAsync(stoppingToken);
                     }
                 }
                 else if (gameWasRunning && !gameIsRunning)
                 {
-                    // Give the filesystem a moment to flush the file the Lua app just wrote.
-                    await Task.Delay(FileSettleTime, stoppingToken);
-                    await ScanAsync(stoppingToken);
+                    await ScanWithIndicatorAsync(stoppingToken, FileSettleTime);
                 }
 
                 gameWasRunning = gameIsRunning;
@@ -72,6 +71,27 @@ public class LuaResultImportWorker : BackgroundService
         }
         catch (OperationCanceledException)
         {
+        }
+    }
+
+    private async Task ScanWithIndicatorAsync(
+        CancellationToken cancellationToken,
+        TimeSpan? settleTime = null)
+    {
+        _state.SetScanning(true);
+        try
+        {
+            if (settleTime is { } delay)
+            {
+                // Give the filesystem a moment to flush the file the Lua app just wrote.
+                await Task.Delay(delay, cancellationToken);
+            }
+
+            await ScanAsync(cancellationToken);
+        }
+        finally
+        {
+            _state.SetScanning(false);
         }
     }
 
@@ -115,6 +135,7 @@ public class LuaResultImportWorker : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var configRepository = scope.ServiceProvider.GetRequiredService<IAssettoCorsaGameConfigRepository>();
             var importedRepository = scope.ServiceProvider.GetRequiredService<IImportedLuaResultRepository>();
+            var trackService = scope.ServiceProvider.GetRequiredService<ITrackService>();
 
             var config = await configRepository.GetAsync();
             var root = LuaResultPaths.ResolveRoot(config?.LuaResultPath);
@@ -168,7 +189,17 @@ public class LuaResultImportWorker : BackgroundService
                     }
 
                     var track = await ReadTrackAsync(file);
-                    var (raceId, raceLabel) = ResolveTarget(sessionType.Value, track);
+                    var launch = _launchTracker.Current;
+                    var canonicalTrack = await trackService.ResolveTrackNameAsync(track);
+                    var canonicalLaunchTrack = launch is null
+                        ? null
+                        : await trackService.ResolveTrackNameAsync(launch.TrackName);
+                    var (raceId, raceLabel) = ResolveTarget(
+                        sessionType.Value,
+                        track,
+                        canonicalTrack,
+                        launch,
+                        canonicalLaunchTrack);
 
                     _state.Enqueue(new PendingLuaResult(
                         file,
@@ -196,10 +227,13 @@ public class LuaResultImportWorker : BackgroundService
         }
     }
 
-    private (Guid? RaceId, string? Label) ResolveTarget(SessionType sessionType, string? track)
+    private static (Guid? RaceId, string? Label) ResolveTarget(
+        SessionType sessionType,
+        string? track,
+        string? canonicalTrack,
+        SessionLaunch? launch,
+        string? canonicalLaunchTrack)
     {
-        var launch = _launchTracker.Current;
-
         if (launch is null)
         {
             return (null, null);
@@ -215,16 +249,21 @@ public class LuaResultImportWorker : BackgroundService
             return (null, null);
         }
 
-        if (!string.IsNullOrWhiteSpace(track)
-            && !string.IsNullOrWhiteSpace(launch.TrackName)
-            && !string.Equals(track, launch.TrackName, StringComparison.OrdinalIgnoreCase))
+        var resultTrackForMatch = string.IsNullOrWhiteSpace(canonicalTrack) ? track : canonicalTrack;
+        var launchTrackForMatch = string.IsNullOrWhiteSpace(canonicalLaunchTrack)
+            ? launch.TrackName
+            : canonicalLaunchTrack;
+
+        if (!string.IsNullOrWhiteSpace(resultTrackForMatch)
+            && !string.IsNullOrWhiteSpace(launchTrackForMatch)
+            && !string.Equals(resultTrackForMatch, launchTrackForMatch, StringComparison.OrdinalIgnoreCase))
         {
             return (null, null);
         }
 
-        var label = string.IsNullOrWhiteSpace(launch.TrackName) || string.IsNullOrWhiteSpace(track)
+        var label = string.IsNullOrWhiteSpace(track)
             ? launch.RaceName
-            : $"{launch.RaceName} ({launch.TrackName})";
+            : $"{launch.RaceName} ({track.Trim()})";
 
         return (launch.RaceId, label);
     }
