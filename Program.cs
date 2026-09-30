@@ -28,6 +28,10 @@ builder.Services.AddHttpClient(UpdateCheckWorker.HttpClientName, client =>
 });
 builder.Services.AddHostedService<UpdateCheckWorker>();
 
+builder.Services.AddSingleton<SessionLaunchTracker>();
+builder.Services.AddSingleton<LuaResultImportState>();
+builder.Services.AddHostedService<LuaResultImportWorker>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())

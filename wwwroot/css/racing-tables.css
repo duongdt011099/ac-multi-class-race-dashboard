@@ -805,7 +805,7 @@
 }
 
 .wec-modal--wider {
-    max-width: 70rem !important;
+    max-width: 82rem !important;
     min-height: 30rem;
 }
 
@@ -936,6 +936,43 @@
     color: #52525b;
     font-size: 0.9rem;
     line-height: 1.5;
+}
+
+.wec-config__hint {
+    color: #71717a;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.wec-config__hint code {
+    font-size: 0.95em;
+    color: #3f3f46;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+}
+
+.wec-lua-result__details {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.wec-lua-result__details dt {
+    font-weight: 700;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.7rem;
+    align-self: center;
+}
+
+.wec-lua-result__details dd {
+    margin: 0;
+    color: #3f3f46;
+    overflow-wrap: anywhere;
 }
 
 .wec-config__actions {

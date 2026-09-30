@@ -23,6 +23,15 @@
                   Value="@config.PresetPath" ValueChanged="SetPresetPath" />
     <FolderPicker FieldLabel="Race Results Path" Title="Select Race Results Path" InputId="config-results-path"
                   Value="@config.RaceResultsPath" ValueChanged="SetRaceResultsPath" />
+    <FolderPicker FieldLabel="Lua App Result Path" Title="Select Lua App Result Path" InputId="config-lua-results-path"
+                  Value="@config.LuaResultPath" ValueChanged="SetLuaResultPath" />
+
+    <div class="wec-config__hint">
+        The Multiple Class Race Lua app writes finished session results here. The dashboard watches this
+        folder and offers to import each result when Assetto Corsa closes. Results are split into
+        <code>practice</code>, <code>qualifying</code> and <code>race</code> subfolders.
+        Leave empty to use the default location: <code>@DefaultLuaResultPath</code>.
+    </div>
 
     <div class="wec-config__actions">
         <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveAsync" disabled="@isSaving">
@@ -34,6 +43,8 @@
 @code {
     private AssettoCorsaGameConfigModel config = new();
     private bool isSaving;
+
+    private static string DefaultLuaResultPath => LuaResultPaths.DefaultRoot;
 
     protected override async Task OnInitializedAsync()
     {
@@ -59,6 +70,12 @@
     private Task SetRaceResultsPath(string? value)
     {
         config.RaceResultsPath = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task SetLuaResultPath(string? value)
+    {
+        config.LuaResultPath = value ?? string.Empty;
         return Task.CompletedTask;
     }
 

@@ -10,6 +10,7 @@
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
 @inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
 @inject MulticlassRace.Services.Abstractions.ITrackService TrackService
+@inject MulticlassRace.Services.Abstractions.ILuaResultImportService LuaResultImportService
 @inject ToastService Toast
 @inject NavigationManager Nav
 @inject IJSRuntime JS
@@ -502,11 +503,21 @@
 
                         <div class="wec-session-setting wec-weather-setting">
                             <select id="race-session-weather" class="wec-weather-select" aria-label="Weather"
-                                    value="@selectedWeather" @onchange="HandleWeatherChanged">
-                                <option value="" disabled>Select weather...</option>
+                                    value="@CurrentConditions.Weather" @onchange="HandleWeatherChanged">
                                 @foreach (var weather in WeatherOptions)
                                 {
                                     <option value="@weather.Value">@weather.Label</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="wec-session-setting wec-weather-setting">
+                            <select id="race-session-time-of-day" class="wec-weather-select" aria-label="Time of day"
+                                    title="Time of day, as AC takes it: a sun angle from -80 (08:00) to 80 (18:00)."
+                                    value="@CurrentSunAngleLabel" @onchange="HandleTimeOfDayChanged">
+                                @foreach (var time in TimeOfDayOptions)
+                                {
+                                    <option value="@time.Label">@time.Label</option>
                                 }
                             </select>
                         </div>
@@ -527,17 +538,17 @@
                             <span class="wec-preset-export__label">Import Result</span>
                             <select class="wec-result-file-select" value="@selectedRaceResultFile"
                                     @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
-                                @if (raceResultFiles is null || raceResultFiles.Count == 0)
+                            @if (raceResultFiles is null || raceResultFiles.Count == 0)
+                            {
+                                <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
+                            }
+                            else
+                            {
+                                @foreach (var file in raceResultFiles)
                                 {
-                                    <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
+                                    <option value="@file.FullPath">@file.FileName — @file.Track@(file.IsLuaResult ? " (Lua)" : "")</option>
                                 }
-                                else
-                                {
-                                    @foreach (var file in raceResultFiles)
-                                    {
-                                        <option value="@file.FileName">@file.FileName — @file.Track</option>
-                                    }
-                                }
+                            }
                             </select>
                             <button type="button"
                                     class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
@@ -547,12 +558,22 @@
                         </div>
 
                         <div class="wec-session-setting wec-weather-setting">
-                            <select id="race-session-weather" class="wec-weather-select" aria-label="Weather"
-                                    value="@selectedWeather" @onchange="HandleWeatherChanged">
-                                <option value="" disabled>Select weather...</option>
+                            <select id="race-session-weather-race" class="wec-weather-select" aria-label="Weather"
+                                    value="@CurrentConditions.Weather" @onchange="HandleWeatherChanged">
                                 @foreach (var weather in WeatherOptions)
                                 {
                                     <option value="@weather.Value">@weather.Label</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="wec-session-setting wec-weather-setting">
+                            <select id="race-session-time-of-day-race" class="wec-weather-select" aria-label="Time of day"
+                                    title="Time of day, as AC takes it: a sun angle from -80 (08:00) to 80 (18:00)."
+                                    value="@CurrentSunAngleLabel" @onchange="HandleTimeOfDayChanged">
+                                @foreach (var time in TimeOfDayOptions)
+                                {
+                                    <option value="@time.Label">@time.Label</option>
                                 }
                             </select>
                         </div>
@@ -753,7 +774,6 @@
     private int? estimatedLapTimeMs;
     private int? trackPitCount;
     private int enteredCarCount;
-    private string selectedWeather = "2_light_fog";
     private bool isOpeningStandings;
     private List<DriverStandingsModel>? driverStandings;
     private string selectedStandingClassFilter = "";
@@ -765,18 +785,63 @@
 
     private static readonly (string Value, string Label)[] WeatherOptions =
     {
-        ("clear", "Clear"),
+        ("1_heavy_fog", "Heavy Fog"),
         ("2_light_fog", "Light Fog"),
-        ("3_fog", "Fog"),
-        ("4_heavy_fog", "Heavy Fog"),
+        ("3_clear", "Clear"),
+        ("4_mid_clear", "Mid Clear"),
         ("5_light_clouds", "Light Clouds"),
-        ("6_clouds", "Clouds"),
-        ("7_heavy_clouds", "Heavy Clouds"),
-        ("8_light_rain", "Light Rain"),
-        ("9_rain", "Rain"),
-        ("10_heavy_rain", "Heavy Rain"),
-        ("11_thunderstorm", "Thunderstorm")
+        ("6_mid_clouds", "Mid Clouds"),
+        ("7_heavy_clouds", "Heavy Clouds")
     };
+
+    /// <summary>
+    /// Time of day as AC takes it: a sun angle, not a clock. The mapping is
+    /// (minutesSinceMidnight / 60) * 16 - 208, which is the whole of the range AC
+    /// exposes -80 (8:00) to 80 (18:00). Anything past either end is outside it, so
+    /// there is no true night here; a sky mod (Sol or Pure) is what does night in AC.
+    /// </summary>
+    private static readonly (string Label, double SunAngle)[] TimeOfDayOptions =
+    {
+        ("Early Dawn (08:00)", -80),
+        ("Morning (10:00)", -48),
+        ("Mid-Day (12:00)", -16),
+        ("Early Afternoon (14:00)", 16),
+        ("Late Afternoon (16:00)", 48),
+        ("Sunset (18:00)", 80)
+    };
+
+    private const string DefaultWeather = "2_light_fog";
+    private const double DefaultSunAngle = -16;
+
+    /// <summary>
+    /// The conditions a session launches under, held per tab so practice, qualifying
+    /// and the race can each be set up once and left alone.
+    /// </summary>
+    private sealed record SessionConditions(string Weather, double SunAngle);
+
+    private readonly Dictionary<SessionType, SessionConditions> sessionConditions = new()
+    {
+        [SessionType.Practice] = new(DefaultWeather, DefaultSunAngle),
+        [SessionType.Qualifying] = new(DefaultWeather, DefaultSunAngle),
+        [SessionType.Race] = new(DefaultWeather, DefaultSunAngle)
+    };
+
+    private SessionConditions CurrentConditions =>
+        sessionConditions.TryGetValue(selectedSessionType, out var conditions)
+            ? conditions
+            : new SessionConditions(DefaultWeather, DefaultSunAngle);
+
+    /// <summary>The dropdown's value is the label, so the current angle needs its label back.</summary>
+    private string CurrentSunAngleLabel =>
+        TimeOfDayOptions.FirstOrDefault(o => o.SunAngle == CurrentConditions.SunAngle).Label
+        ?? TimeOfDayOptions.First(o => o.SunAngle == DefaultSunAngle).Label;
+
+    private void ResetSessionConditions()
+    {
+        sessionConditions[SessionType.Practice] = new SessionConditions(DefaultWeather, DefaultSunAngle);
+        sessionConditions[SessionType.Qualifying] = new SessionConditions(DefaultWeather, DefaultSunAngle);
+        sessionConditions[SessionType.Race] = new SessionConditions(DefaultWeather, DefaultSunAngle);
+    }
 
     private enum RacePopupTab
     {
@@ -1306,7 +1371,7 @@
             selectedTeamClassFilter = "";
             selectedStandingClassFilter = "";
             selectedSessionType = SessionType.Race;
-            selectedWeather = "2_light_fog";
+            ResetSessionConditions();
             sessionsCache = (await RaceService.GetRaceSessionsAsync(race.RaceId)).ToList();
 
             await RefreshPitCapacityAsync();
@@ -1363,7 +1428,7 @@
     private async Task LoadResultFilesAsync()
     {
         raceResultFiles = (await RaceService.GetRaceResultFilesAsync()).ToList();
-        selectedRaceResultFile = raceResultFiles.FirstOrDefault()?.FileName;
+        selectedRaceResultFile = raceResultFiles.FirstOrDefault()?.FullPath;
     }
 
     private bool canImportRaceResult =>
@@ -1383,14 +1448,37 @@
             return;
         }
 
+        var selectedFile = raceResultFiles?.FirstOrDefault(f => f.FullPath == selectedRaceResultFile);
+
+        if (selectedFile is null)
+        {
+            Toast.Show("That result file is no longer available. Reload the list and try again.", isError: true);
+            return;
+        }
+
         isImportingRaceResult = true;
 
         try
         {
-            var result = await RaceService.ImportRaceResultAsync(viewingSessionsFor.RaceId, selectedRaceResultFile!);
+            // Files the Lua app produced live outside the Content Manager results folder,
+            // so they are imported by full path instead of by file name.
+            var result = selectedFile.IsLuaResult
+                ? await RaceService.ImportRaceResultFromPathAsync(
+                    viewingSessionsFor.RaceId,
+                    selectedFile.FullPath,
+                    selectedFile.FileName)
+                : await RaceService.ImportRaceResultAsync(viewingSessionsFor.RaceId, selectedFile.FileName);
+
+            if (selectedFile.IsLuaResult)
+            {
+                // Record it so the auto-import worker does not offer the same file again.
+                await LuaResultImportService.RecordManualImportAsync(
+                    selectedFile.FullPath,
+                    selectedFile.FileName);
+            }
 
             Toast.Show(
-                $"Imported {result.Imported} result(s) (skipped {result.Skipped}) from {Path.GetFileName(selectedRaceResultFile)}.",
+                $"Imported {result.Imported} result(s) (skipped {result.Skipped}) from {selectedFile.FileName}.",
                 result.Skipped > 0);
 
             selectedSessionType = SessionType.Race;
@@ -1565,7 +1653,22 @@
 
     private void HandleWeatherChanged(ChangeEventArgs e)
     {
-        selectedWeather = e.Value?.ToString() ?? "2_light_fog";
+        var current = CurrentConditions;
+        var weather = e.Value?.ToString();
+
+        sessionConditions[selectedSessionType] = new SessionConditions(
+            string.IsNullOrWhiteSpace(weather) ? DefaultWeather : weather,
+            current.SunAngle);
+    }
+
+    private void HandleTimeOfDayChanged(ChangeEventArgs e)
+    {
+        var current = CurrentConditions;
+        var match = TimeOfDayOptions.FirstOrDefault(o => o.Label == e.Value?.ToString());
+
+        sessionConditions[selectedSessionType] = new SessionConditions(
+            current.Weather,
+            match.Label is null ? DefaultSunAngle : match.SunAngle);
     }
 
     private async Task StartSessionAsync()
@@ -1579,10 +1682,13 @@
 
         try
         {
+            var conditions = CurrentConditions;
+
             await RaceService.LaunchSessionAsync(
                 viewingSessionsFor.RaceId,
                 selectedSessionType,
-                selectedWeather);
+                conditions.Weather,
+                conditions.SunAngle);
             Toast.Show($"Started {SessionTypeLabel(selectedSessionType)} session in Assetto Corsa.");
         }
         catch (Exception ex)

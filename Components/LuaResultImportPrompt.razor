@@ -1,0 +1,202 @@
+@rendermode InteractiveServer
+@using System.Globalization
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Shared
+@inject MulticlassRace.Services.LuaResultImportState State
+@inject MulticlassRace.Services.Abstractions.ILuaResultImportService ImportService
+@inject MulticlassRace.Services.Abstractions.IRaceService RaceService
+@inject MulticlassRace.Services.ToastService Toast
+@implements IDisposable
+
+@if (current is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Session Result Ready</span>
+            </div>
+            <div class="wec-modal__body">
+                <p class="wec-context">Session is finished, do you want to import the result?</p>
+
+                <div class="wec-update__summary">
+                    <dl class="wec-lua-result__details">
+                        <dt>Session</dt>
+                        <dd>@LuaResultPaths.GetSessionTypeLabel(current.SessionType)</dd>
+                        <dt>Date</dt>
+                        <dd>@current.SessionDate.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)</dd>
+                        @if (!string.IsNullOrWhiteSpace(current.Track))
+                        {
+                            <dt>Track</dt>
+                            <dd>@current.Track</dd>
+                        }
+                        <dt>File</dt>
+                        <dd><code>@current.FileName</code></dd>
+                    </dl>
+                </div>
+
+                @if (current.SessionType == SessionType.Race)
+                {
+                    <p class="wec-update__error">
+                        Importing a race result replaces the existing race session for this race.
+                    </p>
+                }
+
+                <div class="wec-form-field">
+                    <label for="lua-result-race">Import into</label>
+                    @if (raceOptions.Count > 0)
+                    {
+                        <select id="lua-result-race" class="wec-weather-select" @onchange="HandleRaceChanged">
+                            @foreach (var option in raceOptions)
+                            {
+                                <option value="@option.RaceId" selected="@(option.RaceId == selectedRaceId)">
+                                    @option.Label
+                                </option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <p class="wec-update__error">
+                            No unfinished race is available for this track. Set the Lua app's result
+                            folder on the Game Config page, or import the file manually.
+                        </p>
+                    }
+                </div>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                        @onclick="DeclineAsync" disabled="@isBusy">
+                    No
+                </button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary"
+                        @onclick="ConfirmAsync" disabled="@(isBusy || selectedRaceId is null)">
+                    @(isBusy ? "Importing..." : "Yes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PendingLuaResult? current;
+    private List<RaceOption> raceOptions = new();
+    private Guid? selectedRaceId;
+    private bool isBusy;
+
+    protected override void OnInitialized()
+    {
+        State.Changed += OnChanged;
+        Apply(State.Current, invokeStateHasChanged: false);
+    }
+
+    private void OnChanged()
+    {
+        InvokeAsync(() => Apply(State.Current, invokeStateHasChanged: true));
+    }
+
+    private void Apply(PendingLuaResult? value, bool invokeStateHasChanged)
+    {
+        current = value;
+        selectedRaceId = value?.TargetRaceId;
+        raceOptions = new List<RaceOption>();
+        isBusy = false;
+
+        if (value is not null)
+        {
+            _ = LoadRaceOptionsAsync(value);
+        }
+
+        if (invokeStateHasChanged)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRaceOptionsAsync(PendingLuaResult value)
+    {
+        try
+        {
+            var races = await RaceService.GetCandidateRacesAsync(value.Track);
+
+            raceOptions = races
+                .Select(r => new RaceOption(r.RaceId, $"{r.RaceName} — {r.TrackName}"))
+                .ToList();
+        }
+        catch
+        {
+            raceOptions = new List<RaceOption>();
+        }
+
+        if (selectedRaceId is not null && raceOptions.All(o => o.RaceId != selectedRaceId))
+        {
+            // The recorded launch has since been deleted or finished.
+            selectedRaceId = null;
+        }
+
+        if (selectedRaceId is null && raceOptions.Count > 0)
+        {
+            selectedRaceId = raceOptions[0].RaceId;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleRaceChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var raceId))
+        {
+            selectedRaceId = raceId;
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (isBusy || current is null || selectedRaceId is null)
+        {
+            return;
+        }
+
+        isBusy = true;
+        var result = current;
+
+        try
+        {
+            var outcome = await ImportService.ImportAsync(result, selectedRaceId.Value);
+            Toast.Show(outcome.Message, outcome.IsError);
+        }
+        finally
+        {
+            State.Advance();
+        }
+    }
+
+    private async Task DeclineAsync()
+    {
+        if (isBusy || current is null)
+        {
+            return;
+        }
+
+        isBusy = true;
+        var result = current;
+
+        try
+        {
+            await ImportService.RecordDeclinedAsync(result);
+        }
+        catch
+        {
+            // A failure to record the decline only means the prompt may reappear later.
+        }
+
+        State.Advance();
+    }
+
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+    }
+
+    private sealed record RaceOption(Guid RaceId, string Label);
+}

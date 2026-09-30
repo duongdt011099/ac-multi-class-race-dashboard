@@ -16,6 +16,7 @@ public class RaceService : IRaceService
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
     private readonly ITrackService _trackService;
+    private readonly SessionLaunchTracker _launchTracker;
 
     private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
     {
@@ -27,13 +28,15 @@ public class RaceService : IRaceService
         ISeasonRepository seasonRepository,
         IAssettoCorsaGameConfigRepository configRepository,
         IPointSettingRepository pointSettingRepository,
-        ITrackService trackService)
+        ITrackService trackService,
+        SessionLaunchTracker launchTracker)
     {
         _raceRepository = raceRepository;
         _seasonRepository = seasonRepository;
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
         _trackService = trackService;
+        _launchTracker = launchTracker;
     }
 
     private static RaceModel MapRace(Race r)
@@ -68,6 +71,13 @@ public class RaceService : IRaceService
         var race = await _raceRepository.GetByIdAsync(raceId);
 
         return race is null ? null : MapRace(race);
+    }
+
+    public async Task<IEnumerable<RaceModel>> GetCandidateRacesAsync(string? trackName)
+    {
+        var races = await _raceRepository.GetIncompleteRacesAsync(trackName);
+
+        return races.Select(MapRace);
     }
 
     public async Task CreateRaceAsync(RaceFormModel model)
@@ -145,7 +155,7 @@ public class RaceService : IRaceService
         await _raceRepository.DeleteAsync(raceId);
     }
 
-    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType, string weather)
+    public async Task LaunchSessionAsync(Guid raceId, SessionType sessionType, string weather, double sunAngle)
     {
         var race = await _raceRepository.GetByIdAsync(raceId);
 
@@ -233,6 +243,7 @@ public class RaceService : IRaceService
             human,
             drivers,
             weather,
+            sunAngle,
             playerStartPosition);
 
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -253,12 +264,34 @@ public class RaceService : IRaceService
                 $"Assetto Corsa executable not found in the configured game path: {gamePath}");
         }
 
+        var seasonName = string.Empty;
+        var championshipName = string.Empty;
+
+        try
+        {
+            seasonName = race.Season?.SeasonName ?? string.Empty;
+            championshipName = race.Season?.Championship?.ChampionshipName ?? string.Empty;
+        }
+        catch
+        {
+            // Season/Championship are not eagerly loaded here; the context is optional.
+        }
+
         Process.Start(new ProcessStartInfo
         {
             FileName = executable,
             WorkingDirectory = gamePath,
             UseShellExecute = true
         });
+
+        _launchTracker.Record(new SessionLaunch(
+            raceId,
+            sessionType,
+            race.RaceName,
+            seasonName,
+            championshipName,
+            race.TrackName ?? string.Empty,
+            DateTimeOffset.UtcNow));
     }
 
     private static string? NormalizeNullable(string? value)
@@ -475,27 +508,62 @@ public class RaceService : IRaceService
         var config = await _configRepository.GetAsync();
         var path = config?.RaceResultsPath?.Trim();
 
-        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        var contentManagerFiles = new List<RaceResultFileModel>();
+
+        if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
         {
-            return Enumerable.Empty<RaceResultFileModel>();
+            contentManagerFiles.AddRange(Directory
+                .GetFiles(path, "*" + LuaResultPaths.FileExtension)
+                .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
+                .Where(f => TryParseSessionDate(f.FileName, out _))
+                .OrderByDescending(f => f.FileName)
+                .Select(f =>
+                {
+                    TryParseSessionDate(f.FileName, out var date);
+                    var track = ReadSessionInfo(f.FilePath);
+                    return new RaceResultFileModel
+                    {
+                        FileName = f.FileName,
+                        FullPath = f.FilePath,
+                        SessionDate = date,
+                        Track = track ?? string.Empty,
+                        IsLuaResult = false
+                    };
+                })
+                .Where(f => !string.IsNullOrWhiteSpace(f.Track)));
         }
 
-        return Directory.GetFiles(path, "*.json")
-            .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
-            .Where(f => TryParseSessionDate(f.FileName, out _))
-            .OrderByDescending(f => f.FileName)
-            .Select(f =>
-            {
-                TryParseSessionDate(f.FileName, out var date);
-                var track = ReadSessionInfo(f.FilePath);
-                return new RaceResultFileModel
+        // Lua-produced race results live in their own subfolder so a declined or failed
+        // auto-import can still be retried through the same manual dropdown.
+        var luaRaceFolder = Path.Combine(LuaResultPaths.ResolveRoot(config?.LuaResultPath), LuaResultPaths.RaceFolder);
+        var luaFiles = new List<RaceResultFileModel>();
+
+        if (Directory.Exists(luaRaceFolder))
+        {
+            luaFiles.AddRange(Directory
+                .GetFiles(luaRaceFolder, "*" + LuaResultPaths.FileExtension)
+                .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
+                .Where(f => TryParseSessionDate(f.FileName, out _))
+                .OrderByDescending(f => f.FileName)
+                .Select(f =>
                 {
-                    FileName = f.FileName,
-                    SessionDate = date,
-                    Track = track ?? string.Empty
-                };
-            })
-            .Where(f => !string.IsNullOrWhiteSpace(f.Track))
+                    TryParseSessionDate(f.FileName, out var date);
+                    var track = ReadSessionInfo(f.FilePath);
+                    return new RaceResultFileModel
+                    {
+                        FileName = f.FileName,
+                        FullPath = f.FilePath,
+                        SessionDate = date,
+                        Track = track ?? string.Empty,
+                        IsLuaResult = true
+                    };
+                })
+                .Where(f => !string.IsNullOrWhiteSpace(f.Track)));
+        }
+
+        return contentManagerFiles
+            .Concat(luaFiles)
+            .OrderByDescending(f => f.SessionDate)
             .ToList();
     }
 
@@ -511,22 +579,29 @@ public class RaceService : IRaceService
 
         var filePath = Path.Combine(path, fileName);
 
-        if (!File.Exists(filePath))
+        return await ImportRaceResultFromPathAsync(raceId, filePath, fileName);
+    }
+
+    public async Task<RaceResultImportResult> ImportRaceResultFromPathAsync(Guid raceId, string fullPath, string? fileName)
+    {
+        var resolvedName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(fullPath) : fileName.Trim();
+
+        if (!File.Exists(fullPath))
         {
-            throw new InvalidOperationException($"Result file not found: {fileName}");
+            throw new InvalidOperationException($"Result file not found: {resolvedName}");
         }
 
         CmSessionFile? sessionFile;
 
         try
         {
-            await using var stream = File.OpenRead(filePath);
+            await using var stream = File.OpenRead(fullPath);
             sessionFile = await JsonSerializer.DeserializeAsync<CmSessionFile>(stream, CaseInsensitiveJson);
         }
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
-                $"The selected file is not a valid Content Manager session file: {fileName}",
+                $"The selected file is not a valid Content Manager session file: {resolvedName}",
                 ex);
         }
 
@@ -592,7 +667,7 @@ public class RaceService : IRaceService
         {
             SessionId = Guid.NewGuid(),
             SessionType = SessionType.Race,
-            SessionDate = TryParseSessionDate(fileName, out var date) ? date : DateTime.Now,
+            SessionDate = TryParseSessionDate(resolvedName, out var date) ? date : DateTime.Now,
             RaceId = raceId,
             Race = race,
             DriverStandings = new List<DriverStanding>()

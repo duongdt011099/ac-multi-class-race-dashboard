@@ -7,4 +7,6 @@ public class AssettoCorsaGameConfigModel
     public string PresetPath { get; set; } = string.Empty;
 
     public string RaceResultsPath { get; set; } = string.Empty;
+
+    public string LuaResultPath { get; set; } = string.Empty;
 }

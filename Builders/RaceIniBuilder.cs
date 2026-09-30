@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using MulticlassRace.Models;
 
@@ -11,6 +12,7 @@ public sealed class RaceIniBuilder
         Driver? human,
         IReadOnlyList<Driver> drivers,
         string weather,
+        double sunAngle,
         int playerStartPosition = 1)
     {
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
@@ -21,11 +23,13 @@ public sealed class RaceIniBuilder
             "[REPLAY]\r\nACTIVE=0\r\n\r\n" +
             "[REMOTE]\r\nACTIVE=0\r\nSERVER_IP=\r\nSERVER_PORT=\r\nNAME=\r\nTEAM=\r\nGUID=\r\nREQUESTED_CAR=\r\nPASSWORD=\r\n\r\n" +
             "[RESTART]\r\nACTIVE=0\r\n\r\n" +
-            "[__PREVIEW_GENERATION]\r\nACTIVE=0\r\n\r\n" +
-            "[LIGHTING]\r\nSUN_ANGLE=16.08\r\nTIME_MULT=10.0\r\nCLOUD_SPEED=0.200\r\n\r\n";
+            "[__PREVIEW_GENERATION]\r\nACTIVE=0\r\n\r\n";
 
         var builder = new StringBuilder();
         builder.Append(model);
+        builder.Append("[LIGHTING]\r\n");
+        builder.Append("SUN_ANGLE=").AppendLine(sunAngle.ToString("0.##", CultureInfo.InvariantCulture));
+        builder.Append("CLOUD_SPEED=0.200\r\n\r\n");
         builder.Append("[RACE]\r\n");
         builder.Append("MODEL=").AppendLine(string.IsNullOrWhiteSpace(playerCar) ? "-" : playerCar);
         builder.Append("MODEL_CONFIG=\r\n");

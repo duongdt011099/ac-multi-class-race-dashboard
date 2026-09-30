@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<DriverDataChangeNotifier>();
         services.AddScoped<UpdateNotificationRequest>();
         services.AddScoped<IAppUpdatePreferenceService, AppUpdatePreferenceService>();
+        services.AddScoped<ILuaResultImportService, LuaResultImportService>();
 
         return services;
     }
