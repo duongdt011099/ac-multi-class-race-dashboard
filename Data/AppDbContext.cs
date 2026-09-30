@@ -32,6 +32,8 @@ public class AppDbContext : DbContext
 
     public DbSet<AppUpdateState> AppUpdateStates => Set<AppUpdateState>();
 
+    public DbSet<ImportedLuaResult> ImportedLuaResults => Set<ImportedLuaResult>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Race>()
@@ -63,6 +65,15 @@ public class AppDbContext : DbContext
                 .HasConversion(configConverter)
                 .Metadata.SetValueComparer(configComparer);
         });
+
+        // Dedupe relies on one row per file, so the path is unique.
+        modelBuilder.Entity<ImportedLuaResult>()
+            .HasIndex(r => r.FullPath)
+            .IsUnique();
+
+        modelBuilder.Entity<ImportedLuaResult>()
+            .HasIndex(r => new { r.FileName, r.SessionType })
+                .HasDatabaseName("IX_ImportedLuaResults_FileName_SessionType");
 
         modelBuilder.Entity<TeamClass>().HasData(
             new TeamClass { TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6081"), TeamClassName = "Hypercar", IsActive = true },

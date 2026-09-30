@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MulticlassRace.Data;
 
@@ -10,9 +11,11 @@ using MulticlassRace.Data;
 namespace multi_class_race_dashboard.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928012740_AddRaceTrackInfo")]
+    partial class AddRaceTrackInfo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
@@ -42,10 +45,6 @@ namespace multi_class_race_dashboard.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GamePath")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LuaResultPath")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -184,49 +183,6 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasIndex("SessionId");
 
                     b.ToTable("DriverStandings");
-                });
-
-            modelBuilder.Entity("MulticlassRace.Models.ImportedLuaResult", b =>
-                {
-                    b.Property<Guid>("ImportedLuaResultId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FullPath")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ImportCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("Imported")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("ImportedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastError")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("SessionDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SessionType")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("ImportedLuaResultId");
-
-                    b.HasIndex("FullPath")
-                        .IsUnique();
-
-                    b.HasIndex("FileName", "SessionType")
-                        .HasDatabaseName("IX_ImportedLuaResults_FileName_SessionType");
-
-                    b.ToTable("ImportedLuaResults");
                 });
 
             modelBuilder.Entity("MulticlassRace.Models.PointSetting", b =>

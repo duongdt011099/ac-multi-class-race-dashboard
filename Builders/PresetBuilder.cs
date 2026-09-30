@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace MulticlassRace.Services;
+namespace MulticlassRace.Builders;
 
 public sealed class PresetBuilder
 {

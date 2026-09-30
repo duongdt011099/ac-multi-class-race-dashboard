@@ -1,0 +1,121 @@
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@inject ToastService Toast
+
+<div class="wec-dropdown">
+    <button type="button" class="wec-toolbar__btn wec-dropdown__trigger" @onclick="Toggle">
+        <i class="bi bi-caret-down-fill"></i> <span>Content Manager Actions</span>
+    </button>
+
+    @if (isOpen)
+    {
+        <div class="wec-dropdown__backdrop" @onclick="Close"></div>
+        <div class="wec-dropdown__menu">
+            @if (ExportGridHandler is not null)
+            {
+                <div class="wec-dropdown__item">
+                    <div class="wec-dropdown__item-title">Export Preset</div>
+                    <div class="wec-preset-export">
+                        <label class="wec-preset-export__mode">
+                            <input type="radio" name="cm-actions-mode" value="all" checked="@(presetExportMode == "all")" @onchange='() => presetExportMode = "all"' />
+                            <span>All Cars</span>
+                        </label>
+                        <label class="wec-preset-export__mode">
+                            <input type="radio" name="cm-actions-mode" value="human" checked="@(presetExportMode == "human")" @onchange='() => presetExportMode = "human"' />
+                            <span>Human Class Only</span>
+                        </label>
+                        <button type="button" class="wec-toolbar__btn @(isExporting ? "wec-toolbar__btn--disabled" : "")"
+                                @onclick="OnExportGridAsync" disabled="@isExporting">
+                            @(isExporting ? "Exporting..." : "Export Preset")
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (ShowRaceExport && ExportRaceHandler is not null)
+            {
+                <div class="wec-dropdown__item">
+                    <div class="wec-dropdown__item-title">Export Preset For Race</div>
+                    <button type="button" class="wec-toolbar__btn @(isExporting ? "wec-toolbar__btn--disabled" : "")"
+                            @onclick="OnExportRaceAsync" disabled="@isExporting">
+                        @(isExporting ? "Exporting..." : "Export")
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Func<bool, Task<PresetExportResult>>? ExportGridHandler { get; set; }
+
+    [Parameter]
+    public Func<Task>? ExportRaceHandler { get; set; }
+
+    [Parameter]
+    public bool ShowRaceExport { get; set; }
+
+    private bool isOpen;
+    private bool isExporting;
+    private string presetExportMode = "all";
+
+    private void Toggle()
+    {
+        isOpen = !isOpen;
+    }
+
+    private void Close()
+    {
+        isOpen = false;
+    }
+
+    private async Task OnExportGridAsync()
+    {
+        if (isExporting || ExportGridHandler is null)
+        {
+            return;
+        }
+
+        isExporting = true;
+
+        try
+        {
+            var result = await ExportGridHandler(presetExportMode == "human");
+            Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isExporting = false;
+        }
+    }
+
+    private async Task OnExportRaceAsync()
+    {
+        if (isExporting || ExportRaceHandler is null)
+        {
+            return;
+        }
+
+        isExporting = true;
+
+        try
+        {
+            await ExportRaceHandler();
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+        finally
+        {
+            isExporting = false;
+        }
+    }
+}

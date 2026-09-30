@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<IChampionshipService, ChampionshipService>();
         services.AddScoped<ISeasonService, SeasonService>();
         services.AddScoped<IRaceService, RaceService>();
+        services.AddScoped<ITrackService, TrackService>();
         services.AddScoped<IAssettoCorsaGameConfigService, AssettoCorsaGameConfigService>();
         services.AddScoped<IAssettoCorsaContentService, AssettoCorsaContentService>();
         services.AddScoped<IPointSettingService, PointSettingService>();
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<DriverDataChangeNotifier>();
         services.AddScoped<UpdateNotificationRequest>();
         services.AddScoped<IAppUpdatePreferenceService, AppUpdatePreferenceService>();
+        services.AddScoped<ILuaResultImportService, LuaResultImportService>();
 
         return services;
     }

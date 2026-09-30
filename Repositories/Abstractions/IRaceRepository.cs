@@ -5,6 +5,7 @@ namespace MulticlassRace.Repositories.Abstractions;
 public interface IRaceRepository : IGenericRepository<Race>
 {
     Task<IEnumerable<Race>> GetRacesBySeasonAsync(Guid seasonId);
+    Task<IEnumerable<Race>> GetCandidateRacesAsync(string? trackName, bool includeFinished);
     Task<IEnumerable<Session>> GetSessionsByRaceAsync(Guid raceId);
     Task<IEnumerable<Team>> GetEnteredTeamsAsync(Guid raceId);
     Task<IEnumerable<Team>> GetEnteredTeamsWithDriversAsync(Guid raceId);

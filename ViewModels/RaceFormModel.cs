@@ -11,4 +11,16 @@ public class RaceFormModel
     public Guid SeasonId { get; set; }
 
     public Guid PointSettingId { get; set; }
+
+    public string? TrackName { get; set; }
+
+    public string? TrackLayout { get; set; }
+
+    public int? NumberOfLaps { get; set; }
+
+    public int? RaceDuration { get; set; }
+
+    public int? PracticeSessionMinutes { get; set; }
+
+    public int? QualifyingSessionMinutes { get; set; }
 }

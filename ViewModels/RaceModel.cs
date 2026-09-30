@@ -16,5 +16,17 @@ public class RaceModel
 
     public string PointSettingName { get; set; } = string.Empty;
 
+    public string? TrackName { get; set; }
+
+    public string? TrackLayout { get; set; }
+
+    public int? NumberOfLaps { get; set; }
+
+    public int? RaceDuration { get; set; }
+
+    public int? PracticeSessionMinutes { get; set; }
+
+    public int? QualifyingSessionMinutes { get; set; }
+
     public int StandingCount { get; set; }
 }

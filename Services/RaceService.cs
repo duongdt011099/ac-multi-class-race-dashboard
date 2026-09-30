@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Text.Json;
+using MulticlassRace.Builders;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
+using MulticlassRace.Services.ImportModels;
 using MulticlassRace.ViewModels;
 
 namespace MulticlassRace.Services;
@@ -12,6 +15,8 @@ public class RaceService : IRaceService
     private readonly ISeasonRepository _seasonRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
+    private readonly ITrackService _trackService;
+    private readonly SessionLaunchTracker _launchTracker;
 
     private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
     {
@@ -22,19 +27,21 @@ public class RaceService : IRaceService
         IRaceRepository raceRepository,
         ISeasonRepository seasonRepository,
         IAssettoCorsaGameConfigRepository configRepository,
-        IPointSettingRepository pointSettingRepository)
+        IPointSettingRepository pointSettingRepository,
+        ITrackService trackService,
+        SessionLaunchTracker launchTracker)
     {
         _raceRepository = raceRepository;
         _seasonRepository = seasonRepository;
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
+        _trackService = trackService;
+        _launchTracker = launchTracker;
     }
 
-    public async Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId)
+    private static RaceModel MapRace(Race r)
     {
-        var races = await _raceRepository.GetRacesBySeasonAsync(seasonId);
-
-        return races.Select(r => new RaceModel
+        return new RaceModel
         {
             RaceId = r.RaceId,
             RaceName = r.RaceName,
@@ -42,32 +49,72 @@ public class RaceService : IRaceService
             Status = r.Status,
             PointSettingId = r.PointSettingId,
             PointSettingName = r.PointSetting.SettingName,
+            TrackName = r.TrackName,
+            TrackLayout = r.TrackLayout,
+            NumberOfLaps = r.NumberOfLaps,
+            RaceDuration = r.RaceDuration,
+            PracticeSessionMinutes = r.PracticeSessionMinutes,
+            QualifyingSessionMinutes = r.QualifyingSessionMinutes,
             StandingCount = r.Sessions.Sum(s => s.DriverStandings.Count)
-        });
+        };
     }
 
-    public async Task CreateRaceAsync(Guid seasonId, string raceName, string country, Guid pointSettingId)
+    public async Task<IEnumerable<RaceModel>> GetRacesBySeasonAsync(Guid seasonId)
     {
-        var season = await _seasonRepository.GetByIdAsync(seasonId);
+        var races = await _raceRepository.GetRacesBySeasonAsync(seasonId);
+
+        return races.Select(MapRace);
+    }
+
+    public async Task<RaceModel?> GetRaceByIdAsync(Guid raceId)
+    {
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        return race is null ? null : MapRace(race);
+    }
+
+    public async Task<IEnumerable<RaceModel>> GetCandidateRacesAsync(string? trackName, SessionType sessionType)
+    {
+        // Race results replace a race session and may target a race already marked Finished.
+        // Practice and Qualifying choices remain limited to unfinished races.
+        var canonicalTrackName = await _trackService.ResolveTrackNameAsync(trackName);
+        var races = await _raceRepository.GetCandidateRacesAsync(
+            canonicalTrackName,
+            includeFinished: sessionType == SessionType.Race);
+
+        return races.Select(MapRace);
+    }
+
+    public async Task CreateRaceAsync(RaceFormModel model)
+    {
+        var season = await _seasonRepository.GetByIdAsync(model.SeasonId);
 
         if (season is null)
         {
             throw new InvalidOperationException("Season not found.");
         }
 
-        var pointSetting = await _pointSettingRepository.GetByIdAsync(pointSettingId);
+        var pointSetting = await _pointSettingRepository.GetByIdAsync(model.PointSettingId);
 
         if (pointSetting is null)
         {
             throw new InvalidOperationException("A point setting must be selected.");
         }
 
+        await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
+
         var race = new Race
         {
             RaceId = Guid.NewGuid(),
-            RaceName = raceName.Trim(),
-            Country = country?.Trim() ?? string.Empty,
+            RaceName = model.RaceName.Trim(),
+            Country = model.Country?.Trim() ?? string.Empty,
             Status = RaceStatus.NotStarted,
+            TrackName = NormalizeNullable(model.TrackName),
+            TrackLayout = NormalizeNullable(model.TrackLayout),
+            NumberOfLaps = model.NumberOfLaps,
+            RaceDuration = model.RaceDuration,
+            PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0),
+            QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5),
             PointSettingId = pointSetting.SettingId,
             PointSetting = pointSetting,
             Season = season,
@@ -87,8 +134,16 @@ public class RaceService : IRaceService
             return;
         }
 
+        await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
+
         race.RaceName = model.RaceName.Trim();
         race.Country = model.Country?.Trim() ?? string.Empty;
+        race.TrackName = NormalizeNullable(model.TrackName);
+        race.TrackLayout = NormalizeNullable(model.TrackLayout);
+        race.NumberOfLaps = model.NumberOfLaps;
+        race.RaceDuration = model.RaceDuration;
+        race.PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0);
+        race.QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5);
 
         if (model.PointSettingId != Guid.Empty && race.PointSettingId != model.PointSettingId)
         {
@@ -107,6 +162,191 @@ public class RaceService : IRaceService
     public async Task DeleteRaceAsync(Guid raceId)
     {
         await _raceRepository.DeleteAsync(raceId);
+    }
+
+    public async Task LaunchSessionAsync(
+        Guid raceId,
+        SessionType sessionType,
+        string weather,
+        double sunAngle,
+        bool penalties = true)
+    {
+        var race = await _raceRepository.GetByIdAsync(raceId);
+
+        if (race is null)
+        {
+            throw new InvalidOperationException("Race not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(race.TrackName))
+        {
+            throw new InvalidOperationException("Select a track for this race before starting a session.");
+        }
+
+        if (sessionType == SessionType.Race && race.NumberOfLaps is not > 0)
+        {
+            throw new InvalidOperationException("Set the number of laps for this race before starting the session.");
+        }
+
+        if (sessionType == SessionType.Practice && race.PracticeSessionMinutes == 0)
+        {
+            throw new InvalidOperationException("Practice is disabled for this race because its duration is set to 0 minutes.");
+        }
+
+        var config = await _configRepository.GetAsync();
+        var gamePath = config?.GamePath?.Trim();
+
+        if (string.IsNullOrWhiteSpace(gamePath))
+        {
+            throw new InvalidOperationException("Game path is not configured. Set it on the Game Config page.");
+        }
+
+        var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
+
+        var activeDriverCount = teams.Sum(t => t.Drivers.Count(d => d.IsActive));
+        var pitCount = await _trackService.GetPitCountAsync(
+            race.TrackName,
+            string.IsNullOrWhiteSpace(race.TrackLayout) ? null : race.TrackLayout);
+
+        if (pitCount is > 0 && activeDriverCount > pitCount.Value)
+        {
+            throw new InvalidOperationException(
+                $"The number of cars ({activeDriverCount}) is more than the number of pits ({pitCount}). " +
+                "Please change the race track or layout.");
+        }
+
+        var drivers = teams
+            .SelectMany(t => t.Drivers.Where(d => d.IsActive))
+            .OrderBy(d => d.Team?.TeamClass?.TeamClassName)
+            .ThenBy(d => d.Team?.TeamName)
+            .ThenBy(d => d.DriverName)
+            .ToList();
+
+        var human = drivers.FirstOrDefault(d => d.IsHuman);
+
+        var playerStartPosition = 1;
+
+        if (sessionType == SessionType.Race)
+        {
+            var qualifying = (await _raceRepository.GetSessionsByRaceAsync(raceId))
+                .Where(s => s.SessionType == SessionType.Qualifying && s.DriverStandings.Any(d => d.Driver != null))
+                .OrderByDescending(s => s.SessionDate)
+                .FirstOrDefault();
+
+            if (qualifying is null)
+            {
+                throw new InvalidOperationException(
+                    "A qualifying session with results is required before starting the race.");
+            }
+
+            var qualifyingPositionByDriverId = qualifying.DriverStandings
+                .Where(d => d.Driver != null)
+                .GroupBy(d => d.Driver!.DriverId)
+                .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
+
+            drivers = drivers
+                .OrderBy(d => ClassOrderIndex(d.Team?.TeamClass?.TeamClassName))
+                .ThenBy(d => qualifyingPositionByDriverId.TryGetValue(d.DriverId, out var pos) ? pos : int.MaxValue)
+                .ThenBy(d => d.Team?.TeamName)
+                .ThenBy(d => d.DriverName)
+                .ToList();
+
+            playerStartPosition = human is null
+                ? 1
+                : drivers.TakeWhile(d => d.DriverId != human.DriverId).Count() + 1;
+        }
+
+        var raceIni = new RaceIniBuilder().Build(
+            race,
+            sessionType,
+            human,
+            drivers,
+            weather,
+            sunAngle,
+            playerStartPosition,
+            penalties);
+
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");
+        Directory.CreateDirectory(cfgDir);
+        await File.WriteAllTextAsync(Path.Combine(cfgDir, "race.ini"), raceIni);
+
+        var executable = Path.Combine(gamePath, "acs.exe");
+
+        if (!File.Exists(executable))
+        {
+            executable = Path.Combine(gamePath, "AssettoCorsa.exe");
+        }
+
+        if (!File.Exists(executable))
+        {
+            throw new InvalidOperationException(
+                $"Assetto Corsa executable not found in the configured game path: {gamePath}");
+        }
+
+        var seasonName = string.Empty;
+        var championshipName = string.Empty;
+
+        try
+        {
+            seasonName = race.Season?.SeasonName ?? string.Empty;
+            championshipName = race.Season?.Championship?.ChampionshipName ?? string.Empty;
+        }
+        catch
+        {
+            // Season/Championship are not eagerly loaded here; the context is optional.
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = gamePath,
+            UseShellExecute = true
+        });
+
+        _launchTracker.Record(new SessionLaunch(
+            raceId,
+            sessionType,
+            race.RaceName,
+            seasonName,
+            championshipName,
+            race.TrackName ?? string.Empty,
+            DateTimeOffset.UtcNow));
+    }
+
+    private static string? NormalizeNullable(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private async Task ValidateRaceTrackAsync(string? trackName, string? trackLayout)
+    {
+        if (string.IsNullOrWhiteSpace(trackName))
+        {
+            throw new InvalidOperationException("Select a track.");
+        }
+
+        var layouts = (await _trackService.GetTrackLayoutsAsync(trackName.Trim())).ToList();
+        if (layouts.Count == 0)
+        {
+            // Single-layout tracks use AC's default layout, represented by an empty value.
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(trackLayout))
+        {
+            throw new InvalidOperationException("Select a track layout.");
+        }
+
+        if (!layouts.Contains(trackLayout.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Select a valid layout for the chosen track.");
+        }
+    }
+
+    private static int NormalizeSessionMinutes(int? minutes, int min)
+    {
+        return Math.Clamp(minutes ?? 20, min, 90);
     }
 
     public async Task<IEnumerable<SessionModel>> GetRaceSessionsAsync(Guid raceId)
@@ -133,6 +373,15 @@ public class RaceService : IRaceService
                 })
                 .ToList()
         });
+    }
+
+    public async Task<int> GetEnteredCarCountAsync(Guid raceId)
+    {
+        var teams = await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId);
+
+        return teams
+            .SelectMany(t => t.Drivers)
+            .Count(d => d.IsActive);
     }
 
     public async Task<IEnumerable<TeamModel>> GetRaceTeamsAsync(Guid raceId)
@@ -309,27 +558,62 @@ public class RaceService : IRaceService
         var config = await _configRepository.GetAsync();
         var path = config?.RaceResultsPath?.Trim();
 
-        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        var contentManagerFiles = new List<RaceResultFileModel>();
+
+        if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
         {
-            return Enumerable.Empty<RaceResultFileModel>();
+            contentManagerFiles.AddRange(Directory
+                .GetFiles(path, "*" + LuaResultPaths.FileExtension)
+                .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
+                .Where(f => TryParseSessionDate(f.FileName, out _))
+                .OrderByDescending(f => f.FileName)
+                .Select(f =>
+                {
+                    TryParseSessionDate(f.FileName, out var date);
+                    var track = ReadSessionInfo(f.FilePath);
+                    return new RaceResultFileModel
+                    {
+                        FileName = f.FileName,
+                        FullPath = f.FilePath,
+                        SessionDate = date,
+                        Track = track ?? string.Empty,
+                        IsLuaResult = false
+                    };
+                })
+                .Where(f => !string.IsNullOrWhiteSpace(f.Track)));
         }
 
-        return Directory.GetFiles(path, "*.json")
-            .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
-            .Where(f => TryParseSessionDate(f.FileName, out _))
-            .OrderByDescending(f => f.FileName)
-            .Select(f =>
-            {
-                TryParseSessionDate(f.FileName, out var date);
-                var track = ReadSessionInfo(f.FilePath);
-                return new RaceResultFileModel
+        // Lua-produced race results live in their own subfolder so a declined or failed
+        // auto-import can still be retried through the same manual dropdown.
+        var luaRaceFolder = Path.Combine(LuaResultPaths.ResolveRoot(config?.LuaResultPath), LuaResultPaths.RaceFolder);
+        var luaFiles = new List<RaceResultFileModel>();
+
+        if (Directory.Exists(luaRaceFolder))
+        {
+            luaFiles.AddRange(Directory
+                .GetFiles(luaRaceFolder, "*" + LuaResultPaths.FileExtension)
+                .Select(f => new { FileName = Path.GetFileName(f), FilePath = f })
+                .Where(f => TryParseSessionDate(f.FileName, out _))
+                .OrderByDescending(f => f.FileName)
+                .Select(f =>
                 {
-                    FileName = f.FileName,
-                    SessionDate = date,
-                    Track = track ?? string.Empty
-                };
-            })
-            .Where(f => !string.IsNullOrWhiteSpace(f.Track))
+                    TryParseSessionDate(f.FileName, out var date);
+                    var track = ReadSessionInfo(f.FilePath);
+                    return new RaceResultFileModel
+                    {
+                        FileName = f.FileName,
+                        FullPath = f.FilePath,
+                        SessionDate = date,
+                        Track = track ?? string.Empty,
+                        IsLuaResult = true
+                    };
+                })
+                .Where(f => !string.IsNullOrWhiteSpace(f.Track)));
+        }
+
+        return contentManagerFiles
+            .Concat(luaFiles)
+            .OrderByDescending(f => f.SessionDate)
             .ToList();
     }
 
@@ -345,22 +629,29 @@ public class RaceService : IRaceService
 
         var filePath = Path.Combine(path, fileName);
 
-        if (!File.Exists(filePath))
+        return await ImportRaceResultFromPathAsync(raceId, filePath, fileName);
+    }
+
+    public async Task<RaceResultImportResult> ImportRaceResultFromPathAsync(Guid raceId, string fullPath, string? fileName)
+    {
+        var resolvedName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(fullPath) : fileName.Trim();
+
+        if (!File.Exists(fullPath))
         {
-            throw new InvalidOperationException($"Result file not found: {fileName}");
+            throw new InvalidOperationException($"Result file not found: {resolvedName}");
         }
 
         CmSessionFile? sessionFile;
 
         try
         {
-            await using var stream = File.OpenRead(filePath);
+            await using var stream = File.OpenRead(fullPath);
             sessionFile = await JsonSerializer.DeserializeAsync<CmSessionFile>(stream, CaseInsensitiveJson);
         }
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
-                $"The selected file is not a valid Content Manager session file: {fileName}",
+                $"The selected file is not a valid Content Manager session file: {resolvedName}",
                 ex);
         }
 
@@ -426,7 +717,7 @@ public class RaceService : IRaceService
         {
             SessionId = Guid.NewGuid(),
             SessionType = SessionType.Race,
-            SessionDate = TryParseSessionDate(fileName, out var date) ? date : DateTime.Now,
+            SessionDate = TryParseSessionDate(resolvedName, out var date) ? date : DateTime.Now,
             RaceId = raceId,
             Race = race,
             DriverStandings = new List<DriverStanding>()
@@ -643,15 +934,6 @@ public class RaceService : IRaceService
         };
     }
 
-    private sealed class ImportEntry
-    {
-        public required (Driver Driver, Team Team) Match { get; set; }
-
-        public int BestLapMs { get; set; }
-
-        public int LapCount { get; set; }
-    }
-
     private static bool TryParseSessionDate(string fileName, out DateTime date)
     {
         var name = Path.GetFileNameWithoutExtension(fileName);
@@ -745,73 +1027,4 @@ public class RaceService : IRaceService
         return sanitized.Trim();
     }
 
-    private sealed class SessionResultEntry
-    {
-        public string Driver { get; set; } = string.Empty;
-
-        public string Car { get; set; } = string.Empty;
-
-        public string Skin { get; set; } = string.Empty;
-
-        public string? BestLapTimeMs { get; set; }
-    }
-
-    private sealed class CmSessionFile
-    {
-        public string Track { get; set; } = string.Empty;
-
-        public int Number_Of_Sessions { get; set; }
-
-        public CmPlayer[] Players { get; set; } = Array.Empty<CmPlayer>();
-
-        public CmSession[] Sessions { get; set; } = Array.Empty<CmSession>();
-    }
-
-    private sealed class CmPlayer
-    {
-        public string Name { get; set; } = string.Empty;
-
-        public string Car { get; set; } = string.Empty;
-
-        public string Skin { get; set; } = string.Empty;
-    }
-
-    private sealed class CmSession
-    {
-        public int Event { get; set; }
-
-        public string Name { get; set; } = string.Empty;
-
-        public int Type { get; set; }
-
-        public int LapsCount { get; set; }
-
-        public int Duration { get; set; }
-
-        public List<CmLap> Laps { get; set; } = new();
-
-        public List<int> LapsTotal { get; set; } = new();
-
-        public List<CmBestLap> BestLaps { get; set; } = new();
-
-        public List<int>? RaceResult { get; set; }
-    }
-
-    private sealed class CmLap
-    {
-        public int Lap { get; set; }
-
-        public int Car { get; set; }
-
-        public double Time { get; set; }
-    }
-
-    private sealed class CmBestLap
-    {
-        public int Car { get; set; }
-
-        public long Time { get; set; }
-
-        public int Lap { get; set; }
-    }
 }
