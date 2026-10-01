@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
+using MulticlassRace.ViewModels;
 
 namespace MulticlassRace.Services;
 
@@ -16,19 +17,76 @@ public class TrackService : ITrackService
 
     public async Task<IReadOnlyList<string>> GetTrackNamesAsync()
     {
+        var tracks = await GetTrackOptionsAsync();
+
+        return tracks.Select(t => t.TrackId).ToList();
+    }
+
+    public async Task<IReadOnlyList<TrackOptionModel>> GetTrackOptionsAsync()
+    {
         var tracksRoot = await GetTracksRootAsync();
 
         if (tracksRoot is null || !Directory.Exists(tracksRoot))
         {
-            return Array.Empty<string>();
+            return Array.Empty<TrackOptionModel>();
         }
 
-        return Directory.GetDirectories(tracksRoot)
-            .Select(Path.GetFileName)
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .Cast<string>()
+        var options = new List<TrackOptionModel>();
+
+        foreach (var directory in Directory.GetDirectories(tracksRoot))
+        {
+            var trackId = Path.GetFileName(directory);
+
+            if (string.IsNullOrWhiteSpace(trackId))
+            {
+                continue;
+            }
+
+            options.Add(new TrackOptionModel(trackId, await ReadDisplayNameAsync(directory, trackId)));
+        }
+
+        return options
+            .OrderBy(o => o.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(o => o.TrackId, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>Reads the name AC shows for a track, falling back to the folder id.</summary>
+    private static async Task<string> ReadDisplayNameAsync(string directory, string fallback)
+    {
+        var uiDirectory = Path.Combine(directory, "ui");
+
+        foreach (var fileName in new[] { "ui_track.json", "dlc_ui_track.json" })
+        {
+            var path = Path.Combine(uiDirectory, fileName);
+
+            if (File.Exists(path) is false)
+            {
+                continue;
+            }
+
+            try
+            {
+                await using var stream = File.OpenRead(path);
+                using var document = await JsonDocument.ParseAsync(stream);
+
+                if (document.RootElement.TryGetProperty("name", out var displayName))
+                {
+                    var name = displayName.GetString();
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        return name.Trim();
+                    }
+                }
+            }
+            catch
+            {
+                // An invalid optional UI metadata file should not hide the track.
+            }
+        }
+
+        return fallback;
     }
 
     public async Task<string?> ResolveTrackNameAsync(string? trackName)

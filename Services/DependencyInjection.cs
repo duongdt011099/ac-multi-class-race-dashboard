@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<UpdateNotificationRequest>();
         services.AddScoped<IAppUpdatePreferenceService, AppUpdatePreferenceService>();
         services.AddScoped<ILuaResultImportService, LuaResultImportService>();
+        services.AddSingleton<IGameSessionLauncher, GameSessionLauncher>();
 
         return services;
     }
