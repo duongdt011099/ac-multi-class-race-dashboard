@@ -352,7 +352,7 @@
                             <option value="">Select layout...</option>
                             @foreach (var trackLayout in trackLayouts)
                             {
-                                <option value="@trackLayout">@trackLayout</option>
+                                <option value="@trackLayout.LayoutId">@trackLayout.DisplayName</option>
                             }
                         }
                     </select>
@@ -799,7 +799,7 @@
     private bool isImportingSessionResult;
     private bool isStartingSession;
     private List<TrackOptionModel> availableTracks = new();
-    private List<string> trackLayouts = new();
+    private List<TrackLayoutOptionModel> trackLayouts = new();
     private int? estimatedLapTimeMs;
     private int? trackPitCount;
     private int enteredCarCount;
@@ -1308,7 +1308,7 @@
             PracticeSessionMinutes = 20,
             QualifyingSessionMinutes = 20
         };
-        trackLayouts = new List<string>();
+        trackLayouts = new List<TrackLayoutOptionModel>();
         estimatedLapTimeMs = null;
     }
 
@@ -1335,8 +1335,8 @@
         };
 
         trackLayouts = string.IsNullOrWhiteSpace(editingRace.TrackName)
-            ? new List<string>()
-            : (await TrackService.GetTrackLayoutsAsync(editingRace.TrackName)).ToList();
+            ? new List<TrackLayoutOptionModel>()
+            : (await TrackService.GetTrackLayoutOptionsAsync(editingRace.TrackName)).ToList();
 
         estimatedLapTimeMs = string.IsNullOrWhiteSpace(editingRace.TrackName)
             ? null
@@ -1717,8 +1717,8 @@
 
         editingRace.TrackLayout = null;
         trackLayouts = string.IsNullOrWhiteSpace(editingRace.TrackName)
-            ? new List<string>()
-            : (await TrackService.GetTrackLayoutsAsync(editingRace.TrackName)).ToList();
+            ? new List<TrackLayoutOptionModel>()
+            : (await TrackService.GetTrackLayoutOptionsAsync(editingRace.TrackName)).ToList();
 
         await RefreshEstimatedLapTimeAsync();
     }

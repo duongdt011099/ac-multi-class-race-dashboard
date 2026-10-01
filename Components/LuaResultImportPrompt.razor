@@ -6,6 +6,7 @@
 @inject MulticlassRace.Services.LuaResultImportState State
 @inject MulticlassRace.Services.Abstractions.ILuaResultImportService ImportService
 @inject MulticlassRace.Services.Abstractions.IRaceService RaceService
+@inject MulticlassRace.Services.Abstractions.ITrackService TrackService
 @inject MulticlassRace.Services.ToastService Toast
 @implements IDisposable
 
@@ -158,9 +159,7 @@ else if (isScanning)
         {
             var races = await RaceService.GetCandidateRacesAsync(value.Track, value.SessionType);
 
-            loadedOptions = races
-                .Select(r => new RaceOption(r.RaceId, $"{r.RaceName} — {r.TrackName}"))
-                .ToList();
+            loadedOptions = await BuildRaceOptionsAsync(races);
         }
         catch
         {
@@ -187,6 +186,28 @@ else if (isScanning)
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<List<RaceOption>> BuildRaceOptionsAsync(IEnumerable<RaceModel> races)
+    {
+        var options = new List<RaceOption>();
+        var displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var race in races)
+        {
+            var trackName = race.TrackName ?? string.Empty;
+
+            if (trackName.Length > 0 && displayNames.ContainsKey(trackName) is false)
+            {
+                displayNames[trackName] = await TrackService.GetTrackDisplayNameAsync(trackName);
+            }
+
+            options.Add(new RaceOption(
+                race.RaceId,
+                $"{race.RaceName} — {(displayNames.TryGetValue(trackName, out var display) ? display : trackName)}"));
+        }
+
+        return options;
     }
 
     private void HandleRaceChanged(ChangeEventArgs e)

@@ -42,20 +42,142 @@ public class TrackService : ITrackService
                 continue;
             }
 
-            options.Add(new TrackOptionModel(trackId, await ReadDisplayNameAsync(directory, trackId)));
+            options.Add(new TrackOptionModel(trackId, await ResolveDisplayNameAsync(directory, trackId)));
         }
 
-        return options
+        return Disambiguate(options)
             .OrderBy(o => o.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(o => o.TrackId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    /// <summary>Reads the name AC shows for a track, falling back to the folder id.</summary>
-    private static async Task<string> ReadDisplayNameAsync(string directory, string fallback)
+    /// <summary>
+    /// Two content packs can name different folders the same thing (rt_misano and "Misano 2025"
+    /// are both "Misano World Circuit"), and a dropdown that shows the same label twice is
+    /// worse than one that shows the folder id, so duplicates fall back to their ids.
+    /// </summary>
+    private static List<TrackOptionModel> Disambiguate(List<TrackOptionModel> options)
+    {
+        return options
+            .Select(o => options.Count(other => string.Equals(
+                    other.DisplayName,
+                    o.DisplayName,
+                    StringComparison.OrdinalIgnoreCase)) > 1
+                ? o with { DisplayName = o.TrackId }
+                : o)
+            .ToList();
+    }
+
+    public async Task<string> GetTrackDisplayNameAsync(string? trackName)
+    {
+        if (string.IsNullOrWhiteSpace(trackName))
+        {
+            return trackName ?? string.Empty;
+        }
+
+        var requested = trackName.Trim();
+        var tracksRoot = await GetTracksRootAsync();
+
+        if (tracksRoot is null || !Directory.Exists(tracksRoot))
+        {
+            return requested;
+        }
+
+        var trackDirectories = Directory.GetDirectories(tracksRoot);
+        var directory = trackDirectories.FirstOrDefault(d =>
+            string.Equals(Path.GetFileName(d), requested, StringComparison.OrdinalIgnoreCase));
+
+        if (directory is null)
+        {
+            // The caller already has AC's own name for the track, so show that as-is.
+            return requested;
+        }
+
+        var trackId = Path.GetFileName(directory);
+
+        if (string.Equals(trackId, requested, StringComparison.Ordinal))
+        {
+            // Came from the dropdown, so it can be resolved to the shared label.
+            var options = await GetTrackOptionsAsync();
+            var match = options.FirstOrDefault(o => string.Equals(o.TrackId, requested, StringComparison.OrdinalIgnoreCase));
+
+            if (match is not null)
+            {
+                return match.DisplayName;
+            }
+        }
+
+        return await ResolveDisplayNameAsync(directory, trackId);
+    }
+
+    /// <summary>
+    /// Works out what to call a track. Most tracks name themselves in ui/ui_track.json, but
+    /// plenty (rt_sebring, fn_spa, ks_monza66) only name their layouts, in which case the
+    /// shared prefix of those names is the track: "Sebring International Raceway (Raceday)"
+    /// and "Sebring International Raceway (Trackday)" both start with "Sebring International
+    /// Raceway". Tracks whose layout names share nothing fall back to the shortest one.
+    /// </summary>
+    private static async Task<string> ResolveDisplayNameAsync(string directory, string fallback)
     {
         var uiDirectory = Path.Combine(directory, "ui");
+        var rootName = await ReadNameAsync(uiDirectory);
 
+        if (rootName is not null)
+        {
+            return rootName;
+        }
+
+        var layoutNames = new List<string>();
+
+        if (Directory.Exists(uiDirectory))
+        {
+            foreach (var layoutDirectory in Directory.GetDirectories(uiDirectory))
+            {
+                var name = await ReadNameAsync(layoutDirectory);
+
+                if (name is not null)
+                {
+                    layoutNames.Add(name);
+                }
+            }
+        }
+
+        if (layoutNames.Count == 0)
+        {
+            return fallback;
+        }
+
+        var prefix = layoutNames[0];
+
+        foreach (var name in layoutNames.Skip(1))
+        {
+            var shared = 0;
+            var limit = Math.Min(prefix.Length, name.Length);
+
+            while (shared < limit && char.ToUpperInvariant(prefix[shared]) == char.ToUpperInvariant(name[shared]))
+            {
+                shared++;
+            }
+
+            prefix = prefix[..shared];
+        }
+
+        var trimmed = prefix.TrimEnd(' ', '-', ':', ',', '(', '/');
+
+        if (trimmed.Length >= 3)
+        {
+            return trimmed;
+        }
+
+        return layoutNames
+            .OrderBy(n => n.Length)
+            .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    /// <summary>Reads the display name from a track or layout UI folder, if it declares one.</summary>
+    private static async Task<string?> ReadNameAsync(string uiDirectory)
+    {
         foreach (var fileName in new[] { "ui_track.json", "dlc_ui_track.json" })
         {
             var path = Path.Combine(uiDirectory, fileName);
@@ -86,7 +208,7 @@ public class TrackService : ITrackService
             }
         }
 
-        return fallback;
+        return null;
     }
 
     public async Task<string?> ResolveTrackNameAsync(string? trackName)
@@ -114,27 +236,24 @@ public class TrackService : ITrackService
         foreach (var directory in trackDirectories)
         {
             var uiDirectory = Path.Combine(directory, "ui");
-            foreach (var fileName in new[] { "ui_track.json", "dlc_ui_track.json" })
-            {
-                var path = Path.Combine(uiDirectory, fileName);
-                if (!File.Exists(path))
-                {
-                    continue;
-                }
 
-                try
+            // Tracks that only name their layouts (rt_sebring has no ui/ui_track.json) report
+            // AC's layout name in results, so those have to be searched too.
+            if (Directory.Exists(uiDirectory) is false)
+            {
+                continue;
+            }
+
+            var uiDirectories = new List<string> { uiDirectory };
+            uiDirectories.AddRange(Directory.GetDirectories(uiDirectory));
+
+            foreach (var candidate in uiDirectories)
+            {
+                var name = await ReadNameAsync(candidate);
+
+                if (name is not null && string.Equals(name, requested, StringComparison.OrdinalIgnoreCase))
                 {
-                    await using var stream = File.OpenRead(path);
-                    using var document = await JsonDocument.ParseAsync(stream);
-                    if (document.RootElement.TryGetProperty("name", out var displayName)
-                        && string.Equals(displayName.GetString(), requested, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return Path.GetFileName(directory);
-                    }
-                }
-                catch
-                {
-                    // An invalid optional UI metadata file should not prevent track matching.
+                    return Path.GetFileName(directory);
                 }
             }
         }
@@ -144,30 +263,50 @@ public class TrackService : ITrackService
 
     public async Task<IReadOnlyList<string>> GetTrackLayoutsAsync(string trackName)
     {
+        return (await GetTrackLayoutOptionsAsync(trackName)).Select(o => o.LayoutId).ToList();
+    }
+
+    public async Task<IReadOnlyList<TrackLayoutOptionModel>> GetTrackLayoutOptionsAsync(string trackName)
+    {
         if (IsValidSegment(trackName) is false)
         {
-            return Array.Empty<string>();
+            return Array.Empty<TrackLayoutOptionModel>();
         }
 
         var tracksRoot = await GetTracksRootAsync();
 
         if (tracksRoot is null)
         {
-            return Array.Empty<string>();
+            return Array.Empty<TrackLayoutOptionModel>();
         }
 
         var uiDir = Path.Combine(tracksRoot, trackName, "ui");
 
         if (!Directory.Exists(uiDir))
         {
-            return Array.Empty<string>();
+            return Array.Empty<TrackLayoutOptionModel>();
         }
 
-        return Directory.GetDirectories(uiDir)
-            .Select(Path.GetFileName)
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .Cast<string>()
+        var options = new List<TrackLayoutOptionModel>();
+
+        foreach (var directory in Directory.GetDirectories(uiDir))
+        {
+            var layoutId = Path.GetFileName(directory);
+
+            if (string.IsNullOrWhiteSpace(layoutId))
+            {
+                continue;
+            }
+
+            var layoutUiDir = Path.Combine(uiDir, layoutId);
+            var layoutName = await ReadNameAsync(layoutUiDir) ?? layoutId;
+
+            options.Add(new TrackLayoutOptionModel(layoutId, layoutName));
+        }
+
+        return options
+            .OrderBy(o => o.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(o => o.LayoutId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
