@@ -22,7 +22,10 @@ public class TeamService : ITeamService
     {
         var teams = await _teamRepository.GetActiveTeamsAsync();
 
-        return teams.Select(t => MapTeam(t, includeDrivers: false));
+        return teams
+            .Select(t => MapTeam(t, includeDrivers: false))
+            .OrderBy(t => t.TeamName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<TeamModel?> GetTeamByIdAsync(Guid teamId)

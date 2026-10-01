@@ -317,9 +317,13 @@
                     <label for="race-track">Track <span class="wec-required" aria-hidden="true">*</span></label>
                     <select id="race-track" required @bind="editingRace.TrackName" @bind:after="HandleRaceTrackChangedAsync">
                         <option value="">Select track...</option>
+                        @if (!string.IsNullOrWhiteSpace(editingRace.TrackName) && !availableTracks.Any(t => t.TrackId == editingRace.TrackName))
+                        {
+                            <option value="@editingRace.TrackName">@editingRace.TrackName (not found on disk)</option>
+                        }
                         @foreach (var track in availableTracks)
                         {
-                            <option value="@track">@track</option>
+                            <option value="@track.TrackId">@track.DisplayName</option>
                         }
                     </select>
                 </div>
@@ -379,7 +383,7 @@
                     <label for="race-point-setting">Point Setting</label>
                     <select id="race-point-setting" @bind="editingRace.PointSettingId">
                         <option value="@Guid.Empty">Select point setting...</option>
-                        @foreach (var setting in pointSettings)
+                        @foreach (var setting in pointSettings.OrderBy(s => s.SettingName, StringComparer.OrdinalIgnoreCase))
                         {
                             <option value="@setting.SettingId">@setting.SettingName@(setting.IsDefault ? " (default)" : "")</option>
                         }
@@ -794,7 +798,7 @@
     private bool isImportingRaceResult;
     private bool isImportingSessionResult;
     private bool isStartingSession;
-    private List<string> availableTracks = new();
+    private List<TrackOptionModel> availableTracks = new();
     private List<string> trackLayouts = new();
     private int? estimatedLapTimeMs;
     private int? trackPitCount;
@@ -808,15 +812,16 @@
 
     private const long MaxResultFileBytes = 2 * 1024 * 1024;
 
+    /// <summary>Alphabetical by label; the values are what AC and the results need.</summary>
     private static readonly (string Value, string Label)[] WeatherOptions =
     {
-        ("1_heavy_fog", "Heavy Fog"),
-        ("2_light_fog", "Light Fog"),
         ("3_clear", "Clear"),
-        ("4_mid_clear", "Mid Clear"),
+        ("7_heavy_clouds", "Heavy Clouds"),
+        ("1_heavy_fog", "Heavy Fog"),
         ("5_light_clouds", "Light Clouds"),
-        ("6_mid_clouds", "Mid Clouds"),
-        ("7_heavy_clouds", "Heavy Clouds")
+        ("2_light_fog", "Light Fog"),
+        ("4_mid_clear", "Mid Clear"),
+        ("6_mid_clouds", "Mid Clouds")
     };
 
     /// <summary>
@@ -1012,7 +1017,7 @@
     {
         championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
         pointSettings = (await PointSettingService.GetAllAsync()).ToList();
-        availableTracks = (await TrackService.GetTrackNamesAsync()).ToList();
+        availableTracks = (await TrackService.GetTrackOptionsAsync()).ToList();
 
         var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
         var hasQuerySelection = false;
