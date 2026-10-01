@@ -1,8 +1,10 @@
+using MulticlassRace.ViewModels;
+
 namespace MulticlassRace.Services.Abstractions;
 
 public interface ITrackService
 {
-    Task<IReadOnlyList<string>> GetTrackNamesAsync();
+    Task<IReadOnlyList<TrackOptionModel>> GetTrackOptionsAsync();
 
     Task<string?> ResolveTrackNameAsync(string? trackName);
 

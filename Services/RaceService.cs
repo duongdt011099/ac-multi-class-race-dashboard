@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using MulticlassRace.Builders;
 using MulticlassRace.Models;
@@ -16,6 +15,7 @@ public class RaceService : IRaceService
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
     private readonly ITrackService _trackService;
+    private readonly IGameSessionLauncher _gameSessionLauncher;
     private readonly SessionLaunchTracker _launchTracker;
 
     private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
@@ -29,6 +29,7 @@ public class RaceService : IRaceService
         IAssettoCorsaGameConfigRepository configRepository,
         IPointSettingRepository pointSettingRepository,
         ITrackService trackService,
+        IGameSessionLauncher gameSessionLauncher,
         SessionLaunchTracker launchTracker)
     {
         _raceRepository = raceRepository;
@@ -36,6 +37,7 @@ public class RaceService : IRaceService
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
         _trackService = trackService;
+        _gameSessionLauncher = gameSessionLauncher;
         _launchTracker = launchTracker;
     }
 
@@ -266,11 +268,6 @@ public class RaceService : IRaceService
             playerStartPosition,
             penalties);
 
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var cfgDir = Path.Combine(documents, "Assetto Corsa", "cfg");
-        Directory.CreateDirectory(cfgDir);
-        await File.WriteAllTextAsync(Path.Combine(cfgDir, "race.ini"), raceIni);
-
         var executable = Path.Combine(gamePath, "acs.exe");
 
         if (!File.Exists(executable))
@@ -297,12 +294,7 @@ public class RaceService : IRaceService
             // Season/Championship are not eagerly loaded here; the context is optional.
         }
 
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = executable,
-            WorkingDirectory = gamePath,
-            UseShellExecute = true
-        });
+        await _gameSessionLauncher.LaunchAsync(gamePath, executable, raceIni);
 
         _launchTracker.Record(new SessionLaunch(
             raceId,

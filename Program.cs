@@ -9,6 +9,12 @@ using MulticlassRace.Services;
 using MulticlassRace.Services.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
+if (args.Any(argument => string.Equals(argument, "--game-launcher-agent", StringComparison.OrdinalIgnoreCase)))
+{
+    await GameLaunchAgent.RunAsync();
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService();
 // Add services to the container.
