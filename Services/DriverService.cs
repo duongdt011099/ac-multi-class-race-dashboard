@@ -11,14 +11,13 @@ public class DriverService : IDriverService
     private const long MaxPresetSizeBytes = 2 * 1024 * 1024;
 
     private readonly IDriverRepository _driverRepository;
-    private readonly IAssettoCorsaGameConfigRepository _configRepository;
+    private readonly AssettoCorsaPathResolver _pathResolver;
     private readonly ITeamRepository _teamRepository;
-    private string? _gamePath;
 
-    public DriverService(IDriverRepository driverRepository, IAssettoCorsaGameConfigRepository configRepository, ITeamRepository teamRepository)
+    public DriverService(IDriverRepository driverRepository, AssettoCorsaPathResolver pathResolver, ITeamRepository teamRepository)
     {
         _driverRepository = driverRepository;
-        _configRepository = configRepository;
+        _pathResolver = pathResolver;
         _teamRepository = teamRepository;
     }
 
@@ -177,15 +176,7 @@ public class DriverService : IDriverService
 
     private async Task<string?> GetGamePathAsync()
     {
-        if (_gamePath is not null)
-        {
-            return _gamePath;
-        }
-
-        var config = await _configRepository.GetAsync();
-        _gamePath = config?.GamePath.Trim();
-
-        return string.IsNullOrWhiteSpace(_gamePath) ? null : _gamePath;
+        return (await _pathResolver.GetAsync()).Path;
     }
 
     private static int? ParseAiValue(List<string> values, int index)

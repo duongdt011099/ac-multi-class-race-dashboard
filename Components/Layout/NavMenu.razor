@@ -8,7 +8,7 @@
 
 @rendermode InteractiveServer
 @using MulticlassRace.ViewModels
-@inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.AssettoCorsaPathResolver PathResolver
 @inject MulticlassRace.Services.Abstractions.IDriverService DriverService
 @inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
 @inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
@@ -25,7 +25,8 @@
     {
         <div class="wec-nav-warning" role="alert">
             <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-            <span>Game hasn't been configured yet. Open <strong>Game Config</strong> to set it up.</span>
+            <span>The Assetto Corsa folder has not been found, so everything else stays switched off.
+            Run the dashboard setup again and point it at the game.</span>
         </div>
     }
 
@@ -218,8 +219,8 @@
 
     private async Task LoadStateAsync()
     {
-        var config = await ConfigService.GetAsync();
-        isConfigured = !string.IsNullOrWhiteSpace(config?.GamePath);
+        var location = await PathResolver.GetAsync();
+        isConfigured = location.IsConfigured;
 
         var drivers = await DriverService.GetActiveDriversAsync();
         humanDriver = drivers.FirstOrDefault(d => d.IsHuman);

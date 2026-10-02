@@ -1,18 +1,17 @@
-using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
 
 namespace MulticlassRace.Services;
 
 public class AssettoCorsaContentService : IAssettoCorsaContentService
 {
-    private readonly IAssettoCorsaGameConfigRepository _configRepository;
+    private readonly AssettoCorsaPathResolver _pathResolver;
     private readonly ILogger<AssettoCorsaContentService> _logger;
 
     public AssettoCorsaContentService(
-        IAssettoCorsaGameConfigRepository configRepository,
+        AssettoCorsaPathResolver pathResolver,
         ILogger<AssettoCorsaContentService> logger)
     {
-        _configRepository = configRepository;
+        _pathResolver = pathResolver;
         _logger = logger;
     }
 
@@ -56,8 +55,7 @@ public class AssettoCorsaContentService : IAssettoCorsaContentService
 
     private async Task<string?> GetCarsRootAsync()
     {
-        var config = await _configRepository.GetAsync();
-        var gamePath = config?.GamePath?.Trim();
+        var gamePath = (await _pathResolver.GetAsync()).Path;
 
         if (string.IsNullOrWhiteSpace(gamePath))
         {

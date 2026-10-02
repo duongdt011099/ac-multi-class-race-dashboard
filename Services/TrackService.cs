@@ -9,10 +9,12 @@ namespace MulticlassRace.Services;
 public class TrackService : ITrackService
 {
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
+    private readonly AssettoCorsaPathResolver _pathResolver;
 
-    public TrackService(IAssettoCorsaGameConfigRepository configRepository)
+    public TrackService(IAssettoCorsaGameConfigRepository configRepository, AssettoCorsaPathResolver pathResolver)
     {
         _configRepository = configRepository;
+        _pathResolver = pathResolver;
     }
 
     public async Task<IReadOnlyList<string>> GetTrackNamesAsync()
@@ -374,9 +376,9 @@ public class TrackService : ITrackService
         }
 
         var config = await _configRepository.GetAsync();
-        var resultsPath = config?.RaceResultsPath?.Trim();
+        var resultsPath = ContentManagerPaths.ResolveResults(config?.RaceResultsPath);
 
-        if (string.IsNullOrWhiteSpace(resultsPath) || !Directory.Exists(resultsPath))
+        if (!Directory.Exists(resultsPath))
         {
             return null;
         }
@@ -432,8 +434,7 @@ public class TrackService : ITrackService
 
     private async Task<string?> GetTracksRootAsync()
     {
-        var config = await _configRepository.GetAsync();
-        var gamePath = config?.GamePath?.Trim();
+        var gamePath = (await _pathResolver.GetAsync()).Path;
 
         if (string.IsNullOrWhiteSpace(gamePath))
         {

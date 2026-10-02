@@ -17,6 +17,7 @@ public class RaceService : IRaceService
     private readonly ITrackService _trackService;
     private readonly IGameSessionLauncher _gameSessionLauncher;
     private readonly SessionLaunchTracker _launchTracker;
+    private readonly AssettoCorsaPathResolver _pathResolver;
 
     private static readonly JsonSerializerOptions CaseInsensitiveJson = new()
     {
@@ -30,7 +31,8 @@ public class RaceService : IRaceService
         IPointSettingRepository pointSettingRepository,
         ITrackService trackService,
         IGameSessionLauncher gameSessionLauncher,
-        SessionLaunchTracker launchTracker)
+        SessionLaunchTracker launchTracker,
+        AssettoCorsaPathResolver pathResolver)
     {
         _raceRepository = raceRepository;
         _seasonRepository = seasonRepository;
@@ -39,6 +41,7 @@ public class RaceService : IRaceService
         _trackService = trackService;
         _gameSessionLauncher = gameSessionLauncher;
         _launchTracker = launchTracker;
+        _pathResolver = pathResolver;
     }
 
     private static RaceModel MapRace(Race r)
@@ -195,12 +198,11 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("Practice is disabled for this race because its duration is set to 0 minutes.");
         }
 
-        var config = await _configRepository.GetAsync();
-        var gamePath = config?.GamePath?.Trim();
+        var gamePath = (await _pathResolver.GetAsync()).Path;
 
         if (string.IsNullOrWhiteSpace(gamePath))
         {
-            throw new InvalidOperationException("Game path is not configured. Set it on the Game Config page.");
+            throw new InvalidOperationException("The Assetto Corsa folder is not configured. Reinstall the dashboard and point it at the game.");
         }
 
         var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
@@ -406,11 +408,13 @@ public class RaceService : IRaceService
         }
 
         var config = await _configRepository.GetAsync();
-        var presetPath = config?.PresetPath?.Trim();
+        var presetPath = ContentManagerPaths.ResolvePreset(config?.PresetPath);
 
-        if (string.IsNullOrWhiteSpace(presetPath))
+        // Exporting creates the folder it writes to, so refuse rather than grow an empty AcTools
+        // tree on a machine that has no Content Manager.
+        if (ContentManagerPaths.CanExportPresets(config?.PresetPath) is false)
         {
-            throw new InvalidOperationException("Preset path is not configured. Set it on the Game Config page.");
+            throw new InvalidOperationException($"Content Manager is not installed, so grid presets have nowhere to be saved. Expected them in: {presetPath}");
         }
 
         var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
@@ -479,11 +483,13 @@ public class RaceService : IRaceService
         }
 
         var config = await _configRepository.GetAsync();
-        var presetPath = config?.PresetPath?.Trim();
+        var presetPath = ContentManagerPaths.ResolvePreset(config?.PresetPath);
 
-        if (string.IsNullOrWhiteSpace(presetPath))
+        // Exporting creates the folder it writes to, so refuse rather than grow an empty AcTools
+        // tree on a machine that has no Content Manager.
+        if (ContentManagerPaths.CanExportPresets(config?.PresetPath) is false)
         {
-            throw new InvalidOperationException("Preset path is not configured. Set it on the Game Config page.");
+            throw new InvalidOperationException($"Content Manager is not installed, so grid presets have nowhere to be saved. Expected them in: {presetPath}");
         }
 
         var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
@@ -548,11 +554,11 @@ public class RaceService : IRaceService
     public async Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync()
     {
         var config = await _configRepository.GetAsync();
-        var path = config?.RaceResultsPath?.Trim();
+        var path = ContentManagerPaths.ResolveResults(config?.RaceResultsPath);
 
         var contentManagerFiles = new List<RaceResultFileModel>();
 
-        if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+        if (Directory.Exists(path))
         {
             contentManagerFiles.AddRange(Directory
                 .GetFiles(path, "*" + LuaResultPaths.FileExtension)
@@ -609,14 +615,31 @@ public class RaceService : IRaceService
             .ToList();
     }
 
+    public async Task<ResultImportAvailabilityModel> GetResultImportAvailabilityAsync()
+    {
+        var config = await _configRepository.GetAsync();
+
+        var resultsFolder = ContentManagerPaths.ResolveResults(config?.RaceResultsPath);
+
+        // The dropdown offers Content Manager results and the Lua app's own race folder, so either one
+        // being there is enough to show it.
+        var luaRaceFolder = Path.Combine(LuaResultPaths.ResolveRoot(config?.LuaResultPath), LuaResultPaths.RaceFolder);
+
+        return new ResultImportAvailabilityModel
+        {
+            CanImportResults = Directory.Exists(resultsFolder) || Directory.Exists(luaRaceFolder),
+            CanExportPresets = ContentManagerPaths.CanExportPresets(config?.PresetPath)
+        };
+    }
+
     public async Task<RaceResultImportResult> ImportRaceResultAsync(Guid raceId, string fileName)
     {
         var config = await _configRepository.GetAsync();
-        var path = config?.RaceResultsPath?.Trim();
+        var path = ContentManagerPaths.ResolveResults(config?.RaceResultsPath);
 
-        if (string.IsNullOrWhiteSpace(path))
+        if (Directory.Exists(path) is false)
         {
-            throw new InvalidOperationException("Race results path is not configured. Set it on the Game Config page.");
+            throw new InvalidOperationException($"There are no race results to import in {path}");
         }
 
         var filePath = Path.Combine(path, fileName);

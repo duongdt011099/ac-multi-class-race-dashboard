@@ -1,97 +1,70 @@
 using System.Diagnostics;
-using System.IO.Pipes;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using MulticlassRace.Services.Abstractions;
 
 namespace MulticlassRace.Services;
 
+/// <summary>
+/// Writes the race.ini for the session and starts Assetto Corsa.
+///
+/// This runs in the same process and Windows session as the dashboard, which is why it works at
+/// all: the game needs an interactive desktop, so this is why the dashboard runs as a normal app
+/// that starts when you sign in, rather than as a Windows service.
+/// </summary>
 public sealed class GameSessionLauncher : IGameSessionLauncher
 {
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(20);
+    private readonly ILogger<GameSessionLauncher> _logger;
 
-    public async Task LaunchAsync(string gamePath, string executablePath, string raceIni)
+    public GameSessionLauncher(ILogger<GameSessionLauncher> logger)
     {
-        var sessionId = GetInteractiveSessionId();
-        var request = new GameLaunchRequest(gamePath, executablePath, raceIni);
+        _logger = logger;
+    }
 
-        await using var pipe = new NamedPipeClientStream(
-            ".",
-            PipeName(sessionId),
-            PipeDirection.InOut,
-            PipeOptions.Asynchronous);
-
-        try
+    public Task LaunchAsync(string gamePath, string executablePath, string raceIni)
+    {
+        var gameDirectory = Path.GetFullPath(gamePath);
+        var executable = Path.GetFullPath(executablePath);
+        var allowedExecutables = new[]
         {
-            await pipe.ConnectAsync((int)ConnectTimeout.TotalMilliseconds);
-        }
-        catch (TimeoutException ex)
-        {
-            throw new InvalidOperationException(
-                "The interactive game launcher is not running for the active Windows user. Sign in again or restart the launcher agent.",
-                ex);
-        }
-        catch (IOException ex)
-        {
-            throw new InvalidOperationException(
-                "Could not connect to the interactive game launcher. Make sure the launcher agent is running in the active Windows session.",
-                ex);
-        }
-
-        using var reader = new StreamReader(
-            pipe,
-            Encoding.UTF8,
-            detectEncodingFromByteOrderMarks: false,
-            bufferSize: 1024,
-            leaveOpen: true);
-        await using var writer = new StreamWriter(
-            pipe,
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            bufferSize: 1024,
-            leaveOpen: true)
-        {
-            AutoFlush = true
+            Path.GetFullPath(Path.Combine(gameDirectory, "acs.exe")),
+            Path.GetFullPath(Path.Combine(gameDirectory, "AssettoCorsa.exe"))
         };
 
-        await writer.WriteLineAsync(JsonSerializer.Serialize(request));
-
-        var responseLine = await reader.ReadLineAsync().WaitAsync(ResponseTimeout);
-        if (string.IsNullOrWhiteSpace(responseLine))
+        if (allowedExecutables.Contains(executable, StringComparer.OrdinalIgnoreCase) is false)
         {
-            throw new InvalidOperationException("The interactive game launcher returned an empty response.");
+            throw new InvalidOperationException("The requested game executable is outside the configured Assetto Corsa folder.");
         }
 
-        var response = JsonSerializer.Deserialize<GameLaunchResponse>(responseLine);
-        if (response is null || !response.Success)
+        if (File.Exists(executable) is false)
         {
-            throw new InvalidOperationException(response?.Error ?? "The interactive game launcher could not start Assetto Corsa.");
+            throw new InvalidOperationException($"Assetto Corsa executable not found: {executable}");
         }
+
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        if (string.IsNullOrWhiteSpace(documents))
+        {
+            throw new InvalidOperationException("Could not locate the Documents folder.");
+        }
+
+        var configDirectory = Path.Combine(documents, "Assetto Corsa", "cfg");
+        Directory.CreateDirectory(configDirectory);
+        File.WriteAllText(Path.Combine(configDirectory, "race.ini"), raceIni);
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = gameDirectory,
+            UseShellExecute = true
+        });
+
+        if (process is null)
+        {
+            throw new InvalidOperationException("Windows did not start Assetto Corsa.");
+        }
+
+        _logger.LogInformation("Started Assetto Corsa (pid {ProcessId}) for {RaceIni}.", process.Id, Path.Combine(configDirectory, "race.ini"));
+
+        return Task.CompletedTask;
     }
-
-    internal static string PipeName(int sessionId) => $"EnduranceRace.GameLauncher.{sessionId}";
-
-    private static int GetInteractiveSessionId()
-    {
-        if (Environment.UserInteractive)
-        {
-            return Process.GetCurrentProcess().SessionId;
-        }
-
-        var sessionId = WTSGetActiveConsoleSessionId();
-        if (sessionId == uint.MaxValue)
-        {
-            throw new InvalidOperationException("No interactive Windows user session is currently active.");
-        }
-
-        return checked((int)sessionId);
-    }
-
-    [DllImport("kernel32.dll")]
-    private static extern uint WTSGetActiveConsoleSessionId();
 }
-
-internal sealed record GameLaunchRequest(string GamePath, string ExecutablePath, string RaceIni);
-
-internal sealed record GameLaunchResponse(bool Success, string? Error = null);
