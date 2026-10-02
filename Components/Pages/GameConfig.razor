@@ -3,6 +3,7 @@
 @using MulticlassRace.ViewModels
 @using multi_class_race_dashboard.Components.Shared
 @inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
+@inject MulticlassRace.Services.AssettoCorsaPathResolver PathResolver
 @inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
 @inject ToastService Toast
 
@@ -14,15 +15,46 @@
 
 <div class="wec-config">
     <div class="wec-config__intro">
-        Configure the paths Assetto Corsa and Content Manager use for game files, presets, and race results.
+        Where the dashboard finds Assetto Corsa and Content Manager. The game folder is asked for
+        during installation, so there is normally nothing to do on this page.
     </div>
 
-    <FolderPicker FieldLabel="Game Path" Title="Select Game Path" InputId="config-game-path"
-                  Value="@config.GamePath" ValueChanged="SetGamePath" />
-    <FolderPicker FieldLabel="Preset Path" Title="Select Preset Path" InputId="config-preset-path"
-                  Value="@config.PresetPath" ValueChanged="SetPresetPath" />
-    <FolderPicker FieldLabel="Race Results Path" Title="Select Race Results Path" InputId="config-results-path"
-                  Value="@config.RaceResultsPath" ValueChanged="SetRaceResultsPath" />
+    <div class="wec-config__actions">
+        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="Refresh">Refresh</button>
+    </div>
+
+    <div class="wec-race-teams">
+        <div class="wec-config__hint">
+            <div class="wec-nav-human__row">
+                <div class="wec-nav-human__info">
+                    <span class="wec-nav-human__name">Assetto Corsa folder</span>
+                    <span class="wec-nav-human__team">@(gameFolder ?? "Not found")</span>
+                </div>
+            </div>
+            <div class="wec-nav-human__row">
+                <div class="wec-nav-human__info">
+                    <span class="wec-nav-human__name">Found by</span>
+                    <span class="wec-nav-human__team">@GameFolderSourceText</span>
+                </div>
+            </div>
+            <div class="wec-nav-human__row">
+                <div class="wec-nav-human__info">
+                    <span class="wec-nav-human__name">Content Manager</span>
+                    <span class="wec-nav-human__team">@(ContentManagerPaths.IsInstalled ? ContentManagerPaths.DataRoot : "Not installed")</span>
+                </div>
+            </div>
+        </div>
+
+        @if (ContentManagerPaths.IsInstalled)
+        {
+            <div class="wec-config__hint">
+                Grid presets are read from <code>@ContentManagerPaths.PresetsRoot</code> and session
+                results from <code>@ContentManagerPaths.SessionsRoot</code>. Preset export and result
+                import appear only when those folders exist.
+            </div>
+        }
+    </div>
+
     <FolderPicker FieldLabel="Lua App Result Path" Title="Select Lua App Result Path" InputId="config-lua-results-path"
                   Value="@config.LuaResultPath" ValueChanged="SetLuaResultPath" />
 
@@ -43,34 +75,41 @@
 @code {
     private AssettoCorsaGameConfigModel config = new();
     private bool isSaving;
+    private string? gameFolder;
+    private AssettoCorsaPathSource source;
 
     private static string DefaultLuaResultPath => LuaResultPaths.DefaultRoot;
+
+    private string GameFolderSourceText => source switch
+    {
+        AssettoCorsaPathSource.Installer => "The installer (install.json)",
+        AssettoCorsaPathSource.Saved => "A previously saved configuration",
+        AssettoCorsaPathSource.AutoDetected => "Automatic detection",
+        _ => "Not found. Reinstall the dashboard and point it at the game folder."
+    };
 
     protected override async Task OnInitializedAsync()
     {
         var existing = await ConfigService.GetAsync();
+
         if (existing is not null)
         {
             config = existing;
         }
+
+        await ReadLocationAsync();
     }
 
-    private Task SetGamePath(string? value)
+    private async Task ReadLocationAsync()
     {
-        config.GamePath = value ?? string.Empty;
-        return Task.CompletedTask;
+        var location = await PathResolver.GetAsync();
+        gameFolder = location.Path;
+        source = location.Source;
     }
 
-    private Task SetPresetPath(string? value)
+    private async Task Refresh()
     {
-        config.PresetPath = value ?? string.Empty;
-        return Task.CompletedTask;
-    }
-
-    private Task SetRaceResultsPath(string? value)
-    {
-        config.RaceResultsPath = value ?? string.Empty;
-        return Task.CompletedTask;
+        await ReadLocationAsync();
     }
 
     private Task SetLuaResultPath(string? value)

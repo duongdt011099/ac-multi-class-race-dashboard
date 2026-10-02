@@ -500,10 +500,13 @@
                 @if (selectedTab is RacePopupTab.Practice or RacePopupTab.Qualifying)
                 {
                     <div class="wec-session-actions">
-                        <ContentManagerActions
-                            ExportGridHandler="@(async human => await ExportGridPresetAsync(human))"
-                            ExportRaceHandler="@ExportRacePresetAsync"
-                            ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
+                        @if (availability.CanExportPresets)
+                        {
+                            <ContentManagerActions
+                                ExportGridHandler="@(async human => await ExportGridPresetAsync(human))"
+                                ExportRaceHandler="@ExportRacePresetAsync"
+                                ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
+                        }
 
                         <div class="wec-preset-export">
                             <label for="session-result-file"
@@ -555,28 +558,31 @@
                 @if (selectedTab == RacePopupTab.Race)
                 {
                     <div class="wec-session-actions">
-                        <div class="wec-preset-export">
-                            <span class="wec-preset-export__label">Import Result</span>
-                            <select class="wec-result-file-select" value="@selectedRaceResultFile"
-                                    @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
-                            @if (raceResultFiles is null || raceResultFiles.Count == 0)
-                            {
-                                <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
-                            }
-                            else
-                            {
-                                @foreach (var file in raceResultFiles)
-                                {
-                                    <option value="@file.FullPath">@file.FileName — @file.Track@(file.IsLuaResult ? " (Lua)" : "")</option>
-                                }
-                            }
-                            </select>
-                            <button type="button"
-                                    class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
-                                    disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
-                                @(isImportingRaceResult ? "Importing..." : "Import")
-                            </button>
-                        </div>
+                        @if (availability.CanImportResults)
+                        {
+                            <div class="wec-preset-export">
+                                <span class="wec-preset-export__label">Import Result</span>
+                                <select class="wec-result-file-select" value="@selectedRaceResultFile"
+                                        @onchange="HandleResultFileChanged" disabled="@(isImportingRaceResult || raceResultFiles is null)">
+                                    @if (raceResultFiles is null || raceResultFiles.Count == 0)
+                                    {
+                                        <option value="">@(raceResultFiles is null ? "Loading files..." : "No result files found")</option>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var file in raceResultFiles)
+                                        {
+                                            <option value="@file.FullPath">@file.FileName — @file.Track@(file.IsLuaResult ? " (Lua)" : "")</option>
+                                        }
+                                    }
+                                </select>
+                                <button type="button"
+                                        class="wec-toolbar__btn @(canImportRaceResult ? "" : "wec-toolbar__btn--disabled")"
+                                        disabled="@(!canImportRaceResult)" @onclick="ImportRaceResultAsync">
+                                    @(isImportingRaceResult ? "Importing..." : "Import")
+                                </button>
+                            </div>
+                        }
 
                         <div class="wec-session-setting wec-weather-setting">
                             <select id="race-session-weather-race" class="wec-weather-select" aria-label="Weather"
@@ -794,6 +800,7 @@
     private bool isSavingRaceTeams;
     private string selectedTeamClassFilter = "";
     private List<RaceResultFileModel>? raceResultFiles;
+    private ResultImportAvailabilityModel availability = new();
     private string? selectedRaceResultFile;
     private bool isImportingRaceResult;
     private bool isImportingSessionResult;
@@ -1480,7 +1487,20 @@
             await RefreshPitCapacityAsync();
 
             SelectInitialSessionTab();
-            await LoadResultFilesAsync();
+
+            // Which of these controls can do anything depends on whether Content Manager is installed,
+            // so the availability is read once per popup rather than guessed per click.
+            availability = await RaceService.GetResultImportAvailabilityAsync();
+
+            if (availability.CanImportResults)
+            {
+                await LoadResultFilesAsync();
+            }
+            else
+            {
+                raceResultFiles = new List<RaceResultFileModel>();
+                selectedRaceResultFile = null;
+            }
         }
         catch (Exception ex)
         {

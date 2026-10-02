@@ -23,17 +23,23 @@ public class LuaResultImportWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly LuaResultImportState _state;
     private readonly SessionLaunchTracker _launchTracker;
+    private readonly LuaResultSweeper _sweeper;
+    private readonly ResultScanBaseline _baseline;
     private readonly ILogger<LuaResultImportWorker> _logger;
 
     public LuaResultImportWorker(
         IServiceScopeFactory scopeFactory,
         LuaResultImportState state,
         SessionLaunchTracker launchTracker,
+        LuaResultSweeper sweeper,
+        ResultScanBaseline baseline,
         ILogger<LuaResultImportWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _state = state;
         _launchTracker = launchTracker;
+        _sweeper = sweeper;
+        _baseline = baseline;
         _logger = logger;
     }
 
@@ -58,6 +64,23 @@ public class LuaResultImportWorker : BackgroundService
 
                     if (!gameIsRunning)
                     {
+                        // Expired results are cleared first, here rather than trusting the cleanup
+                        // service to have run already: hosted services start in no guaranteed order,
+                        // and if the scan ran first it would queue every historical file for the user
+                        // to dismiss one at a time.
+                        try
+                        {
+                            await _sweeper.SweepAsync(stoppingToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Could not sweep expired Lua results before scanning.");
+                        }
+
                         await ScanWithIndicatorAsync(stoppingToken);
                     }
                 }
@@ -145,6 +168,7 @@ public class LuaResultImportWorker : BackgroundService
                 return;
             }
 
+            var cutoff = await _baseline.GetCutoffUtcAsync(root);
             var now = DateTime.UtcNow;
 
             foreach (var folder in Directory.EnumerateDirectories(root))
@@ -176,6 +200,14 @@ public class LuaResultImportWorker : BackgroundService
 
                     if (!info.Exists || now - info.LastWriteTimeUtc < FileSettleTime)
                     {
+                        continue;
+                    }
+
+                    if (cutoff is { } limit && info.LastWriteTimeUtc <= limit)
+                    {
+                        // Written before the dashboard was ever in use, so it is history rather than
+                        // a session someone is waiting on. Remembered so no later scan reconsiders it.
+                        _state.MarkHandled(file);
                         continue;
                     }
 
@@ -285,12 +317,10 @@ public class LuaResultImportWorker : BackgroundService
         }
     }
 
-    private static bool TryParseSessionDate(string fileName, out DateTime date)
+internal static bool TryParseSessionDate(string fileName, out DateTime date)
     {
-        var name = Path.GetFileNameWithoutExtension(fileName);
-
         return DateTime.TryParseExact(
-            name,
+            Path.GetFileNameWithoutExtension(fileName),
             LuaResultPaths.FileNameFormat,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,

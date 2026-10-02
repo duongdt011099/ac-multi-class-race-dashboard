@@ -513,7 +513,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         var config = await ConfigService.GetAsync();
-        presetPath = config?.PresetPath ?? string.Empty;
+        presetPath = ContentManagerPaths.ResolvePreset(config?.PresetPath);
         teamOptions = (await TeamService.GetActiveTeamsAsync()).ToList();
         await LoadCarsAsync();
         await LoadDriversAsync();
@@ -524,7 +524,7 @@ else
         try
         {
             var config = await ConfigService.GetAsync();
-            presetPath = config?.PresetPath ?? string.Empty;
+            presetPath = ContentManagerPaths.ResolvePreset(config?.PresetPath);
             await LoadCarsAsync();
             if (editingDriver is not null && !string.IsNullOrWhiteSpace(editingDriver.Car))
             {
@@ -788,17 +788,11 @@ else
         }
 
         var config = await ConfigService.GetAsync();
-        var path = config?.PresetPath?.Trim() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            Toast.Show("Preset Path is not configured. Set it on the Game Config page.", isError: true);
-            return;
-        }
+        var path = ContentManagerPaths.ResolvePreset(config?.PresetPath);
 
         if (!Directory.Exists(path))
         {
-            Toast.Show($"Preset path '{path}' does not exist.", isError: true);
+            Toast.Show($"Content Manager's preset folder '{path}' does not exist. Install Content Manager to import a grid.", isError: true);
             return;
         }
 

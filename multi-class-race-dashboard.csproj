@@ -1,13 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.4.2</Version>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Must match MyAppVersion in EnduranceRaceDashboard.iss. The update check compares this
+         against the published release, so a mismatch here makes the app nag about an update it is
+         already running. -->
+    <Version>1.1.0.0</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>multi_class_race_dashboard</RootNamespace>
     <AssemblyName>$(AssemblyName.Replace(' ', '_'))</AssemblyName>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- The dashboard is a windowless app that starts at sign-in and is closed from its tray icon,
+         so it must not create a console window. Assetto Corsa can only be started from an
+         interactive session, which is also why this is not a Windows service. -->
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +25,10 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\favicon.ico" LogicalName="EnduranceRace.favicon.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,5 +40,67 @@
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <!-- The .NET 10 framework-assets target only registers blazor.web.js and blazor.server.js when
+       OutputType is exactly Exe. This app intentionally uses WinExe so sign-in starts it without a
+       console window. Register those same framework assets for WinExe so MapStaticAssets can serve
+       the interactive-server client in both development and published installs. -->
+  <PropertyGroup>
+    <ResolveStaticWebAssetsInputsDependsOn>$(ResolveStaticWebAssetsInputsDependsOn);_AddBlazorFrameworkStaticWebAssetsForWinExe</ResolveStaticWebAssetsInputsDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_AddBlazorFrameworkStaticWebAssetsForWinExe" Condition="'$(OutputType)' == 'WinExe'">
+    <ItemGroup Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true'">
+      <_WinExeFrameworkStaticWebAssetCandidate Include="$(BlazorFrameworkStaticWebAssetRoot)\blazor.web.js">
+        <RelativePath>_framework/blazor.web.js</RelativePath>
+      </_WinExeFrameworkStaticWebAssetCandidate>
+      <_WinExeFrameworkStaticWebAssetCandidate Include="$(BlazorFrameworkStaticWebAssetRoot)\blazor.server.js">
+        <RelativePath>_framework/blazor.server.js</RelativePath>
+      </_WinExeFrameworkStaticWebAssetCandidate>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true' AND '$(UseBlazorFrameworkDebugAssets)' == 'true'">
+      <_WinExeFrameworkStaticWebAssetCandidate Include="$(BlazorFrameworkStaticWebAssetRoot)\blazor.web.js.map">
+        <RelativePath>_framework/blazor.web.js.map</RelativePath>
+      </_WinExeFrameworkStaticWebAssetCandidate>
+      <_WinExeFrameworkStaticWebAssetCandidate Include="$(BlazorFrameworkStaticWebAssetRoot)\blazor.server.js.map">
+        <RelativePath>_framework/blazor.server.js.map</RelativePath>
+      </_WinExeFrameworkStaticWebAssetCandidate>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_WinExeMissingFrameworkStaticWebAssetCandidate
+        Include="@(_WinExeFrameworkStaticWebAssetCandidate)"
+        Condition="!EXISTS('%(Identity)')" />
+      <_WinExeFrameworkStaticWebAssetCandidate Remove="@(_WinExeMissingFrameworkStaticWebAssetCandidate)" />
+    </ItemGroup>
+
+    <DefineStaticWebAssets
+      Condition="'@(_WinExeFrameworkStaticWebAssetCandidate->Count())' != '0'"
+      CandidateAssets="@(_WinExeFrameworkStaticWebAssetCandidate)"
+      ContentRoot="$(BlazorFrameworkStaticWebAssetRoot)"
+      SourceId="$(PackageId)"
+      SourceType="Discovered"
+      AssetKind="All"
+      AssetMode="CurrentProject"
+      AssetRole="Primary"
+      FingerprintCandidates="true"
+      BasePath="$(StaticWebAssetBasePath)">
+      <Output TaskParameter="Assets" ItemName="_WinExeFrameworkStaticWebAsset" />
+    </DefineStaticWebAssets>
+
+    <DefineStaticWebAssetEndpoints
+      Condition="'@(_WinExeFrameworkStaticWebAsset)' != ''"
+      CandidateAssets="@(_WinExeFrameworkStaticWebAsset)"
+      ExistingEndpoints=""
+      ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+      <Output TaskParameter="Endpoints" ItemName="_WinExeFrameworkStaticAssetEndpoint" />
+    </DefineStaticWebAssetEndpoints>
+
+    <ItemGroup>
+      <StaticWebAsset Include="@(_WinExeFrameworkStaticWebAsset)" />
+      <StaticWebAssetEndpoint Include="@(_WinExeFrameworkStaticAssetEndpoint)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

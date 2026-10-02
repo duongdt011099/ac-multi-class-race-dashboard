@@ -41,6 +41,7 @@ bld/
 #wwwroot/
 wwwroot/uploads
 *.db*
+logs/
 # Visual Studio 2017 auto generated files
 Generated\ Files/
 

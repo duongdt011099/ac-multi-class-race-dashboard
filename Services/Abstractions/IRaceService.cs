@@ -19,6 +19,7 @@ public interface IRaceService
     Task<PresetExportResult> ExportGridPresetAsync(Guid raceId, SessionType sessionType, bool humanClassOnly, string seasonName, string championshipName);
     Task<PresetExportResult> ExportRaceGridPresetAsync(Guid raceId, string seasonName, string championshipName);
     Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync();
+    Task<ResultImportAvailabilityModel> GetResultImportAvailabilityAsync();
     Task<RaceResultImportResult> ImportRaceResultAsync(Guid raceId, string fileName);
     Task<RaceResultImportResult> ImportRaceResultFromPathAsync(Guid raceId, string fullPath, string? fileName);
     Task<RaceResultImportResult> ImportSessionResultAsync(Guid raceId, SessionType sessionType, Stream stream, string? fileName);
