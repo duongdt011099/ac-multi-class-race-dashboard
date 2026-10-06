@@ -108,7 +108,7 @@ else
                             <td>
                                 @if (!string.IsNullOrEmpty(driver.CarImageUrl))
                                 {
-                                    <button type="button" class="wec-drivers__car-btn" title="View bigger" @onclick="() => OpenCarImage(driver)">
+                                    <button type="button" class="wec-drivers__car-btn" title="View bigger" @onclick="() => OpenCarImageAsync(driver)">
                                         <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car" onerror="this.style.display='none'" />
                                     </button>
                                 }
@@ -202,13 +202,14 @@ else
                         <select id="driver-car" value="@editingDriver.Car" @onchange="HandleCarChanged"
                                 disabled="@isLoadingCarContent">
                             <option value="">@(isLoadingCarContent ? "Loading cars..." : "Select car...")</option>
-                            @if (!string.IsNullOrEmpty(editingDriver.Car) && !carOptions.Contains(editingDriver.Car))
+                            @if (!string.IsNullOrEmpty(editingDriver.Car) &&
+                                 !carOptions.Any(car => string.Equals(car.CarId, editingDriver.Car, StringComparison.OrdinalIgnoreCase)))
                             {
-                                <option value="@editingDriver.Car">@editingDriver.Car (not found on disk)</option>
+                                <option value="@editingDriver.Car">@GetCarOptionFallbackName(editingDriver.Car) (not found on disk)</option>
                             }
                             @foreach (var car in carOptions)
                             {
-                                <option value="@car">@car</option>
+                                <option value="@car.CarId">@car.DisplayName</option>
                             }
                         </select>
                     </div>
@@ -342,13 +343,13 @@ else
     <div class="wec-modal-overlay" @onclick="CloseCarImage">
         <div class="wec-modal wec-modal--wider" @onclick:stopPropagation="true">
             <div class="wec-modal__header">
-                <span>@viewingCar.Car@(string.IsNullOrEmpty(viewingCar.CarDisplayName) ? "" : $" — {viewingCar.CarDisplayName}")</span>
+                <span>@viewingCarDisplayName</span>
                 <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseCarImage">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
             <div class="wec-modal__body">
-                <img src="@viewingCar.CarImageUrl" class="wec-image-viewer__img" alt="@viewingCar.Car" />
+                <img src="@viewingCar.CarImageUrl" class="wec-image-viewer__img" alt="@viewingCarDisplayName" />
             </div>
             <div class="wec-modal__footer">
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CloseCarImage">Close</button>
@@ -377,6 +378,7 @@ else
     private DriverModel? confirmDeleteDriver;
     private bool isDeleting;
     private DriverModel? viewingCar;
+    private string? viewingCarDisplayName;
     private SortColumn sortColumn = SortColumn.Driver;
     private bool sortDescending;
     private const int PageSize = 10;
@@ -386,7 +388,7 @@ else
     private string searchTerm = "";
     private string presetPath = "";
     private FolderPicker presetPicker = default!;
-    private List<string> carOptions = new();
+    private List<CarOptionModel> carOptions = new();
     private List<string> skinOptions = new();
     private bool isLoadingCarContent;
     private bool isLoadingSkinContent;
@@ -543,7 +545,7 @@ else
 
         try
         {
-            carOptions = (await CarContentService.GetCarsAsync()).ToList();
+            carOptions = (await CarContentService.GetCarOptionsAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -590,6 +592,15 @@ else
         editingDriver.Car = e.Value?.ToString() ?? string.Empty;
         editingDriver.Skin = string.Empty;
         await LoadSkinsAsync(editingDriver.Car);
+    }
+
+    private string GetCarOptionFallbackName(string carId)
+    {
+        return editingDriver is not null &&
+               string.Equals(editingDriver.Car, carId, StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(editingDriver.CarDisplayName)
+            ? editingDriver.CarDisplayName.Trim()
+            : carId;
     }
 
     public void Dispose()
@@ -665,14 +676,37 @@ else
         editingDriver.TeamId = Guid.TryParse(e.Value?.ToString(), out var teamId) ? teamId : null;
     }
 
-    private void OpenCarImage(DriverModel driver)
+    private async Task OpenCarImageAsync(DriverModel driver)
     {
         viewingCar = driver;
+        viewingCarDisplayName = FallbackCarDisplayName(driver);
+
+        try
+        {
+            var displayName = await CarContentService.GetCarDisplayNameAsync(driver.Car);
+
+            if (viewingCar?.DriverId == driver.DriverId && !string.IsNullOrWhiteSpace(displayName))
+            {
+                viewingCarDisplayName = displayName;
+            }
+        }
+        catch
+        {
+            // The folder id and any saved display name are still useful when AC metadata is unreadable.
+        }
     }
 
     private void CloseCarImage()
     {
         viewingCar = null;
+        viewingCarDisplayName = null;
+    }
+
+    private static string FallbackCarDisplayName(DriverModel driver)
+    {
+        return string.IsNullOrWhiteSpace(driver.CarDisplayName)
+            ? driver.Car
+            : driver.CarDisplayName.Trim();
     }
 
     private string GetClassBadgeClass(string? teamClass)

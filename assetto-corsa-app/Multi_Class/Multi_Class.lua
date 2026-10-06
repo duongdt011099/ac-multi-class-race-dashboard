@@ -52,6 +52,7 @@ local liveSessionCars            = {}
 local liveSessionCarCount        = 0
 local liveSessionTimeLeft        = nil
 local liveSessionHadCountdown    = false
+local finishedRacePositions      = {}
 
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
@@ -860,14 +861,51 @@ end
 -- Keep a recent copy of every car's identity and result data while AC still exposes the
 -- grid. `sim.carsCount` can become zero as soon as a timed session ends, so export must
 -- never depend on live car objects after that transition.
-local function CaptureLiveCarResults()
+local function CaptureLiveCarResults(forceFreeze)
   if driverCount <= 0 then return end
 
+  local raceFinished = liveSessionType == SUBFOLDER_RACE
+      and (forceFreeze == true or IsSessionFinished())
   local cars = {}
   local availableCars = 0
   for i = 0, driverCount - 1 do
     local identity = GetCarIdentity(i)
     local lapData = GetCarLapData(i)
+    local position = lapData.position
+    local finalLapReached = liveSessionType == SUBFOLDER_RACE
+        and liveTotalLaps > 0
+        and lapData.lapCount >= liveTotalLaps
+
+    -- Assetto Corsa can rewrite the live racePosition after a car crosses the finish line
+    -- (for example, promoting the player to P1 while the remaining field is still on track).
+    -- Preserve the last pre-finish overall position for result export and the OVERALL panel. If AC
+    -- ends the session before every car reaches the configured lap count, freeze the last observed
+    -- classification at that transition as well.
+    if finalLapReached or raceFinished then
+      local frozenPosition = finishedRacePositions[i]
+
+      if not frozenPosition then
+        local previous = liveSessionCars[i + 1]
+        if previous and previous.position > 0 and (raceFinished or previous.lapCount < liveTotalLaps) then
+          frozenPosition = previous.position
+        else
+          frozenPosition = position
+        end
+
+        if frozenPosition and frozenPosition > 0 then
+          finishedRacePositions[i] = frozenPosition
+        else
+          frozenPosition = nil
+        end
+      end
+
+      if frozenPosition then
+        position = frozenPosition
+      end
+    elseif finishedRacePositions[i] then
+      position = finishedRacePositions[i]
+    end
+
     cars[#cars + 1] = {
       index = i,
       driver = identity.driver,
@@ -875,7 +913,7 @@ local function CaptureLiveCarResults()
       skin = identity.skin,
       lapCount = lapData.lapCount,
       bestMs = lapData.bestMs,
-      position = lapData.position,
+      position = position,
       inPit = lapData.inPit,
       inPitlane = lapData.inPitlane,
     }
@@ -946,6 +984,7 @@ local function ClearLiveSession()
   liveSessionCarCount = 0
   liveSessionTimeLeft = nil
   liveSessionHadCountdown = false
+  finishedRacePositions = {}
 end
 
 -- Practice / Qualifying: a bare array of best laps, read by
@@ -1382,7 +1421,7 @@ local function UpdateResultExportFrame(sim)
     -- Refresh the old snapshot only if AC is still showing that same session. If the
     -- index already moved, the live cars belong to the incoming state (or are gone).
     if not sessionSwitched and driverCount > 0 then
-      local ok, err = pcall(CaptureLiveCarResults)
+      local ok, err = pcall(CaptureLiveCarResults, true)
       if not ok then Log("EXPORT: final car snapshot failed: " .. tostring(err)) end
     end
     ArmSessionEnded()
@@ -1663,6 +1702,11 @@ local function GetPlayerPositions()
   -- CSP computes car.racePosition every frame; ac.getCarLeaderboardPosition() is the
   -- legacy Python leaderboard and returns a frozen classification, so it must not be used here.
   local function EnginePos(idx)
+    local frozenPosition = finishedRacePositions[idx]
+    if frozenPosition and frozenPosition > 0 then
+      return frozenPosition
+    end
+
     local ok, p = pcall(function() return getCar(idx).racePosition end)
     if ok and type(p) == "number" and p > 0 then
       return p

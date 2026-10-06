@@ -291,7 +291,20 @@ public class TrackService : ITrackService
 
         var options = new List<TrackLayoutOptionModel>();
 
-        foreach (var directory in Directory.GetDirectories(uiDir))
+        var layoutDirectories = Directory.GetDirectories(uiDir);
+        var defaultLayoutName = layoutDirectories.Length > 0
+            ? await ReadNameAsync(uiDir)
+            : null;
+
+        // AC stores a track's default configuration in ui/ui_track.json and extra layouts in
+        // ui/<layout>/ui_track.json. When both exist, the default is a real selectable layout too;
+        // otherwise tracks such as lilski_road_america expose only their Moto variant.
+        if (!string.IsNullOrWhiteSpace(defaultLayoutName))
+        {
+            options.Add(new TrackLayoutOptionModel(string.Empty, $"{defaultLayoutName} (Default)"));
+        }
+
+        foreach (var directory in layoutDirectories)
         {
             var layoutId = Path.GetFileName(directory);
 

@@ -329,6 +329,13 @@ public class RaceService : IRaceService
 
         if (string.IsNullOrWhiteSpace(trackLayout))
         {
+            if (layouts.Any(string.IsNullOrWhiteSpace))
+            {
+                // Tracks with extra layouts can still expose their root/default layout. It is
+                // selected as a blank CONFIG_TRACK value, just like a single-layout track.
+                return;
+            }
+
             throw new InvalidOperationException("Select a track layout.");
         }
 

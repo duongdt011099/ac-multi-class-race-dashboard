@@ -331,13 +331,13 @@
                 <div class="wec-form-field">
                     <label for="race-track-layout">
                         Track Layout
-                        @if (trackLayouts.Count > 0)
+                        @if (RequiresTrackLayout)
                         {
                             <span class="wec-required" aria-hidden="true">*</span>
                         }
                     </label>
                     <select id="race-track-layout" @bind="editingRace.TrackLayout" @bind:after="HandleRaceLayoutChangedAsync"
-                            required="@(trackLayouts.Count > 0)"
+                            required="@RequiresTrackLayout"
                             disabled="@(string.IsNullOrWhiteSpace(editingRace.TrackName))">
                         @if (string.IsNullOrWhiteSpace(editingRace.TrackName))
                         {
@@ -349,7 +349,10 @@
                         }
                         else
                         {
-                            <option value="">Select layout...</option>
+                            @if (!HasDefaultTrackLayout)
+                            {
+                                <option value="">Select layout...</option>
+                            }
                             @foreach (var trackLayout in trackLayouts)
                             {
                                 <option value="@trackLayout.LayoutId">@trackLayout.DisplayName</option>
@@ -1382,19 +1385,7 @@
             return;
         }
 
-        if (trackLayouts.Count > 0 && string.IsNullOrWhiteSpace(editingRace.TrackLayout))
-        {
-            Toast.Show("Select a track layout.", isError: true);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(editingRace.TrackName))
-        {
-            Toast.Show("Select a track.", isError: true);
-            return;
-        }
-
-        if (trackLayouts.Count > 0 && string.IsNullOrWhiteSpace(editingRace.TrackLayout))
+        if (RequiresTrackLayout && string.IsNullOrWhiteSpace(editingRace.TrackLayout))
         {
             Toast.Show("Select a track layout.", isError: true);
             return;
@@ -1740,6 +1731,11 @@
             ? new List<TrackLayoutOptionModel>()
             : (await TrackService.GetTrackLayoutOptionsAsync(editingRace.TrackName)).ToList();
 
+        if (HasDefaultTrackLayout)
+        {
+            editingRace.TrackLayout = string.Empty;
+        }
+
         await RefreshEstimatedLapTimeAsync();
     }
 
@@ -2061,7 +2057,11 @@
 
     private bool showTrackPreview =>
         !string.IsNullOrWhiteSpace(editingRace?.TrackName) &&
-        (!string.IsNullOrWhiteSpace(editingRace.TrackLayout) || trackLayouts.Count == 0);
+        (!string.IsNullOrWhiteSpace(editingRace.TrackLayout) || trackLayouts.Count == 0 || HasDefaultTrackLayout);
+
+    private bool HasDefaultTrackLayout => trackLayouts.Any(layout => string.IsNullOrWhiteSpace(layout.LayoutId));
+
+    private bool RequiresTrackLayout => trackLayouts.Count > 0 && !HasDefaultTrackLayout;
 
     private static string BuildTrackImageUrl(string track, string? layout, string imageType)
     {
