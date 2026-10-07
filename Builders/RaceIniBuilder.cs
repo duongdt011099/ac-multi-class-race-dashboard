@@ -14,7 +14,8 @@ public sealed class RaceIniBuilder
         string weather,
         double sunAngle,
         int playerStartPosition = 1,
-        bool penalties = true)
+        bool penalties = true,
+        bool rollingStartLapCompensation = false)
     {
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
@@ -43,11 +44,20 @@ public sealed class RaceIniBuilder
         builder.Append("FIXED_SETUP=0\r\n");
         builder.Append("PENALTIES=").AppendLine(penalties ? "1" : "0");
         builder.Append("JUMP_START_PENALTY=0\r\n");
-        builder.Append("RACE_LAPS=").AppendLine((race.NumberOfLaps ?? 0).ToString());
+        var raceLaps = (race.NumberOfLaps ?? 0) +
+                       (sessionType == SessionType.Race && rollingStartLapCompensation ? 1 : 0);
+        builder.Append("RACE_LAPS=").AppendLine(raceLaps.ToString());
         builder.Append("\r\n");
 
         builder.Append("[OPTIONS]\r\nUSE_MPH=0\r\n\r\n");
-        builder.Append("[HEADER]\r\nVERSION=2\r\n__CM_FEATURE_SET=2\r\n\r\n");
+        builder.Append("[HEADER]\r\nVERSION=2\r\n__CM_FEATURE_SET=2\r\n");
+        if (sessionType == SessionType.Race && rollingStartLapCompensation)
+        {
+            // The Lua app reads this custom header value to remove the formation segment from
+            // exported race lap counts. Unknown HEADER values are ignored by Assetto Corsa.
+            builder.Append("__MCR_ROLLING_START_LAP_OFFSET=1\r\n");
+        }
+        builder.Append("\r\n");
         builder.Append("[LAP_INVALIDATOR]\r\nALLOWED_TYRES_OUT=-1\r\n\r\n");
 
         builder.Append("[CAR_0]\r\n");
@@ -97,7 +107,7 @@ public sealed class RaceIniBuilder
 
         if (sessionType == SessionType.Race)
         {
-            builder.Append("LAPS=").AppendLine((race.NumberOfLaps ?? 0).ToString());
+            builder.Append("LAPS=").AppendLine(raceLaps.ToString());
             builder.Append("DURATION_MINUTES=0\r\n");
             builder.Append("STARTING_POSITION=").AppendLine(playerStartPosition.ToString());
             builder.Append("SPAWN_SET=START\r\n");

@@ -1,6 +1,6 @@
 local driverCount                 = 0
 local allDriversStartingPos       = {}
-local raceHasStarted              = false
+local rollingStartGridPositions   = {}
 local firstFrame                  = true
 local leaderboardOpened           = false
 local lastSessionIndex            = nil
@@ -53,6 +53,42 @@ local liveSessionCarCount        = 0
 local liveSessionTimeLeft        = nil
 local liveSessionHadCountdown    = false
 local finishedRacePositions      = {}
+local liveRollingStartLapOffset  = 0
+
+-- Rolling starts are automatic in race sessions. Dashboard-launched races with a usable
+-- fast_lane.ai receive one extra AC lap; the Lua result writer removes that formation segment.
+local ROLLING_START_SPEED_KMH         = 80
+local ROLLING_START_PROGRESS          = 0.5
+local ROLLING_START_GREEN_DISTANCE_M  = 100
+local ROLLING_START_CLASS_GAP_SECONDS = 5
+local ROLLING_START_CLASS_GAP_METERS  = 100
+local ROLLING_START_ROW_SPACING_M     = 8.5
+local ROLLING_START_CLASS_SPACING_M   = 12
+local ROLLING_START_LANE_RATIO_MIN    = 0.15
+local ROLLING_START_LANE_RATIO_MAX    = 0.75
+local ROLLING_START_LANE_RATIO_DEFAULT = 0.3
+local ROLLING_START_HELD_SECONDS      = 3600
+local ROLLING_START_THROTTLE_INITIAL  = 0.15
+local ROLLING_START_THROTTLE_MAX      = 0.45
+local ROLLING_THROTTLE_RAMP_SECONDS   = 8
+local ROLLING_START_POSITION_WINDOW_MS = 7000
+local ROLLING_START_POSITION_RETRY_SECONDS = 0.25
+local ROLLING_START_POSITION_TOLERANCE_M = 20
+local ROLLING_START_MAX_POSITION_ATTEMPTS = 2
+local ROLLING_START_POSITION_STABLE_FRAMES = 10
+
+local rollingStartState               = "idle"
+local rollingStartStatus              = ""
+local rollingStartGroups              = {}
+local rollingStartCars                = {}
+local rollingStartNextGroup           = 1
+local rollingStartNextReleaseAt       = 0
+local rollingStartSessionKey          = nil
+local rollingStartPositionsApplied    = false
+local rollingStartPitWaitLogged       = false
+local rollingStartPositionsAppliedAt  = nil
+local rollingStartPositionAttempts    = 0
+local rollingStartPositionStableFrames = 0
 
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
@@ -638,10 +674,6 @@ local function IsRaceMode(sim)
   return GetSessionNameLower(sim):find("race") ~= nil
 end
 
-local function IsEnduranceMode()
-  return enduranceEnabled and IsRaceMode()
-end
-
 local function IsQualiPracticeMode(sim)
   local sn = GetSessionNameLower(sim)
   return sn:find("qualifying") ~= nil or sn:find("practice") ~= nil
@@ -706,6 +738,20 @@ local function GetCurrentSessionKey(sim)
   local ok, n = pcall(function() return ac.getSessionName(sim.currentSessionIndex) end)
   if ok and type(n) == "string" then name = n end
   return sFormat("%s:%s", tostring(sim.currentSessionIndex), name)
+end
+
+local function ReadRollingStartLapOffset()
+  if not ac.INIConfig or type(ac.INIConfig.raceConfig) ~= "function" then return 0 end
+
+  local okConfig, config = pcall(ac.INIConfig.raceConfig)
+  if not okConfig or not config then return 0 end
+
+  local okOffset, offset = pcall(function()
+    return config:get("HEADER", "__MCR_ROLLING_START_LAP_OFFSET", 0)
+  end)
+  if not okOffset then return 0 end
+
+  return tonumber(offset) == 1 and 1 or 0
 end
 
 -- ac.StateSession.isOver and sim.isLookingAtSessionResults are the two documented
@@ -948,8 +994,13 @@ local function CaptureLiveSession(sim)
     end
   end
 
+  local sessionKey = GetCurrentSessionKey(sim)
+  if liveSessionKey ~= sessionKey then
+    liveRollingStartLapOffset = folder == SUBFOLDER_RACE and ReadRollingStartLapOffset() or 0
+  end
+
   liveSessionType    = folder
-  liveSessionKey     = GetCurrentSessionKey(sim)
+  liveSessionKey     = sessionKey
   liveTrackName      = GetTrackNameSafe()
   liveTotalLaps      = laps
   local okTimeLeft, timeLeft = pcall(function() return sim.sessionTimeLeft end)
@@ -985,6 +1036,7 @@ local function ClearLiveSession()
   liveSessionTimeLeft = nil
   liveSessionHadCountdown = false
   finishedRacePositions = {}
+  liveRollingStartLapOffset = 0
 end
 
 -- Practice / Qualifying: a bare array of best laps, read by
@@ -1026,19 +1078,21 @@ local function BuildRaceResultJson(trackName, totalLaps)
   local order = {}
 
   for _, carData in ipairs(liveSessionCars) do
+    local officialLapCount = math.max(0, carData.lapCount - liveRollingStartLapOffset)
+
     players[#players + 1] = sFormat(
       '    { "name": "%s", "car": "%s", "skin": "%s" }',
       JsonEscape(carData.driver),
       JsonEscape(carData.car),
       JsonEscape(carData.skin))
 
-    lapsTotal[#lapsTotal + 1] = tostring(carData.lapCount)
+    lapsTotal[#lapsTotal + 1] = tostring(officialLapCount)
 
-    if carData.bestMs > 0 then
+    if carData.bestMs > 0 and officialLapCount > 0 then
       bestLaps[#bestLaps + 1] = sFormat(
         '    { "car": %d, "lap": %d, "time": %d }',
         carData.index,
-        carData.lapCount,
+        officialLapCount,
         carData.bestMs)
     end
 
@@ -1069,7 +1123,7 @@ local function BuildRaceResultJson(trackName, totalLaps)
   out[#out + 1] = '      "event": 0,'
   out[#out + 1] = '      "name": "Race",'
   out[#out + 1] = '      "type": 3,'
-  out[#out + 1] = sFormat('      "lapsCount": %d,', totalLaps)
+  out[#out + 1] = sFormat('      "lapsCount": %d,', math.max(0, totalLaps - liveRollingStartLapOffset))
   out[#out + 1] = '      "duration": 0,'
   out[#out + 1] = '      "laps": [],'
   out[#out + 1] = '      "lapsTotal": [' .. table.concat(lapsTotal, ", ") .. '],'
@@ -1481,10 +1535,16 @@ end
 
 local function RecordStartingPositions()
   allDriversStartingPos = {}
+  rollingStartGridPositions = {}
   for i = 0, driverCount - 1 do
     local car = getCar(i)
     if car then
-      allDriversStartingPos[i] = car.racePosition
+      local position = car.racePosition
+      if type(position) ~= "number" or position <= 0 then
+        position = i + 1
+      end
+      allDriversStartingPos[i] = position
+      rollingStartGridPositions[i] = position
     end
   end
   BuildClassInfo()
@@ -1545,34 +1605,715 @@ local function ReorderGridByClass()
   Log(sFormat("ReorderGridByClass: reordered=%d drivers, classes={%s}", driverCount, table.concat(classOrder, ",")))
 end
 
-local function ReleaseAllCars()
-  for i = 0, driverCount - 1 do
-    setAITopSpeed(i, 999999.0)
-    setAIThrottleLimit(i, 1.0)
-    setAICaution(i, 1.0)
-    physics.setAIStopCounter(i, 0.0)
-  end
+local function IsFinite(v)
+  return type(v) == "number" and v == v and math.abs(v) ~= math.huge
 end
 
-local function ManageAIClassRelease(dt)
-  if not raceHasStarted then
-    for i = 0, driverCount - 1 do
-      local c = getCar(i)
-      if c and c.speedKmh > 2.0 then
-        raceHasStarted = true
-        break
+local function NormalizeTrackProgress(progress)
+  return progress - math.floor(progress)
+end
+
+local function RestoreAIControl(carIndex)
+  pcall(setAITopSpeed, carIndex, 999999.0)
+  pcall(setAIThrottleLimit, carIndex, 1.0)
+  pcall(setAICaution, carIndex, 1.0)
+  pcall(physics.setAIStopCounter, carIndex, 0.0)
+  pcall(physics.setAISplineOffset, carIndex, 0.0, false)
+end
+
+local function RestoreRollingStartControls(restorePositions)
+  for carIndex, state in pairs(rollingStartCars) do
+    if restorePositions and state.originalPosition and state.originalDirection then
+      pcall(function()
+        if carIndex == 0 then
+          physics.setCarPosition(carIndex, state.originalPosition, state.originalDirection)
+        else
+          physics.setAICarPosition(carIndex, state.originalPosition, state.originalDirection)
+        end
+      end)
+    end
+
+    RestoreAIControl(carIndex)
+
+    if carIndex == 0 and state.originalAIControlled ~= nil then
+      pcall(physics.setCarAutopilot, state.originalAIControlled)
+    end
+  end
+
+  rollingStartCars = {}
+  rollingStartGroups = {}
+  rollingStartNextGroup = 1
+  rollingStartNextReleaseAt = 0
+  rollingStartSessionKey = nil
+  rollingStartPositionsApplied = false
+  rollingStartPitWaitLogged = false
+  rollingStartPositionsAppliedAt = nil
+  rollingStartPositionAttempts = 0
+  rollingStartPositionStableFrames = 0
+end
+
+local function MarkRollingStartUnavailable(message, restorePositions)
+  RestoreRollingStartControls(restorePositions == true)
+  rollingStartState = "unavailable"
+  rollingStartStatus = message or "Rolling start unavailable"
+  Log("ROLLING: unavailable: " .. rollingStartStatus)
+  pcall(function() ui.toast(ui.Icons.Warning, rollingStartStatus) end)
+end
+
+local function RollingClassLabel(classKey)
+  if classKey == "__rolling_unclassified" then return "Unclassified" end
+
+  for _, className in ipairs(releaseClasses) do
+    if string.lower("class" .. className) == classKey then
+      return className
+    end
+  end
+
+  return tostring(classKey):gsub("^class", "")
+end
+
+local function BuildRollingStartGroups()
+  local groups = {}
+  local byClass = {}
+
+  local function getGridPosition(carIndex)
+    local position = rollingStartGridPositions[carIndex]
+    if type(position) == "number" and position > 0 then return position end
+
+    local car = getCar(carIndex)
+    position = car and car.racePosition or nil
+    if type(position) == "number" and position > 0 then return position end
+    return carIndex + 1
+  end
+
+  local function ensureGroup(classKey)
+    local group = byClass[classKey]
+    if not group then
+      group = { classKey = classKey, label = RollingClassLabel(classKey), cars = {} }
+      byClass[classKey] = group
+      groups[#groups + 1] = group
+    end
+    return group
+  end
+
+  -- Seed known classes, then derive their actual rolling order from AC's captured grid positions.
+  -- The dashboard writes the qualifying order into the race grid; current best laps are not a
+  -- reliable substitute for that order once the session has loaded.
+  for _, classKey in ipairs(classOrder) do
+    ensureGroup(classKey)
+  end
+
+  for carIndex = 0, driverCount - 1 do
+    local classKey = driverClass[carIndex] or "__rolling_unclassified"
+    local group = ensureGroup(classKey)
+    group.cars[#group.cars + 1] = carIndex
+  end
+
+  for _, group in ipairs(groups) do
+    table.sort(group.cars, function(a, b)
+      local positionA = getGridPosition(a)
+      local positionB = getGridPosition(b)
+
+      if positionA == positionB then return a < b end
+      return positionA < positionB
+    end)
+    group.gridPosition = #group.cars > 0 and getGridPosition(group.cars[1]) or math.huge
+  end
+
+  local nonEmpty = {}
+  for _, group in ipairs(groups) do
+    if #group.cars > 0 then
+      nonEmpty[#nonEmpty + 1] = group
+    end
+  end
+
+  table.sort(nonEmpty, function(a, b)
+    if a.gridPosition == b.gridPosition then
+      return a.classKey < b.classKey
+    end
+    return a.gridPosition < b.gridPosition
+  end)
+
+  for _, group in ipairs(nonEmpty) do
+    local positions = {}
+    for _, carIndex in ipairs(group.cars) do
+      positions[#positions + 1] = tostring(getGridPosition(carIndex))
+    end
+    Log(sFormat("ROLLING: grid order class '%s' start=%d positions={%s}",
+        group.label, group.gridPosition, table.concat(positions, ",")))
+  end
+
+  return nonEmpty
+end
+
+local function GetRollingWorldPose(progress, laneRatio, directionSign)
+  local trackPosition = NormalizeTrackProgress(progress)
+  local function PointAt(atProgress)
+    return ac.trackCoordinateToWorld(vec3(laneRatio, 0.1, NormalizeTrackProgress(atProgress)))
+  end
+
+  local position = PointAt(trackPosition)
+  local behind = PointAt(trackPosition - 0.0005)
+  local ahead = PointAt(trackPosition + 0.0005)
+  if not position or not behind or not ahead then return nil end
+
+  local direction = ahead:sub(behind)
+  if direction:lengthSquared() < 0.000001 then return nil end
+  direction:normalize()
+  if directionSign and directionSign < 0 then
+    direction:scale(-1)
+  end
+
+  return position, direction
+end
+
+local function SetRollingFormationHold(carIndex, laneOffset)
+  if carIndex == 0 then
+    physics.setCarAutopilot(true, false)
+  end
+
+  setAITopSpeed(carIndex, 0.0)
+  setAIThrottleLimit(carIndex, ROLLING_START_THROTTLE_MAX)
+  setAICaution(carIndex, 4.0)
+  physics.setAIStopCounter(carIndex, ROLLING_START_HELD_SECONDS)
+  physics.setAISplineOffset(carIndex, laneOffset, true)
+end
+
+local function IsFieldStillAtStartingGrid(sim)
+  if driverCount <= 0 then return false end
+
+  local session = ac.getSession and ac.getSession(sim.currentSessionIndex) or nil
+  if session and type(session.leaderCompletedLaps) == "number" and session.leaderCompletedLaps > 0 then
+    return false
+  end
+
+  for carIndex = 0, driverCount - 1 do
+    local car = getCar(carIndex)
+    if not car or (car.speedKmh or 0) > 3.0 or (car.sessionLapCount or car.lapCount or 0) > 0 then
+      return false
+    end
+
+    local progress = NormalizeTrackProgress(car.splinePosition or 0)
+    if progress > 0.1 and progress < 0.9 then
+      return false
+    end
+  end
+
+  return true
+end
+
+local function PrepareRollingStart(sim)
+  if rollingStartState ~= "idle" or not IsRaceMode(sim) then return end
+
+  if driverCount <= 0 or
+      not ac.hasTrackSpline or not ac.hasTrackSpline() or
+      not ac.trackCoordinateToWorld or not ac.worldCoordinateToTrack or
+      not physics.setAICarPosition or not physics.setCarPosition then
+    MarkRollingStartUnavailable("Track or CSP positioning APIs are unavailable.")
+    return
+  end
+
+  local trackLength = sim.trackLengthM
+  if not IsFinite(trackLength) or trackLength <= 500 then
+    MarkRollingStartUnavailable("Track length is unavailable or too short.")
+    return
+  end
+
+  local session = ac.getSession and ac.getSession(sim.currentSessionIndex) or nil
+  local preStart = sim.isSessionStarted ~= true
+  if session and type(session.startTime) == "number" and type(sim.time) == "number" then
+    preStart = preStart or sim.time < session.startTime
+  end
+  preStart = preStart or IsFieldStillAtStartingGrid(sim)
+  if not preStart then
+    MarkRollingStartUnavailable("The race was already moving when the Lua app loaded.")
+    return
+  end
+
+  local groups = BuildRollingStartGroups()
+  if #groups == 0 then
+    MarkRollingStartUnavailable("No cars were available to stage.")
+    return
+  end
+
+  local plans = {}
+  local distanceFromFront = 0
+  for groupIndex, group in ipairs(groups) do
+    group.index = groupIndex
+    group.startDistanceM = distanceFromFront
+    group.releaseOffsetSeconds = (groupIndex - 1) * ROLLING_START_CLASS_GAP_SECONDS
+
+    for slot, carIndex in ipairs(group.cars) do
+      local row = math.floor((slot - 1) / 2)
+      local laneSign = (slot % 2 == 1) and -1 or 1
+      local distance = distanceFromFront + row * ROLLING_START_ROW_SPACING_M
+      local progress = ROLLING_START_PROGRESS - distance / trackLength
+
+      if progress <= 0.01 then
+        MarkRollingStartUnavailable("The field does not fit in the half-track staging area.")
+        return
+      end
+
+      local car = getCar(carIndex)
+      if not car then
+        MarkRollingStartUnavailable("Car data was unavailable while staging the field.")
+        return
+      end
+
+      -- Assetto Corsa has already placed this field in a valid two-wide grid. Reuse each car's
+      -- normalized lateral grid coordinate at the rolling-start position instead of estimating
+      -- track width around the racing line; the AI line can sit close to one edge on a perfectly
+      -- wide track such as Road Atlanta.
+      local originalTrackPosition = ac.worldCoordinateToTrack(car.position)
+      if not originalTrackPosition or not IsFinite(originalTrackPosition.x) then
+        MarkRollingStartUnavailable("Could not read a car's lateral grid position.")
+        return
+      end
+
+      local laneRatio = originalTrackPosition.x
+      if math.abs(laneRatio) < 0.05 then
+        laneRatio = laneSign * ROLLING_START_LANE_RATIO_DEFAULT
+      else
+        laneRatio = math.max(-ROLLING_START_LANE_RATIO_MAX,
+            math.min(ROLLING_START_LANE_RATIO_MAX, laneRatio))
+        if math.abs(laneRatio) < ROLLING_START_LANE_RATIO_MIN then
+          laneRatio = (laneRatio < 0 and -1 or 1) * ROLLING_START_LANE_RATIO_MIN
+        end
+      end
+
+      -- Store the raw spline tangent here. Some AI splines run opposite to the car's forward
+      -- vector, but a car's heading is unreliable while AC is still loading the race. The correct
+      -- forward sign is chosen at apply time from each car's real grid heading instead.
+      local position, direction = GetRollingWorldPose(progress, laneRatio)
+      if not position or not direction then
+        MarkRollingStartUnavailable("Could not map a staged car onto the track.")
+        return
+      end
+
+      local originalAIControlled = nil
+      if carIndex == 0 then
+        originalAIControlled = car.isAIControlled == true
+      end
+
+      plans[#plans + 1] = {
+        carIndex = carIndex,
+        groupIndex = groupIndex,
+        progress = NormalizeTrackProgress(progress),
+        laneOffset = laneRatio,
+        position = position,
+        direction = direction,
+        originalPosition = car.position:clone(),
+        originalDirection = car.look:clone(),
+        originalAIControlled = originalAIControlled,
+        released = false,
+        green = false,
+        startProgress = NormalizeTrackProgress(progress),
+        lastProgress = NormalizeTrackProgress(progress),
+      }
+    end
+
+    distanceFromFront = distanceFromFront + math.ceil(#group.cars / 2) * ROLLING_START_ROW_SPACING_M
+    if groupIndex < #groups then
+      distanceFromFront = distanceFromFront + ROLLING_START_CLASS_SPACING_M
+    end
+  end
+
+  rollingStartGroups = groups
+  rollingStartCars = {}
+  for _, plan in ipairs(plans) do
+    rollingStartCars[plan.carIndex] = plan
+  end
+
+  local ok, err = pcall(function()
+    for _, plan in ipairs(plans) do
+      -- AC can still respawn the field after loading the race. Hold the planned formation
+      -- now, but defer teleporting until the active race has completed that spawn transition.
+      SetRollingFormationHold(plan.carIndex, plan.laneOffset)
+    end
+  end)
+
+  if not ok then
+    MarkRollingStartUnavailable("Could not safely hold the field: " .. tostring(err), true)
+    return
+  end
+
+  rollingStartState = "staged"
+  rollingStartStatus = "ROLLING START READY"
+  rollingStartSessionKey = GetCurrentSessionKey(sim)
+  rollingStartNextGroup = 1
+  rollingStartNextReleaseAt = 0
+  rollingStartPositionsApplied = false
+  rollingStartPitWaitLogged = false
+  rollingStartPositionsAppliedAt = nil
+  rollingStartPositionAttempts = 0
+  rollingStartPositionStableFrames = 0
+  Log(sFormat(
+    "ROLLING: prepared %d cars in %d classes for %.0f%% track progress, lapOffset=%d; waiting for AC spawn.",
+    #plans, #groups, ROLLING_START_PROGRESS * 100, liveRollingStartLapOffset))
+end
+
+local function ApplyRollingStartPositions()
+  local snapshots = {}
+  local flipped = 0
+  local ok, err = pcall(function()
+    -- Snapshot AC's final spawn positions before moving anything, so a partial failure can
+    -- restore the whole field to the actual race grid rather than the earlier loading state.
+    for _, group in ipairs(rollingStartGroups) do
+      for _, carIndex in ipairs(group.cars) do
+        local state = rollingStartCars[carIndex]
+        local car = getCar(carIndex)
+        if not state or not car then
+          error("Car data was unavailable after AC spawned the race.")
+        end
+
+        local snapshot = {
+          position = car.position:clone(),
+          direction = car.look:clone(),
+        }
+        snapshots[carIndex] = snapshot
+        state.originalPosition = snapshot.position
+        state.originalDirection = snapshot.direction
+      end
+    end
+
+    for _, group in ipairs(rollingStartGroups) do
+      for _, carIndex in ipairs(group.cars) do
+        local state = rollingStartCars[carIndex]
+        local snapshot = snapshots[carIndex]
+
+        -- AC has already placed each car facing the right way on the grid. Use that heading to
+        -- decide whether the raw spline tangent must be flipped; do not trust the spline sign.
+        local _, tangent = GetRollingWorldPose(state.progress, state.laneOffset)
+        if tangent and snapshot and snapshot.direction and tangent:dot(snapshot.direction) < 0 then
+          tangent:scale(-1)
+          flipped = flipped + 1
+        end
+        if tangent then
+          state.direction = tangent
+        end
+
+        if carIndex == 0 then
+          physics.setCarPosition(carIndex, state.position, state.direction)
+        else
+          physics.setAICarPosition(carIndex, state.position, state.direction)
+        end
+        SetRollingFormationHold(carIndex, state.laneOffset)
+      end
+    end
+  end)
+
+  if not ok then
+    for carIndex, snapshot in pairs(snapshots) do
+      pcall(function()
+        if carIndex == 0 then
+          physics.setCarPosition(carIndex, snapshot.position, snapshot.direction)
+        else
+          physics.setAICarPosition(carIndex, snapshot.position, snapshot.direction)
+        end
+      end)
+    end
+    return false, tostring(err)
+  end
+
+  for _, state in pairs(rollingStartCars) do
+    state.startProgress = state.progress
+    state.lastProgress = state.progress
+    state.released = false
+    state.green = false
+    state.releasedAt = nil
+  end
+
+  Log(sFormat("ROLLING: positioned the field facing the correct way; flipped %d cars against the raw spline.", flipped))
+  return true, nil
+end
+
+local function IsRollingStartFieldReady(trackLength)
+  for _, group in ipairs(rollingStartGroups) do
+    for _, carIndex in ipairs(group.cars) do
+      local car = getCar(carIndex)
+      local state = rollingStartCars[carIndex]
+      if not car or not state then
+        return false, carIndex, "car data unavailable"
+      end
+      if car.isInPit == true then
+        return false, carIndex, "still in the pits"
+      end
+      if car.isInPitlane == true then
+        return false, carIndex, "still in the pit lane"
+      end
+      if type(car.splinePosition) ~= "number" then
+        return false, carIndex, "track progress unavailable"
+      end
+
+      local progressDelta = NormalizeTrackProgress(car.splinePosition - state.progress)
+      local distanceToPlan = math.min(progressDelta, 1.0 - progressDelta) * trackLength
+      if distanceToPlan > ROLLING_START_POSITION_TOLERANCE_M then
+        return false, carIndex, sFormat("%.0f m from its planned position", distanceToPlan)
       end
     end
   end
-  if not raceHasStarted then return end
 
-  for i = 0, driverCount - 1 do
-    local car = getCar(i)
-    if car and i ~= 0 then
-      setAITopSpeed(i, 999999.0)
-      setAIThrottleLimit(i, 1.0)
-      setAICaution(i, 1.0)
-      physics.setAIStopCounter(i, 0.0)
+  return true, nil
+end
+
+local function IsRollingStartPositionWindow(sim, session)
+  if sim.isSessionStarted == true then return false end
+
+  local timeLeft = sim.sessionTimeLeft
+  if IsFinite(timeLeft) and timeLeft >= 0 and timeLeft <= ROLLING_START_POSITION_WINDOW_MS then
+    return true
+  end
+
+  if session and IsFinite(session.startTime) and IsFinite(sim.time) then
+    local timeUntilStart = session.startTime - sim.time
+    return timeUntilStart >= 0 and timeUntilStart <= ROLLING_START_POSITION_WINDOW_MS
+  end
+
+  return false
+end
+
+local function ReleaseRollingStartGroup(groupIndex, now)
+  local group = rollingStartGroups[groupIndex]
+  if not group then return end
+
+  for _, carIndex in ipairs(group.cars) do
+    local state = rollingStartCars[carIndex]
+    if state then
+      state.released = true
+      state.releasedAt = now
+      local car = getCar(carIndex)
+      state.lastProgress = car and car.splinePosition or state.progress
+      setAITopSpeed(carIndex, ROLLING_START_SPEED_KMH)
+      setAIThrottleLimit(carIndex, ROLLING_START_THROTTLE_INITIAL)
+      setAICaution(carIndex, 4.0)
+      physics.setAIStopCounter(carIndex, 0.0)
+    end
+  end
+
+  rollingStartNextGroup = groupIndex + 1
+  rollingStartNextReleaseAt = now + ROLLING_START_CLASS_GAP_SECONDS
+  Log(sFormat("ROLLING: released class %d/%d '%s' at 80 km/h.", groupIndex, #rollingStartGroups, group.label))
+end
+
+local function MaintainRollingFormation(now)
+  for carIndex, state in pairs(rollingStartCars) do
+    if not state.green then
+      if carIndex == 0 then
+        physics.setCarAutopilot(true, false)
+      end
+
+      setAITopSpeed(carIndex, state.released and ROLLING_START_SPEED_KMH or 0.0)
+      local throttleLimit = ROLLING_START_THROTTLE_MAX
+      if state.released then
+        local ramp = math.min(1.0, math.max(0.0, (now - (state.releasedAt or now)) / ROLLING_THROTTLE_RAMP_SECONDS))
+        throttleLimit = ROLLING_START_THROTTLE_INITIAL +
+            (ROLLING_START_THROTTLE_MAX - ROLLING_START_THROTTLE_INITIAL) * ramp
+      end
+      setAIThrottleLimit(carIndex, throttleLimit)
+      setAICaution(carIndex, 4.0)
+      physics.setAIStopCounter(carIndex, state.released and 0.0 or ROLLING_START_HELD_SECONDS)
+      physics.setAISplineOffset(carIndex, state.laneOffset, true)
+    end
+  end
+end
+
+local function CanReleaseRollingStartGroup(groupIndex, now, trackLength)
+  if now < rollingStartNextReleaseAt then return false end
+  if groupIndex <= 1 then return true end
+
+  local previousGroup = rollingStartGroups[groupIndex - 1]
+  local tailIndex = previousGroup and previousGroup.cars[#previousGroup.cars]
+  local tailState = tailIndex and rollingStartCars[tailIndex]
+  local tailCar = tailIndex and getCar(tailIndex)
+  if not tailState or not tailCar or type(tailCar.splinePosition) ~= "number" then
+    return false
+  end
+
+  local distanceMoved = NormalizeTrackProgress(tailCar.splinePosition - tailState.startProgress) * trackLength
+  return distanceMoved >= ROLLING_START_CLASS_GAP_METERS
+end
+
+local function GiveRollingGreen(carIndex, state, now)
+  if state.green then return end
+
+  state.green = true
+  state.greenAt = now
+  RestoreAIControl(carIndex)
+  if carIndex == 0 and state.originalAIControlled ~= nil then
+    physics.setCarAutopilot(state.originalAIControlled)
+    rollingStartStatus = "GREEN — GO"
+    ui.toast(ui.Icons.Play, "Rolling start: green light")
+  end
+end
+
+local function UpdateRollingStart(sim)
+  if rollingStartState == "idle" then return end
+  -- AC reports the race pre-start screen as the main menu. Keep the staged field latched
+  -- while this race session remains valid; session changes and validity checks handle resets.
+  if not IsRaceMode(sim) then
+    RestoreRollingStartControls(false)
+    rollingStartState = "idle"
+    rollingStartStatus = ""
+    return
+  end
+  if rollingStartSessionKey and GetCurrentSessionKey(sim) ~= rollingStartSessionKey then
+    RestoreRollingStartControls(false)
+    rollingStartState = "idle"
+    rollingStartStatus = ""
+    return
+  end
+  if rollingStartState == "unavailable" or rollingStartState == "complete" or rollingStartState == "finished" then return end
+
+  local now = type(sim.time) == "number" and sim.time / 1000 or 0
+  if rollingStartState == "staged" then
+    -- Keep cars held through AC's countdown and apply positions before green. Never move the
+    -- field after the race has started: that creates a visible backwards teleport.
+    MaintainRollingFormation(now)
+
+    local session = ac.getSession and ac.getSession(sim.currentSessionIndex) or nil
+
+    if not rollingStartPositionsApplied then
+      if IsRollingStartPositionWindow(sim, session) then
+        local applied, applyErr = ApplyRollingStartPositions()
+        if not applied then
+          MarkRollingStartUnavailable(
+            "Could not position the field during AC's pre-start countdown: " .. tostring(applyErr), true)
+          return
+        end
+        rollingStartPositionsApplied = true
+        rollingStartPositionAttempts = 1
+        rollingStartPositionsAppliedAt = now
+        rollingStartPitWaitLogged = false
+        rollingStartPositionStableFrames = 0
+        Log("ROLLING: applied 50% formation during pre-start countdown; verifying before green.")
+      end
+      if not rollingStartPositionsApplied then
+        if sim.isSessionStarted == true then
+          MarkRollingStartUnavailable(
+            "Missed the safe pre-start positioning window; no cars were teleported after green.", false)
+        end
+        return
+      end
+    end
+
+    local trackLength = sim.trackLengthM
+    if not IsFinite(trackLength) or trackLength <= ROLLING_START_GREEN_DISTANCE_M then
+      if sim.isSessionStarted == true then
+        MarkRollingStartUnavailable("Track length unavailable while verifying the pre-start formation.", false)
+      end
+      return
+    end
+
+    local fieldReady, waitingCar, waitReason = IsRollingStartFieldReady(trackLength)
+    if not fieldReady then
+      rollingStartPositionStableFrames = 0
+      if sim.isSessionStarted == true then
+        MarkRollingStartUnavailable(
+          sFormat("Field left the planned 50%% formation at race start (car %d: %s); no late teleport performed.",
+              waitingCar or -1, waitReason or "position mismatch"), false)
+        return
+      end
+
+      if rollingStartPositionAttempts < ROLLING_START_MAX_POSITION_ATTEMPTS and
+          now - (rollingStartPositionsAppliedAt or now) >= ROLLING_START_POSITION_RETRY_SECONDS then
+        local applied, applyErr = ApplyRollingStartPositions()
+        if not applied then
+          MarkRollingStartUnavailable(
+            "Could not restore the pre-start formation after AC adjusted the grid: " .. tostring(applyErr), true)
+          return
+        end
+        rollingStartPositionAttempts = rollingStartPositionAttempts + 1
+        rollingStartPositionsAppliedAt = now
+        rollingStartPitWaitLogged = false
+        rollingStartPositionStableFrames = 0
+        Log(sFormat("ROLLING: AC changed the field before green; reapplied formation (attempt %d/%d).",
+            rollingStartPositionAttempts, ROLLING_START_MAX_POSITION_ATTEMPTS))
+        return
+      end
+
+      if not rollingStartPitWaitLogged then
+        rollingStartPitWaitLogged = true
+        Log(sFormat("ROLLING: holding brakes before green; car %d is %s after %d positioning attempts.",
+            waitingCar or -1, waitReason or "not in formation", rollingStartPositionAttempts))
+      end
+      return
+    end
+
+    rollingStartPositionStableFrames = rollingStartPositionStableFrames + 1
+    if rollingStartPositionStableFrames == ROLLING_START_POSITION_STABLE_FRAMES then
+      Log("ROLLING: every car verified at its planned 50% track position before green.")
+    end
+    if rollingStartPositionStableFrames < ROLLING_START_POSITION_STABLE_FRAMES then
+      return
+    end
+    rollingStartPitWaitLogged = false
+
+    if sim.isSessionStarted ~= true then return end
+
+    rollingStartState = "rolling"
+    rollingStartNextGroup = 1
+    rollingStartNextReleaseAt = now
+    rollingStartStatus = "ROLLING — HOLD 80 km/h"
+    Log("ROLLING: race start detected; class release sequence beginning.")
+  elseif rollingStartState == "rolling" and sim.isSessionStarted ~= true then
+    RestoreRollingStartControls(false)
+    rollingStartState = "finished"
+    rollingStartStatus = ""
+    Log("ROLLING: session ended before every car received green; controls restored.")
+    return
+  end
+
+  if rollingStartState ~= "rolling" then return end
+
+  local trackLength = sim.trackLengthM
+  if not IsFinite(trackLength) or trackLength <= ROLLING_START_GREEN_DISTANCE_M then
+    MarkRollingStartUnavailable("Track length became unavailable during formation.")
+    return
+  end
+
+  MaintainRollingFormation(now)
+
+  if rollingStartNextGroup <= #rollingStartGroups and
+      CanReleaseRollingStartGroup(rollingStartNextGroup, now, trackLength) then
+    ReleaseRollingStartGroup(rollingStartNextGroup, now)
+  end
+
+  local allGreen = true
+  for carIndex, state in pairs(rollingStartCars) do
+    if state.released and not state.green then
+      local car = getCar(carIndex)
+      if car and type(car.splinePosition) == "number" then
+        local progress = NormalizeTrackProgress(car.splinePosition)
+        local distanceToLine = (1 - progress) * trackLength
+        local crossedGate = state.lastProgress > progress and state.lastProgress > 0.9 and progress < 0.1
+
+        if distanceToLine <= ROLLING_START_GREEN_DISTANCE_M or crossedGate then
+          GiveRollingGreen(carIndex, state, now)
+        end
+        state.lastProgress = progress
+      end
+    end
+
+    if not state.green then
+      allGreen = false
+    end
+  end
+
+  if rollingStartNextGroup > #rollingStartGroups and allGreen then
+    rollingStartState = "complete"
+    rollingStartStatus = "GREEN — GO"
+    Log("ROLLING: all cars received green.")
+  end
+
+  local playerState = rollingStartCars[0]
+  if playerState and not playerState.green then
+    if playerState.released then
+      rollingStartStatus = "ROLLING — HOLD 80 km/h"
+    else
+      local waitingGroup = rollingStartGroups[playerState.groupIndex]
+      rollingStartStatus = waitingGroup
+          and ("ROLLING — WAIT FOR " .. string.upper(waitingGroup.label))
+          or "ROLLING — WAITING"
     end
   end
 end
@@ -1581,10 +2322,6 @@ local function LeaderboardProgress(carIndex)
   local car = getCar(carIndex)
   if not car then return 0 end
   return (car.sessionLapCount or 0) + (car.splinePosition or 0)
-end
-
-local function IsFinite(v)
-  return type(v) == "number" and v == v and math.abs(v) ~= math.huge
 end
 
 local function GetCarBestLapMs(idx)
@@ -1609,6 +2346,12 @@ local function GetCurrentLapInfo()
   if playerCar then
     lapRaw = playerCar.lapCount + 1
   end
+  local lapOffset = liveSessionType == SUBFOLDER_RACE and liveRollingStartLapOffset or 0
+  totalLaps = math.max(0, totalLaps - lapOffset)
+  lapRaw = math.max(1, lapRaw - lapOffset)
+  local lapOffset = liveSessionType == SUBFOLDER_RACE and liveRollingStartLapOffset or 0
+  totalLaps = math.max(0, totalLaps - lapOffset)
+  lapRaw = math.max(1, lapRaw - lapOffset)
   local currentLap = totalLaps > 0 and math.min(totalLaps, lapRaw) or lapRaw
 
   local speed = playerCar and (playerCar.speedKmh or 0) or 0
@@ -1845,14 +2588,62 @@ local function DrawBoldText(text, centerX, centerY, fontSize, color)
   return size.y
 end
 
+local function GetRollingStartDisplay(sim)
+  if rollingStartState == "staged" then
+    return "ROLLING START READY", rgbm(1.0, 0.75, 0.25, 1)
+  end
+
+  if rollingStartState == "complete" then
+    local player = rollingStartCars[0]
+    if player and player.greenAt and type(sim.time) == "number" and sim.time / 1000 - player.greenAt <= 4 then
+      return "GREEN — GO", rgbm(0.25, 1.0, 0.35, 1)
+    end
+    return nil, nil
+  end
+
+  if rollingStartState == "unavailable" then
+    return "ROLLING START UNAVAILABLE", rgbm(1.0, 0.55, 0.25, 1)
+  end
+
+  if rollingStartState == "rolling" then
+    local player = rollingStartCars[0]
+    if player and player.green then
+      if player.greenAt and type(sim.time) == "number" and sim.time / 1000 - player.greenAt <= 4 then
+        return "GREEN — GO", rgbm(0.25, 1.0, 0.35, 1)
+      end
+      return nil, nil
+    end
+    if player and player.released then
+      return "ROLLING — HOLD 80 km/h", rgbm(1.0, 0.75, 0.25, 1)
+    end
+    if player then
+      local group = rollingStartGroups[player.groupIndex]
+      return "ROLLING — WAIT FOR " .. string.upper(group and group.label or "CLASS"), rgbm(1.0, 0.75, 0.25, 1)
+    end
+    return "ROLLING — HOLD 80 km/h", rgbm(1.0, 0.75, 0.25, 1)
+  end
+
+  return nil, nil
+end
+
 function script.clLeaderboard(dt)
   local sim = ac.getSim()
   local w = ui.windowWidth()
   local h = ui.windowHeight()
 
+  local padX = 12
+  local gap = 16
+  local panelW = (w - 2 * padX - 2 * gap) / 3
+  local panelTop = 8
+  local gapPanelH = 46
+  local gapPanelTop = h - 8 - gapPanelH
+  local columnBottom = gapPanelTop - 10
+  local panelH = columnBottom - panelTop
+
   local qualiMode = IsQualiPracticeMode()
   local overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped
   local classFastestMs, playerBestMs = nil, nil
+  local rollingText, rollingColor = GetRollingStartDisplay(sim)
   if qualiMode then
     overallPos, totalCars, classPos, classTotal, classFastestMs, playerBestMs = GetPlayerPositionsQuali()
     currentLap, totalLaps, stopped = GetCurrentLapInfo()
@@ -1860,17 +2651,6 @@ function script.clLeaderboard(dt)
   else
     overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped = GetPlayerPositions()
   end
-
-  local padX = 12
-  local gap = 16
-  local panelW = (w - 2 * padX - 2 * gap) / 3
-  local panelTop = 8
-
-  local gapPanelH = 46
-  local gapPanelTop = h - 8 - gapPanelH
-
-  local columnBottom = gapPanelTop - 10
-  local panelH = columnBottom - panelTop
 
   local function DrawPanel(x, title, bigText, totalText, color)
     local cx = x + panelW / 2
@@ -1913,7 +2693,16 @@ function script.clLeaderboard(dt)
     DrawPanel(padX + 2 * (panelW + gap), "CLASS", "-", "add a class", rgbm(0.55, 0.55, 0.6, 1))
   end
 
-  if qualiMode then
+  if rollingText then
+    local gapPanelRight = w - padX
+    ui.drawRectFilled(vec2(padX, gapPanelTop), vec2(gapPanelRight, h - 8), rgbm(0.08, 0.10, 0.15, 0.6), 8)
+    ui.drawRect(vec2(padX, gapPanelTop), vec2(gapPanelRight, h - 8), rgbm(0.3, 0.3, 0.36, 0.7), 8, nil, 1.5)
+    local size = MeasureBoldText(rollingText, 17)
+    local fontSize = size.x > (w - 2 * padX - 24)
+        and math.max(12, math.floor(17 * (w - 2 * padX - 24) / size.x))
+        or 17
+    DrawBoldText(rollingText, w / 2, gapPanelTop + gapPanelH / 2, fontSize, rollingColor)
+  elseif qualiMode then
     local posY = gapPanelTop + gapPanelH / 2
     local gapPanelRight = w - padX
     ui.drawRectFilled(vec2(padX, gapPanelTop), vec2(gapPanelRight, h - 8), rgbm(0.08, 0.10, 0.15, 0.6), 8)
@@ -2010,7 +2799,8 @@ function script.update(dt)
     Log("EXPORT: update-entry diagnostics failed: " .. tostring(entryLine))
   end
 
-  local updateOk, sessionChanged = pcall(UpdateResultExportFrame, sim)
+  local updateOk, sessionChanged, sessionEnded, sessionBegan, sessionSwitched =
+      pcall(UpdateResultExportFrame, sim)
   if not updateOk then
     local message = tostring(sessionChanged)
     if message ~= lastExportTransitionError then
@@ -2021,20 +2811,26 @@ function script.update(dt)
   else
     lastExportTransitionError = nil
   end
+  if sessionSwitched and rollingStartState ~= "idle" then
+    RestoreRollingStartControls(false)
+    rollingStartState = "idle"
+    rollingStartStatus = ""
+  end
   if sessionChanged then
     firstFrame = true
     carClassCache = {}
     uiSourceCache = {}
   end
+  local valid, validationError = CheckSessionValidity()
   if firstFrame then
     -- Cleared before the work runs: if anything below throws, the flag stays false so a
     -- single failure cannot turn into a per-frame infinite loop.
     firstFrame = false
     Log(sFormat("FIRSTFRAME: idx=%s race=%s dc=%d rc=%d", tostring(sim.currentSessionIndex), tostring(IsRaceMode()), driverCount, #releaseClasses))
     leaderboardOpened = false
-    raceHasStarted   = false
     playerStoppedState = false
     allDriversStartingPos = {}
+    rollingStartGridPositions = {}
     if driverCount > 0 then
       for i = 0, driverCount - 1 do
         local okID, carID = pcall(function() return ac.getCarID and ac.getCarID(i) end)
@@ -2045,11 +2841,10 @@ function script.update(dt)
       if not okLoad then
         Log("FIRSTFRAME: LoadManualClassesFromStorage FAILED err=" .. tostring(loadErr))
       end
-      if IsEnduranceMode() then
+      if IsRaceMode(sim) then
         RecordStartingPositions()
         ReorderGridByClass()
         gridReordered = true
-        ReleaseAllCars()
       end
     end
     Log(sFormat("FIRSTFRAME DONE: rc=%d classes={%s}", #releaseClasses, table.concat(releaseClasses, ",")))
@@ -2063,7 +2858,7 @@ function script.update(dt)
     LoadManualClassesFromStorage()
     if #releaseClasses > 0 then
       BuildClassInfo()
-      if IsEnduranceMode() then
+      if IsRaceMode(sim) then
         RecordStartingPositions()
         ReorderGridByClass()
         gridReordered = true
@@ -2071,38 +2866,39 @@ function script.update(dt)
     end
   end
 
+  if valid and IsRaceMode(sim) and rollingStartState == "idle" and driverCount > 0 then
+    if not gridReordered then
+      RecordStartingPositions()
+      ReorderGridByClass()
+      gridReordered = true
+    end
+    local okRolling, rollingErr = pcall(PrepareRollingStart, sim)
+    if not okRolling then
+      MarkRollingStartUnavailable("Could not prepare the field: " .. tostring(rollingErr), true)
+    end
+  end
+
   if sim.isInMainMenu == true then
     ac.setWindowOpen("cl_config", true)
   end
 
-  local valid, _ = CheckSessionValidity()
-  if not valid then return end
+  if not valid then
+    if rollingStartState == "staged" or rollingStartState == "rolling" then
+      MarkRollingStartUnavailable(
+        "Rolling start stopped: " .. tostring(validationError or "this session is not supported."),
+        false)
+    end
+    return
+  end
 
   if not leaderboardOpened and sim.isInMainMenu ~= true then
     ac.setWindowOpen("cl_leaderboard", true)
     leaderboardOpened = true
   end
 
-  -- Runs once per session only. Previously this executed every frame while the session
-  -- had not started, continuously rewriting the grid and starving the leaderboard.
-  if IsEnduranceMode() and not sim.isSessionStarted and not gridReordered then
-    for i = 0, driverCount - 1 do
-      local car = getCar(i)
-      if car then
-        allDriversStartingPos[i] = car.racePosition
-      end
-    end
-    local okReorder, reorderErr = pcall(ReorderGridByClass)
-    if okReorder then
-      gridReordered = true
-      Log("PRE-START: grid reordered once by class")
-    else
-      Log("PRE-START: ReorderGridByClass FAILED err=" .. tostring(reorderErr))
-    end
-  end
-
-  if IsEnduranceMode() then
-    ManageAIClassRelease(dt)
+  local rollingOk, rollingErr = pcall(UpdateRollingStart, sim)
+  if not rollingOk then
+    MarkRollingStartUnavailable("Rolling start stopped safely: " .. tostring(rollingErr), false)
   end
 end
 
@@ -2292,8 +3088,17 @@ function script.clConfig()
 end
 
 ac.onSessionStart(function()
+  local sim = ac.getSim()
+  if rollingStartState == "complete" or
+      rollingStartState == "unavailable" or
+      rollingStartState == "finished" or
+      (rollingStartSessionKey and GetCurrentSessionKey(sim) ~= rollingStartSessionKey) then
+    RestoreRollingStartControls(false)
+    rollingStartState = "idle"
+    rollingStartStatus = ""
+  end
+
   firstFrame          = true
-  raceHasStarted      = false
   playerStoppedState  = false
   raceDisplayStable   = nil
   raceDisplayPending  = nil
@@ -2316,6 +3121,13 @@ if type(ac.onRelease) == "function" then
   local okRelease, releaseErr = pcall(ac.onRelease, ExportExpiredSessionOnRelease)
   if not okRelease then
     Log("EXPORT: failed to register release fallback: " .. tostring(releaseErr))
+  end
+
+  local okRollingRelease, rollingReleaseErr = pcall(ac.onRelease, function()
+    RestoreRollingStartControls(false)
+  end)
+  if not okRollingRelease then
+    Log("ROLLING: failed to register cleanup callback: " .. tostring(rollingReleaseErr))
   end
 end
 

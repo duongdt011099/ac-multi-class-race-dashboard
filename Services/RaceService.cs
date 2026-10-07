@@ -260,6 +260,9 @@ public class RaceService : IRaceService
                 : drivers.TakeWhile(d => d.DriverId != human.DriverId).Count() + 1;
         }
 
+        var rollingStartLapCompensation = sessionType == SessionType.Race &&
+            HasTrackAiSpline(gamePath, race.TrackName, race.TrackLayout);
+
         var raceIni = new RaceIniBuilder().Build(
             race,
             sessionType,
@@ -268,7 +271,8 @@ public class RaceService : IRaceService
             weather,
             sunAngle,
             playerStartPosition,
-            penalties);
+            penalties,
+            rollingStartLapCompensation);
 
         var executable = Path.Combine(gamePath, "acs.exe");
 
@@ -311,6 +315,61 @@ public class RaceService : IRaceService
     private static string? NormalizeNullable(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static bool HasTrackAiSpline(string gamePath, string? trackName, string? layout)
+    {
+        if (!IsSafeFolderSegment(trackName) ||
+            (!string.IsNullOrWhiteSpace(layout) && !IsSafeFolderSegment(layout)))
+        {
+            return false;
+        }
+
+        try
+        {
+            var tracksRoot = Path.GetFullPath(Path.Combine(gamePath, "content", "tracks"));
+            var trackRoot = Path.GetFullPath(Path.Combine(tracksRoot, trackName!.Trim()));
+
+            if (!IsChildPath(tracksRoot, trackRoot))
+            {
+                return false;
+            }
+
+            var aiDirectories = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(layout))
+            {
+                var layoutRoot = Path.GetFullPath(Path.Combine(trackRoot, layout.Trim()));
+
+                if (IsChildPath(trackRoot, layoutRoot))
+                {
+                    aiDirectories.Add(Path.Combine(layoutRoot, "ai"));
+                }
+            }
+
+            aiDirectories.Add(Path.Combine(trackRoot, "ai"));
+
+            return aiDirectories.Any(directory => File.Exists(Path.Combine(directory, "fast_lane.ai")));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsSafeFolderSegment(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Trim() is not "." and not ".." &&
+               !value.Contains('\\') &&
+               !value.Contains('/');
+    }
+
+    private static bool IsChildPath(string root, string candidate)
+    {
+        return candidate.StartsWith(
+            root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task ValidateRaceTrackAsync(string? trackName, string? trackLayout)
