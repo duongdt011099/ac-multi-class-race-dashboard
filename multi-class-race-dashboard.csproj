@@ -5,7 +5,7 @@
     <!-- Must match MyAppVersion in EnduranceRaceDashboard.iss. The update check compares this
          against the published release, so a mismatch here makes the app nag about an update it is
          already running. -->
-    <Version>1.1.0.0</Version>
+    <Version>1.1.0.1</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>multi_class_race_dashboard</RootNamespace>
