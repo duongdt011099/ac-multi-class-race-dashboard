@@ -107,6 +107,16 @@ local rollingStartSessionTime         = 0.0
 local rollingStartLastFrame           = nil
 local rollingStartSessionKey          = nil
 local rollingStartDiagFrame           = 0
+-- Which physical side the odd-numbered grid slots occupy during the rolling-start formation.
+-- true = P1/P3/... form on the right, false = on the left (the reference app default). This is
+-- re-detected from the human car's actual grid side every session and can be overridden in the
+-- config window for the current session.
+local rollingStartPoleOnRight         = false
+-- Set once per session by DetectRollingStartPoleSide: "auto" when measured from the grid,
+-- "manual" when the player toggled it afterwards.
+local rollingStartPoleSideSource      = "auto"
+-- One-shot guard for the lane-placement diagnostic (see MaintainRollingFormation).
+local rollingStartLaneDiagDone        = false
 
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
@@ -1586,6 +1596,87 @@ local function RecordStartingPositions()
   BuildClassInfo()
 end
 
+-- Returns the car's left-hand axis (x, y, z), or nil when the state does not expose one. In AC/CSP
+-- `car.side` is the LEFT axis; the `look x up` fallback yields the same handedness in AC's basis.
+local function GetCarLeftAxis(car)
+  if not car then return nil end
+  local side = car.side
+  if side then
+    return side.x, side.y, side.z
+  end
+  if car.look and car.up then
+    local lx, ly, lz = car.look.x, car.look.y, car.look.z
+    local ux, uy, uz = car.up.x, car.up.y, car.up.z
+    return ly * uz - lz * uy, lz * ux - lx * uz, lx * uy - ly * ux
+  end
+  return nil
+end
+
+-- Measures which side of its grid row the human car starts on and derives the lane convention for
+-- the whole field from it. The player is a reliable anchor: we know the exact grid slot (odd/even)
+-- and can read the world position relative to the car sharing the row. If the geometry is
+-- unavailable we keep the reference default (odd positions on the left).
+local function DetectRollingStartPoleSide()
+  rollingStartPoleOnRight = false
+  rollingStartPoleSideSource = "auto"
+
+  local player = getCar(0)
+  if not player then
+    Log("ROLLING: pole-side detect skipped (no player car); default LEFT")
+    return
+  end
+
+  local pos = rollingStartGridPositions[0]
+  if type(pos) ~= "number" or pos <= 0 then
+    pos = player.racePosition
+  end
+  if type(pos) ~= "number" or pos <= 0 then
+    Log("ROLLING: pole-side detect skipped (no grid slot); default LEFT")
+    return
+  end
+
+  -- The car sharing the player's two-wide row: slot+1 on an odd slot, slot-1 on an even one.
+  -- Their midpoint approximates the racing line, so the vector between them is purely lateral.
+  local partnerPos = (pos % 2 == 1) and (pos + 1) or (pos - 1)
+  local partner = nil
+  for i = 0, driverCount - 1 do
+    local car = getCar(i)
+    if car and car.racePosition == partnerPos then
+      partner = car
+      break
+    end
+  end
+  if not partner then
+    Log(sFormat("ROLLING: pole-side detect skipped (no row partner for slot %d); default LEFT", pos))
+    return
+  end
+
+  local pp, gp = player.position, partner.position
+  if not (pp and gp) then
+    Log("ROLLING: pole-side detect skipped (no world position); default LEFT")
+    return
+  end
+
+  -- Player's own left-hand axis (see GetCarLeftAxis). A positive dot of (player - partner) with the
+  -- left axis therefore means the player sits on the LEFT of the row.
+  local sx, sy, sz = GetCarLeftAxis(player)
+  if not sx then
+    Log("ROLLING: pole-side detect skipped (no lateral axis); default LEFT")
+    return
+  end
+
+  local dx, dy, dz = pp.x - gp.x, pp.y - gp.y, pp.z - gp.z
+  local lateral = dx * sx + dy * sy + dz * sz
+  local playerOnRight = lateral < 0
+  local playerIsOdd = (pos % 2 == 1)
+
+  -- Odd slots on the right exactly when the player's grid side agrees with their slot parity.
+  rollingStartPoleOnRight = (playerIsOdd == playerOnRight)
+
+  Log(sFormat("ROLLING: pole-side detect slot=%d partner=%d lateral=%.3f side=(%.2f,%.2f,%.2f) playerRight=%s -> poleOnRight=%s",
+      pos, partnerPos, lateral, sx, sy, sz, tostring(playerOnRight), tostring(rollingStartPoleOnRight)))
+end
+
 local function ReorderGridByClass()
   if #classOrder == 0 or driverCount == 0 then return end
 
@@ -1781,9 +1872,15 @@ local function GetLinearMultiplier(dist, minDist, maxDist, maxMult)
   return 1.0 + ((dist - minDist) / (maxDist - minDist)) * (maxMult - 1.0)
 end
 
--- Odd class positions take the left lane, even take the right.
-local function GetRollingLaneOffset(classPosition)
-  local isOdd = ((classPosition or 1) % 2 == 1)
+-- Lane follows the car's overall starting grid slot: odd and even slots take opposite lanes, and
+-- rollingStartPoleOnRight decides which physical side the odd slots occupy (mirrors the reference
+-- app's "Target Lane for Pole Position" setting). The value is auto-detected from the human car's
+-- grid side each session; a manual toggle overrides it for the current session.
+local function GetRollingLaneOffset(gridPosition)
+  local isOdd = ((gridPosition or 1) % 2 == 1)
+  if rollingStartPoleOnRight then
+    return isOdd and ROLLING_START_LANE_METERS or -ROLLING_START_LANE_METERS
+  end
   return isOdd and -ROLLING_START_LANE_METERS or ROLLING_START_LANE_METERS
 end
 
@@ -2035,21 +2132,24 @@ local function PrepareRollingStart(sim)
   rollingStartGroups = groups
   rollingStartCars = {}
   rollingStartQueue = {}
+  rollingStartLaneDiagDone = false
 
-  -- Per-car rolling state. Positions are class-relative so each class forms its own single-file
-  -- then double-file grid; lane parity follows the class position. The player is included so the
-  -- AI queue behind them, but is never controlled.
+  -- Per-car rolling state. Longitudinal positions are class-relative so each class forms its own
+  -- single-file then double-file grid, while the lane follows the car's overall starting grid slot
+  -- (so every car keeps the side it started on). The player is included so the AI queue behind
+  -- them, but is never controlled.
   for groupIndex, group in ipairs(groups) do
     group.rows = math.max(1, math.ceil(#group.cars / 2))
     for classPosition, carIndex in ipairs(group.cars) do
+      local gridPosition = rollingStartGridPositions[carIndex] or (carIndex + 1)
       rollingStartCars[carIndex] = {
         carIndex = carIndex,
         groupIndex = groupIndex,
         classKey = group.classKey,
         classPosition = classPosition,
         row = math.floor((classPosition - 1) / 2),
-        laneSide = (classPosition % 2 == 1) and -1 or 1,
-        gridPosition = rollingStartGridPositions[carIndex] or (carIndex + 1),
+        laneSide = GetRollingLaneOffset(gridPosition) < 0 and -1 or 1,
+        gridPosition = gridPosition,
         released = false,
         hasRolledOver = false,
         enteredPhase2 = false,
@@ -2211,7 +2311,7 @@ local function MaintainRollingFormation(dt, trackLength)
           if state.enteredPhase2 then
             targetSpeed = ROLLING_START_SPEED_KMH
             cautionLevel = 0.7
-            targetOffset = GetRollingLaneOffset(state.classPosition) + GetOrganicLaneOffset(carIndex)
+            targetOffset = GetRollingLaneOffset(state.gridPosition) + GetOrganicLaneOffset(carIndex)
             local speed2, throttle2 = ApplyRollingPhaseTwoSpacing(state, group, trackLength)
             targetSpeed = speed2
             throttleLimit = throttle2
@@ -2250,6 +2350,44 @@ local function MaintainRollingFormation(dt, trackLength)
         if memberIndex ~= 0 then
           setAICaution(memberIndex, progress)
         end
+      end
+    end
+  end
+
+  -- One-shot probe: confirm which world side a commanded offset actually places a car on. Once two
+  -- phase-2 cars of opposite grid parity have settled lanes, log their offsets next to their real
+  -- lateral position relative to the player (positive = player's left side).
+  if not rollingStartLaneDiagDone then
+    local player = getCar(0)
+    local psx, psy, psz = GetCarLeftAxis(player)
+    if player and psx then
+      local oddState, evenState
+      for _, carIndex in ipairs(rollingStartQueue) do
+        local state = rollingStartCars[carIndex]
+        if state and state.enteredPhase2 and state.gridPosition then
+          if state.gridPosition % 2 == 1 and not oddState then
+            oddState = state
+          elseif state.gridPosition % 2 == 0 and not evenState then
+            evenState = state
+          end
+        end
+      end
+      if oddState and evenState
+          and math.abs(oddState.currentSplineOffset or 0) > 1.0
+          and math.abs(evenState.currentSplineOffset or 0) > 1.0 then
+        local function LatVsPlayer(state)
+          local car = getCar(state.carIndex)
+          local pp = car and car.position
+          if not pp then return 0 end
+          local dx = pp.x - player.position.x
+          local dy = pp.y - player.position.y
+          local dz = pp.z - player.position.z
+          return dx * psx + dy * psy + dz * psz
+        end
+        Log(sFormat("ROLLING: lane diag oddGrid=%d oddOff=%.2f oddLat=%.2f | evenGrid=%d evenOff=%.2f evenLat=%.2f",
+            oddState.gridPosition, oddState.currentSplineOffset or 0, LatVsPlayer(oddState),
+            evenState.gridPosition, evenState.currentSplineOffset or 0, LatVsPlayer(evenState)))
+        rollingStartLaneDiagDone = true
       end
     end
   end
@@ -2673,6 +2811,18 @@ local function DrawBoldText(text, centerX, centerY, fontSize, color)
   return size.y
 end
 
+-- The lane the human car should hold during the formation, from its starting grid slot parity and
+-- the current pole-side setting. nil when the slot is unknown.
+local function GetPlayerLaneSide()
+  local pos = rollingStartGridPositions[0]
+  if type(pos) ~= "number" or pos <= 0 then return nil end
+  local isOdd = (pos % 2 == 1)
+  if rollingStartPoleOnRight then
+    return isOdd and "RIGHT" or "LEFT"
+  end
+  return isOdd and "LEFT" or "RIGHT"
+end
+
 local function GetRollingStartDisplay(sim)
   if rollingStartState == "staged" then
     return "ROLLING START READY", rgbm(1.0, 0.75, 0.25, 1)
@@ -2698,8 +2848,12 @@ local function GetRollingStartDisplay(sim)
       end
       return nil, nil
     end
-    return player.enteredPhase2 and "DOUBLE FILE — FORMATION" or "SINGLE FILE — FORMATION",
-        rgbm(1.0, 0.75, 0.25, 1)
+    local phaseText = player.enteredPhase2 and "DOUBLE FILE" or "SINGLE FILE"
+    local lane = GetPlayerLaneSide()
+    if lane then
+      return sFormat("%s — YOUR LANE: %s", phaseText, lane), rgbm(1.0, 0.75, 0.25, 1)
+    end
+    return phaseText .. " — FORMATION", rgbm(1.0, 0.75, 0.25, 1)
   end
 
   return nil, nil
@@ -2953,6 +3107,7 @@ function script.update(dt)
       end
       if IsRaceMode(sim) then
         RecordStartingPositions()
+        DetectRollingStartPoleSide()
         ReorderGridByClass()
         gridReordered = true
       end
@@ -2970,6 +3125,7 @@ function script.update(dt)
       BuildClassInfo()
       if IsRaceMode(sim) then
         RecordStartingPositions()
+        DetectRollingStartPoleSide()
         ReorderGridByClass()
         gridReordered = true
       end
@@ -2980,6 +3136,7 @@ function script.update(dt)
       and not IsSessionFinished(sim) then
     if not gridReordered then
       RecordStartingPositions()
+      DetectRollingStartPoleSide()
       ReorderGridByClass()
       gridReordered = true
     end
@@ -3108,6 +3265,29 @@ function script.clConfig()
   ui.dummy(vec2(0, 8))
 
   if valid then
+    if IsRaceMode(sim) then
+      ui.setCursor(vec2(colX, ui.getCursor().y))
+      ui.text("Rolling Start - lane for pole position (P1, P3, ...):")
+      ui.setCursor(vec2(colX, ui.getCursor().y + 4))
+      local laneButtonText = rollingStartPoleOnRight
+          and "RIGHT LANE (P1, P3, ...)" or "LEFT LANE (P1, P3, ...)"
+      if ui.button(laneButtonText, vec2(w - 48, 28)) then
+        rollingStartPoleOnRight = not rollingStartPoleOnRight
+        rollingStartPoleSideSource = "manual"
+      end
+      if ui.itemHovered() then
+        ui.setTooltip("The lane taken by odd grid slots (P1, P3, ...) during the rolling start; even slots take the other lane.\n\nDefault is auto-detected from the side your car occupies on the starting grid. Click to override for this session.")
+      end
+      ui.setCursor(vec2(colX, ui.getCursor().y + 4))
+      ui.pushFont(ui.Font.Small)
+      local srcText = (rollingStartPoleSideSource == "manual")
+          and "Overridden manually for this session."
+          or "Auto-detected from your starting-grid position."
+      ui.textColored(srcText, rgbm(0.6, 0.6, 0.7, 1))
+      ui.popFont()
+      ui.dummy(vec2(0, 8))
+    end
+
     if ui.checkbox("Enable Multiple Class Race", enduranceEnabled) then
       enduranceEnabled = not enduranceEnabled
       storedSettings.enduranceEnabled = enduranceEnabled
