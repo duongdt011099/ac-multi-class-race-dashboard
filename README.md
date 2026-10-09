@@ -1,9 +1,9 @@
 # Asetto Corsa Multi-Class Race Dashboard
 
-<img width="1346" height="676" alt="image" src="https://github.com/user-attachments/assets/a791cc09-e3bb-48e2-bf33-be8da80dbabd" />
-<img width="1331" height="590" alt="image" src="https://github.com/user-attachments/assets/f0f622b7-40a6-446e-a582-975373cd0645" />
-<img width="1334" height="846" alt="image" src="https://github.com/user-attachments/assets/8a178ef6-cc41-4093-9a9f-8fffed9ca8a6" />
-
+<img width="1887" height="857" alt="image" src="https://github.com/user-attachments/assets/d010cb12-9687-416a-9a32-1d494e9a91ef" />
+<img width="1875" height="836" alt="image" src="https://github.com/user-attachments/assets/4b9ee6f1-8b83-4b82-8c4d-54cdb76342fd" />
+<img width="1878" height="903" alt="image" src="https://github.com/user-attachments/assets/d97860be-816a-4f5a-a3db-ebcf5589afd0" />
+<img width="1878" height="878" alt="image" src="https://github.com/user-attachments/assets/03a4b6a9-4e4f-48d7-9469-271cc1b78831" />
 
 The Multi-Class Race Dashboard helps you run and manage a multi-class racing championship — Hypercar, LMP2 and GT3 — in Assetto Corsa and Content Manager. It covers everything from your entry list to the final race results and championship points, all in one place.
 
@@ -36,13 +36,7 @@ To use the dashboard you need:
 
 ## First-time setup
 
-Open **Game Config** from the menu. You will set up three things:
-
-- **Game Path** — the folder where Assetto Corsa is installed. Needed so the dashboard can show car liveries.
-- **Preset Path** — the folder Content Manager keeps its grid presets in. Needed when exporting grid and race presets.
-- **Race Results Path** — the folder where your race result files land. Needed when importing race results.
-
-Save the configuration once and you are ready to go.
+- **Game Path** — You have to choose the correct game path folder (Assetto Corsa Game Rooth Path) during the installation wizard.
 
 ## Running a race — step by step
 
@@ -52,6 +46,18 @@ Save the configuration once and you are ready to go.
 4. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
 5. **Practice and Qualifying.** After the session, import its result file. The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
 6. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
+
+## Lua App - Multiclass Leaderboard (Driver posittion)
+
+1. You have to configure the car tags in Content Manager to make the leaderboard work correctly.
+<img width="816" height="602" alt="image" src="https://github.com/user-attachments/assets/ee3cd70e-8090-400b-9576-504072184f6a" />
+
+2. In game class-leaderboard config - You have to type the car tag to make the leaderboard auto order by class: eg: Hyperpar
+<img width="490" height="561" alt="image" src="https://github.com/user-attachments/assets/7188cb24-4dbc-4d42-a35b-d2755f13dde6" />
+
+## Rolling Start
+
+**Rolling start is a MUST** You can not turn it off, during the formation lap, human driver can accelerate freely, no speed limit. You must respect the AI drivers in the single or double file formation.
 
 ## Tips
 
