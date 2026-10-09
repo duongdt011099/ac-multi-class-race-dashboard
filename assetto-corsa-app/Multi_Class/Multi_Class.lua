@@ -60,56 +60,52 @@ local liveRollingStartLapOffset  = 0
 
 -- Rolling starts are automatic in race sessions. Dashboard-launched races with a usable
 -- fast_lane.ai receive one extra AC lap; the Lua result writer removes that formation segment.
-local ROLLING_START_SPEED_KMH         = 80
-local ROLLING_START_PROGRESS          = 0.5
-local ROLLING_START_GREEN_DISTANCE_M  = 100
-local ROLLING_START_ROW_SPACING_M     = 8.5
--- Extra distance between the tail of one class and the head of the next, on top of one row gap, so
--- the inter-class gap is a clearly visible ~40 m bumper-to-bumper (8.5 + 36 = 44.5 m centre-to-centre).
-local ROLLING_START_CLASS_SPACING_M   = 36
-local ROLLING_START_LANE_RATIO_MIN    = 0.15
-local ROLLING_START_LANE_RATIO_MAX    = 0.75
-local ROLLING_START_LANE_RATIO_DEFAULT = 0.3
+--
+-- The procedure mirrors the proven rapidough1s rolling-start app: the field is held on the grid,
+-- released in two-car rows on a timer, runs single file up to the formation point and then stacks
+-- into two columns for the start. The only addition is a per-class time gap so the classes stay
+-- separated. Speeds are the reference defaults.
+local ROLLING_START_FORMATION_SPEED_KMH = 100
+local ROLLING_START_SPEED_KMH           = 70
+-- Percentage of track progress where a car that has already crossed the line stacks into two
+-- columns (double file) for the rolling start.
+local ROLLING_START_FORMATION_POINT     = 0.67
+-- A car is considered to have rolled over the start line once its spline position drops below this.
+local ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- Lateral distance of each column from the racing line, in metres. CSP keeps the AI on a lane with
--- the metre-based setAISplineAbsoluteOffset; the ROLLING_START_LANE_RATIO_* values above are only
--- track-coordinate units used to place the grid for the pre-start teleport.
-local ROLLING_START_LANE_METERS       = 2.5
-local ROLLING_START_LANE_RAMP_MPS     = 1.5
-local ROLLING_START_HELD_SECONDS      = 3600
-local ROLLING_START_THROTTLE_INITIAL  = 0.3
-local ROLLING_START_THROTTLE_MAX      = 1.0
-local ROLLING_THROTTLE_RAMP_SECONDS   = 3
--- Front pair builds up to the 80 km/h pace gradually instead of being capped at 80 instantly.
-local ROLLING_START_PACE_START_KMH    = 30
-local ROLLING_START_PACE_RAMP_SECONDS = 10
-local ROLLING_START_POSITION_WINDOW_MS = 7000
-local ROLLING_START_POSITION_RETRY_SECONDS = 0.25
-local ROLLING_START_POSITION_TOLERANCE_M = 20
-local ROLLING_START_MAX_POSITION_ATTEMPTS = 2
-local ROLLING_START_POSITION_STABLE_FRAMES = 10
--- Damped platoon follower: each car matches the car ahead in its own lane and closes the gap with a
--- proportional position correction plus a damping term on the closing speed. There is deliberately
--- no low speed cap, so a car behind can always catch up; the damping and the feed-forward of the
--- ahead car's speed stop it from overshooting once it reaches its target gap.
-local ROLLING_START_FOLLOW_DEADBAND_M  = 0.5
-local ROLLING_START_FOLLOW_GAIN_KMH_PER_M = 2.0
-local ROLLING_START_FOLLOW_DAMPING     = 1.0
-local ROLLING_START_FOLLOW_MAX_KMH     = 300.0
-local ROLLING_START_FOLLOW_ACCEL_KMH_PER_S = 60.0
+-- the metre-based setAISplineAbsoluteOffset; single file is offset 0.
+local ROLLING_START_LANE_METERS         = 3.0
+local ROLLING_START_LANE_RAMP_MPS       = 1.5
+-- After a class goes green its lane offset eases back to the racing line at this rate, and its
+-- caution level ramps from 0 to 1 over GREEN_WINDOW_SECONDS (reference green-flag transition).
+local ROLLING_START_GREEN_OFFSET_RAMP_MPS = 0.5
+local ROLLING_START_GREEN_WINDOW_SECONDS  = 10.0
+-- Catch-up multiplier used by the phase-two spacing (reference GetLinearMultiplier default).
+local ROLLING_START_CATCHUP_LIMIT       = 1.5
+-- Release cadence: two-car rows go every ROW_SECONDS; each class starts CLASS_GAP_SECONDS after
+-- the previous class's final row, so the classes never bunch together on the run-up.
+local ROLLING_START_ROW_SECONDS         = 1.5
+local ROLLING_START_CLASS_GAP_SECONDS   = 3.0
+-- AC resets an AI to the pits once its internal "stopped for" timer (physics.setAIStopCounter)
+-- exceeds a few seconds. While a car is held on the grid we must keep that counter near zero, or
+-- the longest-held cars at the back get teleported to the pits. This small value matches the
+-- working rolling-start reference app.
+local ROLLING_START_STOP_COUNTER_HELD   = 0.5
+-- Minimum track length required before the procedure is allowed to run.
+local ROLLING_START_MIN_TRACK_LENGTH_M  = 500
 
 local rollingStartState               = "idle"
 local rollingStartStatus              = ""
 local rollingStartGroups              = {}
 local rollingStartCars                = {}
-local rollingStartNextGroup           = 1
-local rollingStartPaceStart           = nil
+-- Flat front-to-back release order (overall leader first). Cars are released in class-relative
+-- two-car rows, one class after another, on the shared release timer.
+local rollingStartQueue               = {}
+local rollingStartRaceHasStarted      = false
+local rollingStartReleaseTimer        = 0.0
+local rollingStartSessionTime         = 0.0
+local rollingStartLastFrame           = nil
 local rollingStartSessionKey          = nil
-local rollingStartPositionsApplied    = false
-local rollingStartPitWaitLogged       = false
-local rollingStartPositionsAppliedAt  = nil
-local rollingStartPositionAttempts    = 0
-local rollingStartPositionStableFrames = 0
-local rollingStartLastLaneAt          = nil
 local rollingStartDiagFrame           = 0
 
 -- The dashboard watches these subfolders and derives the session type from the
@@ -133,12 +129,23 @@ local getCar = ac.getCar
 local setAITopSpeed = physics.setAITopSpeed
 local setAICaution = physics.setAICaution
 local setAIThrottleLimit = physics.setAIThrottleLimit
+local setAISplineAbsoluteOffset = physics.setAISplineAbsoluteOffset
 
 -- CSP keeps a car on a lateral lane offset from the AI racing line. The offset is in metres and is
 -- applied through setAISplineAbsoluteOffset (the fraction-based setAISplineOffset is a different,
 -- much smaller unit and does not hold a two-wide formation at speed).
 local function SetRollingLaneOffset(carIndex, offsetMeters)
   pcall(physics.setAISplineAbsoluteOffset, carIndex, offsetMeters, false)
+end
+
+-- Belt-and-suspenders guard against AC teleporting a long-held car to the pits. The exact CSP
+-- signature is not documented in the public SDK, so this is existence-checked and pcall-guarded:
+-- if the function or its arguments differ on this build, it quietly does nothing and the
+-- stop-counter fix alone prevents the teleport.
+local function SetRollingPitBlock(carIndex, blocked)
+  if physics.blockTeleportingToPits then
+    pcall(physics.blockTeleportingToPits, carIndex, blocked)
+  end
 end
 
 local DEBUG_ENABLED = true
@@ -1647,44 +1654,33 @@ local function RestoreAIControl(carIndex, clearOffset)
   pcall(setAIThrottleLimit, carIndex, 1.0)
   pcall(setAICaution, carIndex, 1.0)
   pcall(physics.setAIStopCounter, carIndex, 0.0)
+  SetRollingPitBlock(carIndex, false)
   if clearOffset ~= false then
     SetRollingLaneOffset(carIndex, 0.0)
   end
 end
 
-local function RestoreRollingStartControls(restorePositions)
-  for carIndex, state in pairs(rollingStartCars) do
-    if restorePositions and state.originalPosition and state.originalDirection then
-      pcall(function()
-        if carIndex == 0 then
-          physics.setCarPosition(carIndex, state.originalPosition, state.originalDirection)
-        else
-          physics.setAICarPosition(carIndex, state.originalPosition, state.originalDirection)
-        end
-      end)
-    end
-
-    RestoreAIControl(carIndex)
-
-    if carIndex == 0 and state.originalAIControlled ~= nil then
-      pcall(physics.setCarAutopilot, state.originalAIControlled)
+local function RestoreRollingStartControls()
+  -- The player car (index 0) is never held or autopiloted during the formation, so only the AI
+  -- cars need their controls handed back.
+  for carIndex in pairs(rollingStartCars) do
+    if carIndex ~= 0 then
+      RestoreAIControl(carIndex, true)
     end
   end
 
   rollingStartCars = {}
   rollingStartGroups = {}
-  rollingStartNextGroup = 1
-  rollingStartPaceStart = nil
+  rollingStartQueue = {}
+  rollingStartRaceHasStarted = false
+  rollingStartReleaseTimer = 0.0
+  rollingStartSessionTime = 0.0
+  rollingStartLastFrame = nil
   rollingStartSessionKey = nil
-  rollingStartPositionsApplied = false
-  rollingStartPitWaitLogged = false
-  rollingStartPositionsAppliedAt = nil
-  rollingStartPositionAttempts = 0
-  rollingStartPositionStableFrames = 0
 end
 
-local function MarkRollingStartUnavailable(message, restorePositions)
-  RestoreRollingStartControls(restorePositions == true)
+local function MarkRollingStartUnavailable(message)
+  RestoreRollingStartControls()
   rollingStartState = "unavailable"
   rollingStartStatus = message or "Rolling start unavailable"
   Log("ROLLING: unavailable: " .. rollingStartStatus)
@@ -1777,115 +1773,198 @@ local function BuildRollingStartGroups()
   return nonEmpty
 end
 
-local function GetRollingWorldPose(progress, laneRatio, directionSign)
-  local trackPosition = NormalizeTrackProgress(progress)
-  local function PointAt(atProgress)
-    return ac.trackCoordinateToWorld(vec3(laneRatio, 0.1, NormalizeTrackProgress(atProgress)))
-  end
-
-  local position = PointAt(trackPosition)
-  local behind = PointAt(trackPosition - 0.0005)
-  local ahead = PointAt(trackPosition + 0.0005)
-  if not position or not behind or not ahead then return nil end
-
-  local direction = ahead:sub(behind)
-  if direction:lengthSquared() < 0.000001 then return nil end
-  direction:normalize()
-  if directionSign and directionSign < 0 then
-    direction:scale(-1)
-  end
-
-  return position, direction
+-- Linear catch-up multiplier from the reference app: 1.0 at minDist, up to maxMult at maxDist.
+local function GetLinearMultiplier(dist, minDist, maxDist, maxMult)
+  maxMult = maxMult or ROLLING_START_CATCHUP_LIMIT
+  if dist <= minDist then return 1.0 end
+  if dist >= maxDist then return maxMult end
+  return 1.0 + ((dist - minDist) / (maxDist - minDist)) * (maxMult - 1.0)
 end
 
--- Returns +1 when the track's positive lateral (x) coordinate points to the driver's left and
--- -1 when it points right, so the staged grid can be assigned left/right lanes deterministically.
-local function RollingLeftLaneSign(progress)
-  if not ac.trackCoordinateToWorld then return 1 end
-
-  local trackPosition = NormalizeTrackProgress(progress)
-  local plusX = ac.trackCoordinateToWorld(vec3(0.2, 0.1, trackPosition))
-  local minusX = ac.trackCoordinateToWorld(vec3(-0.2, 0.1, trackPosition))
-  local _, forward = GetRollingWorldPose(progress, 0.0)
-  if not plusX or not minusX or not forward then return 1 end
-
-  -- Clone before mutating: vectors returned by CSP APIs are read-only.
-  local lateral = plusX:clone()
-  lateral:sub(minusX)
-  if lateral:lengthSquared() < 0.000001 then return 1 end
-  lateral:normalize()
-
-  -- Horizontal "right" reference for the racing direction (y is up in Assetto Corsa).
-  local right = vec3(forward.z, 0.0, -forward.x)
-  if right:lengthSquared() < 0.000001 then return 1 end
-  right:normalize()
-
-  return lateral:dot(right) < 0 and 1 or -1
+-- Odd class positions take the left lane, even take the right.
+local function GetRollingLaneOffset(classPosition)
+  local isOdd = ((classPosition or 1) % 2 == 1)
+  return isOdd and -ROLLING_START_LANE_METERS or ROLLING_START_LANE_METERS
 end
 
--- Pace profile shared by every car: 30 km/h building to 80 km/h over the ramp, then held at 80.
--- The whole formation is locked to this single reference.
-local function RollingStartPaceSpeedKmh(elapsed)
-  if elapsed <= 0 then return 0.0 end
-  if elapsed < ROLLING_START_PACE_RAMP_SECONDS then
-    return ROLLING_START_PACE_START_KMH +
-        (ROLLING_START_SPEED_KMH - ROLLING_START_PACE_START_KMH) * (elapsed / ROLLING_START_PACE_RAMP_SECONDS)
-  end
-  return ROLLING_START_SPEED_KMH
+-- Gentle side-to-side wave once the race is under way, so the two columns are not perfectly rigid.
+local function GetOrganicLaneOffset(carIndex)
+  if not rollingStartRaceHasStarted then return 0.0 end
+
+  local time = rollingStartSessionTime
+  local wave1 = math.sin(time * 0.25 + carIndex * 1.7) * 0.40
+  local wave2 = math.cos(time * 0.40 - carIndex * 2.3) * 0.10
+  return wave1 + wave2
 end
 
--- Follower model. The front row paces on the shared clock; every other car tracks the car one row
--- ahead in its own column and adds a proportional correction so it actively closes back to its
--- intended spacing. The cap is high so a strung-out car is never limited while catching up.
-local function RollingFormationTargetSpeed(state, paceSpeedKmh, trackLength)
+-- Time-based release: a car goes when the shared release timer reaches its class start plus its
+-- own row. Row 0 of the first class has threshold 0, so the overall leader always gets the field
+-- moving (which then starts the timer via the "field is moving" check).
+local function IsRollingCarReleased(state)
+  local group = rollingStartGroups[state.groupIndex]
+  if not group then return true end
+  local threshold = (group.classStartTime or 0.0) + (state.row or 0) * ROLLING_START_ROW_SECONDS
+  return rollingStartReleaseTimer >= threshold
+end
+
+-- Phase-two (double file) spacing, ported from the reference app but using class-relative
+-- positions: the class leader waits for its P2, P2 tucks in behind its P1, and every other car
+-- blends a "column" target (the car two rows ahead) with a "row partner" target. Returns the
+-- commanded top speed and a throttle limit.
+local function ApplyRollingPhaseTwoSpacing(state, group, trackLength)
   local car = getCar(state.carIndex)
-  if not car or type(car.splinePosition) ~= "number" or not IsFinite(trackLength) or trackLength <= 0 then
-    return paceSpeedKmh
+  local startPos = state.lockedPhase2Position or state.classPosition
+  local targetSpeed = ROLLING_START_SPEED_KMH
+  local throttleLimit = 1.0
+  if not car or type(startPos) ~= "number" then return targetSpeed, throttleLimit end
+
+  local map = group and group.positionToCar or {}
+
+  if startPos == 1 then
+    local p2Index = map[2]
+    if p2Index then
+      local p2Car = getCar(p2Index)
+      if p2Car then
+        local isP2Ahead = (p2Car.splinePosition > car.splinePosition)
+        if isP2Ahead then
+          local longDist = (p2Car.splinePosition - car.splinePosition) * trackLength
+          targetSpeed = ROLLING_START_SPEED_KMH * GetLinearMultiplier(longDist, 0.0, 10.0)
+        end
+      end
+    end
+
+  elseif startPos == 2 then
+    local p1Index = map[1]
+    if p1Index then
+      local p1Car = getCar(p1Index)
+      if p1Car then
+        local longDist = (p1Car.splinePosition - car.splinePosition) * trackLength
+        local isP1Ahead = (p1Car.splinePosition > car.splinePosition)
+        if isP1Ahead then
+          if longDist > 1.0 then
+            targetSpeed = ROLLING_START_SPEED_KMH * GetLinearMultiplier(longDist, 1.0, 10.0)
+          else
+            local ratio = 0.85 + (longDist / 1.0) * 0.15
+            targetSpeed = ROLLING_START_SPEED_KMH * ratio
+            throttleLimit = ratio
+          end
+        else
+          local leadError = math.abs(longDist)
+          targetSpeed = math.max(ROLLING_START_SPEED_KMH * 0.80, ROLLING_START_SPEED_KMH - leadError * 4.0)
+          throttleLimit = math.max(0.70, 1.0 - (leadError / 5.0))
+        end
+      end
+    end
+
+  else
+    local targetSpeedCol = ROLLING_START_SPEED_KMH
+    local throttleCol = 1.0
+    local splineDist = 0.0
+
+    local aheadIndex = map[startPos - 2]
+    if aheadIndex then
+      local aheadCar = getCar(aheadIndex)
+      if aheadCar then
+        local isAheadCarInFront = (aheadCar.splinePosition > car.splinePosition)
+        if isAheadCarInFront then
+          splineDist = (aheadCar.splinePosition - car.splinePosition) * trackLength
+          if splineDist > 8.0 then
+            local gapError = splineDist - 8.0
+            targetSpeedCol = ROLLING_START_SPEED_KMH * GetLinearMultiplier(gapError, 0.0, 14.0)
+          elseif splineDist > 1.5 then
+            local ratio = 0.50 + ((splineDist - 1.5) / 6.5) * 0.50
+            targetSpeedCol = ROLLING_START_SPEED_KMH * ratio
+            throttleCol = ratio
+          else
+            targetSpeedCol = 0.0
+            throttleCol = 0.0
+          end
+        else
+          local leadError = (car.splinePosition - aheadCar.splinePosition) * trackLength
+          targetSpeedCol = math.max(ROLLING_START_SPEED_KMH * 0.80, ROLLING_START_SPEED_KMH - leadError * 4.0)
+          throttleCol = math.max(0.70, 1.0 - (leadError / 5.0))
+        end
+      end
+    end
+
+    local targetSpeedRow = ROLLING_START_SPEED_KMH
+    local throttleRow = 1.0
+
+    local isEven = (startPos % 2 == 0)
+    if isEven then
+      local partnerIndex = map[startPos - 1]
+      if partnerIndex then
+        local partnerCar = getCar(partnerIndex)
+        if partnerCar then
+          local isPartnerAhead = (partnerCar.splinePosition > car.splinePosition)
+          local longDistRow = (partnerCar.splinePosition - car.splinePosition) * trackLength
+          if isPartnerAhead then
+            if longDistRow > 1.0 then
+              targetSpeedRow = ROLLING_START_SPEED_KMH * GetLinearMultiplier(longDistRow - 1.0, 0.0, 10.0)
+            else
+              local ratio = 0.85 + (longDistRow / 1.0) * 0.15
+              targetSpeedRow = ROLLING_START_SPEED_KMH * ratio
+              throttleRow = ratio
+            end
+          else
+            local leadError = math.abs(longDistRow)
+            targetSpeedRow = math.max(ROLLING_START_SPEED_KMH * 0.80, ROLLING_START_SPEED_KMH - leadError * 4.0)
+            throttleLimit = math.max(0.70, 1.0 - (leadError / 5.0))
+          end
+        end
+      end
+    else
+      local partnerIndex = map[startPos + 1]
+      if partnerIndex then
+        local partnerCar = getCar(partnerIndex)
+        if partnerCar then
+          local isPartnerBehind = (car.splinePosition > partnerCar.splinePosition)
+          local longDistRow = (car.splinePosition - partnerCar.splinePosition) * trackLength
+          if isPartnerBehind then
+            if longDistRow > 2.0 then
+              targetSpeedRow = ROLLING_START_SPEED_KMH * 0.85
+              throttleRow = 0.70
+            end
+          else
+            targetSpeedRow = ROLLING_START_SPEED_KMH * GetLinearMultiplier(math.abs(longDistRow), 0.0, 10.0)
+          end
+        end
+      end
+    end
+
+    local blendFactor = math.min(1.0, math.max(0.0, (splineDist - 8.0) / 6.0))
+    local parallelSpeed = math.min(targetSpeedCol, targetSpeedRow)
+    local parallelThrottle = math.min(throttleCol, throttleRow)
+
+    targetSpeed = parallelSpeed + (targetSpeedCol - parallelSpeed) * blendFactor
+    throttleLimit = parallelThrottle + (throttleCol - parallelThrottle) * blendFactor
   end
 
-  if not state.aheadCarIndex then
-    return paceSpeedKmh
-  end
-
-  local aheadCar = getCar(state.aheadCarIndex)
-  if not aheadCar or type(aheadCar.splinePosition) ~= "number" then
-    return paceSpeedKmh
-  end
-
-  -- Longitudinal gap to the car ahead in the same column, as a signed shortest distance in metres.
-  local delta = NormalizeTrackProgress(
-      NormalizeTrackProgress(aheadCar.splinePosition) - NormalizeTrackProgress(car.splinePosition))
-  if delta > 0.5 then delta = delta - 1.0 end
-  local gapM = delta * trackLength
-
-  local targetGapM = state.followGapM or ROLLING_START_ROW_SPACING_M
-  local errorM = gapM - targetGapM
-
-  -- Feed-forward the car ahead's real speed so an equal-speed gap is held, then add a proportional
-  -- position correction and a damping term on the closing speed. There is no low speed cap, so a car
-  -- behind always catches up; the damping makes it settle on the target instead of overshooting.
-  local selfSpeed = type(car.speedKmh) == "number" and car.speedKmh or paceSpeedKmh
-  local aheadSpeed = type(aheadCar.speedKmh) == "number" and aheadCar.speedKmh or paceSpeedKmh
-  if math.abs(errorM) <= ROLLING_START_FOLLOW_DEADBAND_M then
-    return math.max(0.0, aheadSpeed - (selfSpeed - aheadSpeed) * ROLLING_START_FOLLOW_DAMPING)
-  end
-
-  local target_speed = aheadSpeed +
-      errorM * ROLLING_START_FOLLOW_GAIN_KMH_PER_M -
-      (selfSpeed - aheadSpeed) * ROLLING_START_FOLLOW_DAMPING
-  return math.max(0.0, math.min(ROLLING_START_FOLLOW_MAX_KMH, target_speed))
+  return targetSpeed, throttleLimit
 end
 
-local function SetRollingFormationHold(carIndex, laneMeters)
-  if carIndex == 0 then
-    physics.setCarAutopilot(true, false)
-  end
+local function HoldRollingCar(carIndex)
+  if carIndex == 0 then return end
 
   setAITopSpeed(carIndex, 0.0)
-  setAIThrottleLimit(carIndex, ROLLING_START_THROTTLE_MAX)
-  setAICaution(carIndex, 4.0)
-  physics.setAIStopCounter(carIndex, ROLLING_START_HELD_SECONDS)
-  SetRollingLaneOffset(carIndex, laneMeters)
+  setAIThrottleLimit(carIndex, 0.0)
+  setAICaution(carIndex, 1.0)
+  physics.setAIStopCounter(carIndex, ROLLING_START_STOP_COUNTER_HELD)
+  SetRollingPitBlock(carIndex, true)
+  SetRollingLaneOffset(carIndex, 0.0)
+end
+
+local function ReleaseRollingCar(carIndex)
+  local state = rollingStartCars[carIndex]
+  if not state or state.released then return end
+
+  state.released = true
+  state.releasedAt = rollingStartSessionTime
+  if carIndex == 0 then return end
+
+  physics.setAIStopCounter(carIndex, 0.0)
+  SetRollingPitBlock(carIndex, false)
+  Log(sFormat("ROLLING: released car %d (queue %d)", carIndex, state.queueIndex or -1))
 end
 
 local function IsFieldStillAtStartingGrid(sim)
@@ -1915,10 +1994,8 @@ local function PrepareRollingStart(sim)
   if rollingStartState ~= "idle" or not IsRaceMode(sim) then return end
 
   if driverCount <= 0 or
-      not ac.hasTrackSpline or not ac.hasTrackSpline() or
-      not ac.trackCoordinateToWorld or not ac.worldCoordinateToTrack or
-      not physics.setAICarPosition or not physics.setCarPosition then
-    MarkRollingStartUnavailable("Track or CSP positioning APIs are unavailable.")
+      not ac.hasTrackSpline or not ac.hasTrackSpline() then
+    MarkRollingStartUnavailable("Track spline or car data is unavailable.")
     return
   end
 
@@ -1945,417 +2022,251 @@ local function PrepareRollingStart(sim)
     return
   end
 
-  if type(physics.setAISplineAbsoluteOffset) ~= "function" then
-    Log("ROLLING: WARNING physics.setAISplineAbsoluteOffset is unavailable; the two-wide lane offset cannot be applied.")
-  end
-
-  local leftLaneSign = RollingLeftLaneSign(ROLLING_START_PROGRESS)
-  local plans = {}
-  local distanceFromFront = 0
+  -- Flat front-to-back release order derived from the class ordering (grid position 1 first). The
+  -- field is NOT moved: cars launch from AC's real grid as the queue releases them.
+  local queue = {}
   for groupIndex, group in ipairs(groups) do
     group.index = groupIndex
-    group.startDistanceM = distanceFromFront
-
-    for slot, carIndex in ipairs(group.cars) do
-      local row = math.floor((slot - 1) / 2)
-      local distance = distanceFromFront + row * ROLLING_START_ROW_SPACING_M
-      local progress = ROLLING_START_PROGRESS - distance / trackLength
-
-      if progress <= 0.01 then
-        MarkRollingStartUnavailable("The field does not fit in the half-track staging area.")
-        return
-      end
-
-      local car = getCar(carIndex)
-      if not car then
-        MarkRollingStartUnavailable("Car data was unavailable while staging the field.")
-        return
-      end
-
-      -- Read the magnitude of each car's lateral grid coordinate to size the lane, then assign the
-      -- left/right side deterministically from its slot. This keeps the field two-wide in the same
-      -- lane order on any track, even where the AI racing line hugs one edge.
-      local originalTrackPosition = ac.worldCoordinateToTrack(car.position)
-      if not originalTrackPosition or not IsFinite(originalTrackPosition.x) then
-        MarkRollingStartUnavailable("Could not read a car's lateral grid position.")
-        return
-      end
-
-      -- Force an alternating two-by-two layout (1st left, 2nd right, 3rd left, 4th right, ...)
-      -- using the grid's lateral magnitude but a deterministic side so the field stays double file.
-      local magnitude = math.abs(originalTrackPosition.x)
-      if magnitude < 0.05 or magnitude > ROLLING_START_LANE_RATIO_MAX then
-        magnitude = ROLLING_START_LANE_RATIO_DEFAULT
-      end
-      magnitude = math.max(ROLLING_START_LANE_RATIO_MIN, magnitude)
-      local laneRatio = ((slot % 2 == 1) and leftLaneSign or -leftLaneSign) * magnitude
-
-      -- Store the raw spline tangent here. Some AI splines run opposite to the car's forward
-      -- vector, but a car's heading is unreliable while AC is still loading the race. The correct
-      -- forward sign is chosen at apply time from each car's real grid heading instead.
-      local position, direction = GetRollingWorldPose(progress, laneRatio)
-      if not position or not direction then
-        MarkRollingStartUnavailable("Could not map a staged car onto the track.")
-        return
-      end
-
-      local originalAIControlled = nil
-      if carIndex == 0 then
-        originalAIControlled = car.isAIControlled == true
-      end
-
-      local laneMeters = ((slot % 2 == 1) and leftLaneSign or -leftLaneSign) * ROLLING_START_LANE_METERS
-
-      plans[#plans + 1] = {
-        carIndex = carIndex,
-        groupIndex = groupIndex,
-        slot = slot,
-        progress = NormalizeTrackProgress(progress),
-        laneOffset = laneRatio,
-        laneMeters = laneMeters,
-        appliedOffset = laneMeters,
-        position = position,
-        direction = direction,
-        originalPosition = car.position:clone(),
-        originalDirection = car.look:clone(),
-        originalAIControlled = originalAIControlled,
-        released = false,
-        green = false,
-        commandedSpeed = 0.0,
-        startProgress = NormalizeTrackProgress(progress),
-        lastProgress = NormalizeTrackProgress(progress),
-      }
+    for _, carIndex in ipairs(group.cars) do
+      queue[#queue + 1] = { carIndex = carIndex, groupIndex = groupIndex }
     end
-
-    distanceFromFront = distanceFromFront + math.ceil(#group.cars / 2) * ROLLING_START_ROW_SPACING_M
-    if groupIndex < #groups then
-      distanceFromFront = distanceFromFront + ROLLING_START_CLASS_SPACING_M
-    end
-  end
-
-  -- Link every car to the nearest car ahead in the SAME physical lane (walking front-to-back and
-  -- remembering the last plan seen in each lane) and remember the intended gap. Linking by lane
-  -- instead of a fixed "two slots back" handles classes with an odd car count, where the columns
-  -- shift and a fixed offset would point at the wrong car.
-  local lastInLane = {}
-  for _, plan in ipairs(plans) do
-    local laneKey = (plan.laneMeters or 0) >= 0 and 1 or -1
-    local aheadPlan = lastInLane[laneKey]
-    if aheadPlan then
-      plan.aheadCarIndex = aheadPlan.carIndex
-      local delta = NormalizeTrackProgress(aheadPlan.startProgress - plan.startProgress)
-      if delta > 0.5 then delta = delta - 1.0 end
-      plan.followGapM = delta * trackLength
-      plan.aheadIsClassLeadBoundary = aheadPlan.groupIndex ~= plan.groupIndex
-    end
-    plan.isClassLead = plan.slot == 1 and plan.groupIndex > 1
-    lastInLane[laneKey] = plan
   end
 
   rollingStartGroups = groups
   rollingStartCars = {}
-  for _, plan in ipairs(plans) do
-    rollingStartCars[plan.carIndex] = plan
+  rollingStartQueue = {}
+
+  -- Per-car rolling state. Positions are class-relative so each class forms its own single-file
+  -- then double-file grid; lane parity follows the class position. The player is included so the
+  -- AI queue behind them, but is never controlled.
+  for groupIndex, group in ipairs(groups) do
+    group.rows = math.max(1, math.ceil(#group.cars / 2))
+    for classPosition, carIndex in ipairs(group.cars) do
+      rollingStartCars[carIndex] = {
+        carIndex = carIndex,
+        groupIndex = groupIndex,
+        classKey = group.classKey,
+        classPosition = classPosition,
+        row = math.floor((classPosition - 1) / 2),
+        laneSide = (classPosition % 2 == 1) and -1 or 1,
+        gridPosition = rollingStartGridPositions[carIndex] or (carIndex + 1),
+        released = false,
+        hasRolledOver = false,
+        enteredPhase2 = false,
+        lockedPhase2Position = nil,
+        currentSplineOffset = 0.0,
+        green = false,
+        wrapCount = 0,
+        lastProgress = nil,
+      }
+    end
   end
 
-  local ok, err = pcall(function()
-    for _, plan in ipairs(plans) do
-      -- AC can still respawn the field after loading the race. Hold the planned formation
-      -- now, but defer teleporting until the active race has completed that spawn transition.
-      SetRollingFormationHold(plan.carIndex, plan.laneMeters)
+  for queueIndex, entry in ipairs(queue) do
+    rollingStartQueue[queueIndex] = entry.carIndex
+    local state = rollingStartCars[entry.carIndex]
+    local car = getCar(entry.carIndex)
+    if state then
+      state.queueIndex = queueIndex
+      state.lastProgress = car and car.splinePosition or nil
     end
-  end)
+  end
 
-  if not ok then
-    MarkRollingStartUnavailable("Could not safely hold the field: " .. tostring(err), true)
-    return
+  -- Cumulative class release schedule: each class starts CLASS_GAP seconds after the previous
+  -- class's final row, so the gap between the tail of one and the head of the next is fixed.
+  local startTime = 0.0
+  for _, group in ipairs(groups) do
+    group.classStartTime = startTime
+    startTime = startTime + group.rows * ROLLING_START_ROW_SECONDS + ROLLING_START_CLASS_GAP_SECONDS
+    group.green = false
+    group.complete = false
+    group.windowCloseTimer = 0
   end
 
   rollingStartState = "staged"
   rollingStartStatus = "ROLLING START READY"
   rollingStartSessionKey = GetCurrentSessionKey(sim)
-  rollingStartNextGroup = 1
-  rollingStartPaceStart = nil
-  rollingStartPositionsApplied = false
-  rollingStartPitWaitLogged = false
-  rollingStartPositionsAppliedAt = nil
-  rollingStartPositionAttempts = 0
-  rollingStartPositionStableFrames = 0
-  rollingStartLastLaneAt = nil
+  rollingStartLastFrame = nil
   rollingStartDiagFrame = 0
-  Log(sFormat(
-    "ROLLING: prepared %d cars in %d classes for %.0f%% track progress, lapOffset=%d; waiting for AC spawn.",
-    #plans, #groups, ROLLING_START_PROGRESS * 100, liveRollingStartLapOffset))
+  Log(sFormat("ROLLING: prepared %d cars in %d classes (reference-style, no teleport); lapOffset=%d",
+      #queue, #groups, liveRollingStartLapOffset))
 end
 
-local function ApplyRollingStartPositions()
-  local snapshots = {}
-  local flipped = 0
-  local flipSign = 1
-  local negativeVotes, positiveVotes = 0, 0
-  local ok, err = pcall(function()
-    -- Snapshot AC's final spawn positions before moving anything, so a partial failure can
-    -- restore the whole field to the actual race grid rather than the earlier loading state.
-    for _, group in ipairs(rollingStartGroups) do
-      for _, carIndex in ipairs(group.cars) do
-        local state = rollingStartCars[carIndex]
-        local car = getCar(carIndex)
-        if not state or not car then
-          error("Car data was unavailable after AC spawned the race.")
-        end
-
-        local snapshot = {
-          position = car.position:clone(),
-          direction = car.look:clone(),
-        }
-        snapshots[carIndex] = snapshot
-        state.originalPosition = snapshot.position
-        state.originalDirection = snapshot.direction
-      end
-    end
-
-    -- Decide the spline's forward sign ONCE for the whole field by majority vote of every car's
-    -- spawn heading against the raw tangent. AC has already placed each car facing the right way,
-    -- so one unreliable heading (e.g. the player car while the grid is still settling) can no
-    -- longer flip just that car the wrong way.
-    negativeVotes, positiveVotes = 0, 0
-    local frontVote = nil
-    for _, group in ipairs(rollingStartGroups) do
-      for _, carIndex in ipairs(group.cars) do
-        local state = rollingStartCars[carIndex]
-        local snapshot = snapshots[carIndex]
-        if state and snapshot and snapshot.direction then
-          local _, rawTangent = GetRollingWorldPose(state.progress, state.laneOffset)
-          if rawTangent then
-            local d = rawTangent:dot(snapshot.direction)
-            if d < 0 then
-              negativeVotes = negativeVotes + 1
-            else
-              positiveVotes = positiveVotes + 1
-            end
-            if frontVote == nil then frontVote = d < 0 and -1 or 1 end
-          end
-        end
-      end
-    end
-
-    flipSign = 1
-    if negativeVotes > positiveVotes then
-      flipSign = -1
-    elseif negativeVotes == positiveVotes and frontVote ~= nil then
-      flipSign = frontVote
-    end
-
-    for _, group in ipairs(rollingStartGroups) do
-      for _, carIndex in ipairs(group.cars) do
-        local state = rollingStartCars[carIndex]
-
-        local _, tangent = GetRollingWorldPose(state.progress, state.laneOffset)
-        if tangent then
-          if flipSign < 0 then
-            tangent:scale(-1)
-            flipped = flipped + 1
-          end
-          state.direction = tangent
-        end
-
-        if carIndex == 0 then
-          physics.setCarPosition(carIndex, state.position, state.direction)
-        else
-          physics.setAICarPosition(carIndex, state.position, state.direction)
-        end
-        SetRollingFormationHold(carIndex, state.laneMeters)
-      end
-    end
-  end)
-
-  if not ok then
-    for carIndex, snapshot in pairs(snapshots) do
-      pcall(function()
-        if carIndex == 0 then
-          physics.setCarPosition(carIndex, snapshot.position, snapshot.direction)
-        else
-          physics.setAICarPosition(carIndex, snapshot.position, snapshot.direction)
-        end
-      end)
-    end
-    return false, tostring(err)
-  end
-
-  for _, state in pairs(rollingStartCars) do
-    state.startProgress = state.progress
-    state.lastProgress = state.progress
-    state.released = false
-    state.green = false
-    state.releasedAt = nil
-  end
-
-  Log(sFormat(
-    "ROLLING: positioned the field facing the correct way; flipSign=%d votes neg=%d pos=%d flipped=%d cars.",
-    flipSign, negativeVotes, positiveVotes, flipped))
-  return true, nil
-end
-
-local function IsRollingStartFieldReady(trackLength)
-  for _, group in ipairs(rollingStartGroups) do
-    for _, carIndex in ipairs(group.cars) do
-      local car = getCar(carIndex)
-      local state = rollingStartCars[carIndex]
-      if not car or not state then
-        return false, carIndex, "car data unavailable"
-      end
-      if car.isInPit == true then
-        return false, carIndex, "still in the pits"
-      end
-      if car.isInPitlane == true then
-        return false, carIndex, "still in the pit lane"
-      end
-      if type(car.splinePosition) ~= "number" then
-        return false, carIndex, "track progress unavailable"
-      end
-
-      local progressDelta = NormalizeTrackProgress(car.splinePosition - state.progress)
-      local distanceToPlan = math.min(progressDelta, 1.0 - progressDelta) * trackLength
-      if distanceToPlan > ROLLING_START_POSITION_TOLERANCE_M then
-        return false, carIndex, sFormat("%.0f m from its planned position", distanceToPlan)
-      end
-    end
-  end
-
-  return true, nil
-end
-
-local function IsRollingStartPositionWindow(sim, session)
-  if sim.isSessionStarted == true then return false end
-
-  local timeLeft = sim.sessionTimeLeft
-  if IsFinite(timeLeft) and timeLeft >= 0 and timeLeft <= ROLLING_START_POSITION_WINDOW_MS then
-    return true
-  end
-
-  if session and IsFinite(session.startTime) and IsFinite(sim.time) then
-    local timeUntilStart = session.startTime - sim.time
-    return timeUntilStart >= 0 and timeUntilStart <= ROLLING_START_POSITION_WINDOW_MS
-  end
-
-  return false
-end
-
--- Starts the whole field at once: every class is released on the same clock and then tracked
--- against its own staged slot, so the pre-start double-file order and spacing are preserved.
+-- Formation begins when AC green-lights the race. Every AI car is held on the grid; the row-0
+-- leader of each class is released immediately (threshold 0) and the rest follow on the timer.
 local function BeginRollingStart(now)
-  rollingStartPaceStart = now
-  rollingStartNextGroup = #rollingStartGroups + 1
+  rollingStartRaceHasStarted = false
+  rollingStartReleaseTimer = 0.0
+  rollingStartSessionTime = 0.0
+  rollingStartLastFrame = now
 
-  for carIndex, state in pairs(rollingStartCars) do
-    state.released = true
-    state.releasedAt = now
-    local car = getCar(carIndex)
-    state.lastProgress = car and car.splinePosition or state.progress
-    setAITopSpeed(carIndex, 0.0)
-    setAIThrottleLimit(carIndex, ROLLING_START_THROTTLE_INITIAL)
-    setAICaution(carIndex, 4.0)
-    physics.setAIStopCounter(carIndex, 0.0)
+  for _, carIndex in ipairs(rollingStartQueue) do
+    local state = rollingStartCars[carIndex]
+    if state and carIndex ~= 0 then
+      local car = getCar(carIndex)
+      state.lastProgress = car and car.splinePosition or state.lastProgress
+      HoldRollingCar(carIndex)
+    end
   end
 
-  Log(sFormat("ROLLING: rolling phase beginning; %d classes moving as one formation.",
-      #rollingStartGroups))
+  Log(sFormat("ROLLING: formation beginning; %d cars in %d classes.", #rollingStartQueue, #rollingStartGroups))
 end
 
-local function MaintainRollingFormation(now, trackLength)
-  local elapsed = now - (rollingStartPaceStart or now)
-  local paceSpeedKmh = RollingStartPaceSpeedKmh(elapsed)
-  local throttleRamp = math.min(1.0, math.max(0.0, elapsed / ROLLING_THROTTLE_RAMP_SECONDS))
-  local throttleLimit = ROLLING_START_THROTTLE_INITIAL +
-      (ROLLING_START_THROTTLE_MAX - ROLLING_START_THROTTLE_INITIAL) * throttleRamp
+local function MaintainRollingFormation(dt, trackLength)
+  rollingStartSessionTime = rollingStartSessionTime + dt
 
-  local dt = now - (rollingStartLastLaneAt or now)
-  if dt < 0 then dt = 0 end
-  if dt > 0.25 then dt = 0.25 end
-  rollingStartLastLaneAt = now
-  local maxLaneMove = ROLLING_START_LANE_RAMP_MPS * dt
-
-  for carIndex, state in pairs(rollingStartCars) do
-    -- Hold each column at its lane until that car gets green, then ease it back onto the racing
-    -- line at a fixed rate so the field stays two-wide right through the start line.
-    local targetOffset = state.green and 0.0 or (state.laneMeters or 0.0)
-    local applied = state.appliedOffset or (state.laneMeters or 0.0)
-    local diff = targetOffset - applied
-    if math.abs(diff) <= maxLaneMove then
-      applied = targetOffset
-    else
-      applied = applied + (diff > 0 and maxLaneMove or -maxLaneMove)
+  -- The release clock only starts once the field is actually moving. Until then each class's row-0
+  -- leader is already released (threshold 0), so the overall leader always gets things going.
+  if rollingStartSessionTime > 0.5 and not rollingStartRaceHasStarted then
+    for carIndex = 0, driverCount - 1 do
+      local car = getCar(carIndex)
+      if car and (car.speedKmh or 0) > 2.0 then
+        rollingStartRaceHasStarted = true
+        break
+      end
     end
-    state.appliedOffset = applied
-    SetRollingLaneOffset(carIndex, applied)
+  end
 
-    if not state.green then
-      if carIndex == 0 then
-        physics.setCarAutopilot(true, false)
+  if rollingStartRaceHasStarted then
+    rollingStartReleaseTimer = rollingStartReleaseTimer + dt
+  end
+
+  local maxLaneMove = ROLLING_START_LANE_RAMP_MPS * dt
+  local greenLaneMove = ROLLING_START_GREEN_OFFSET_RAMP_MPS * dt
+
+  -- Class-relative locked-position maps used by the phase-two (double file) spacing.
+  for _, group in ipairs(rollingStartGroups or {}) do
+    local map = {}
+    for _, carIndex in ipairs(group.cars) do
+      local state = rollingStartCars[carIndex]
+      if state and state.enteredPhase2 then
+        local pos = state.lockedPhase2Position or state.classPosition
+        if pos and not map[pos] then map[pos] = carIndex end
       end
+    end
+    group.positionToCar = map
+  end
 
-      local topSpeed = 0.0
-      if state.released then
-        local desired = RollingFormationTargetSpeed(state, paceSpeedKmh, trackLength)
-        -- Rate-limit the commanded speed so the follower controller cannot spike on launch.
-        local commanded = state.commandedSpeed or 0.0
-        local maxChange = ROLLING_START_FOLLOW_ACCEL_KMH_PER_S * dt
-        if desired > commanded + maxChange then
-          commanded = commanded + maxChange
-        elseif desired < commanded - maxChange then
-          commanded = commanded - maxChange
-        else
-          commanded = desired
+  for _, carIndex in ipairs(rollingStartQueue) do
+    local state = rollingStartCars[carIndex]
+    if state then
+      local car = getCar(carIndex)
+      local isAI = (carIndex ~= 0)
+      local group = rollingStartGroups[state.groupIndex]
+
+      if not state.released and IsRollingCarReleased(state) then
+        ReleaseRollingCar(carIndex)
+      end
+      local released = state.released
+
+      if not released then
+        if isAI then
+          setAITopSpeed(carIndex, 0.0)
+          setAIThrottleLimit(carIndex, 0.0)
+          setAICaution(carIndex, 1.0)
+          physics.setAIStopCounter(carIndex, ROLLING_START_STOP_COUNTER_HELD)
         end
-        state.commandedSpeed = commanded
-        topSpeed = commanded
-      end
+      else
+        -- Track the start-line crossing so a car only double-files on its flying lap.
+        if car and type(car.splinePosition) == "number" then
+          if not state.hasRolledOver and car.splinePosition < ROLLING_START_ROLLED_OVER_SPLINE then
+            state.hasRolledOver = true
+          end
 
-      setAITopSpeed(carIndex, topSpeed)
-      setAIThrottleLimit(carIndex, state.released and throttleLimit or ROLLING_START_THROTTLE_MAX)
-      setAICaution(carIndex, 4.0)
-      physics.setAIStopCounter(carIndex, state.released and 0.0 or ROLLING_START_HELD_SECONDS)
-    elseif state.releasing and math.abs(applied) <= 0.01 then
-      -- Lane fully released: hand the car completely back to the AI.
-      SetRollingLaneOffset(carIndex, 0.0)
-      state.releasing = false
+          if state.hasRolledOver and car.splinePosition >= ROLLING_START_FORMATION_POINT
+              and not state.enteredPhase2 then
+            state.enteredPhase2 = true
+            state.phase2At = rollingStartSessionTime
+            local pos = state.classPosition
+            if group then
+              for _, memberIndex in ipairs(group.cars) do
+                local member = rollingStartCars[memberIndex]
+                if member and member ~= state and member.enteredPhase2
+                    and member.lockedPhase2Position == pos then
+                  pos = state.classPosition + 0.5
+                  break
+                end
+              end
+            end
+            state.lockedPhase2Position = pos
+          end
+        end
+
+        if state.green then
+          -- Green transition: ease the lane offset back to the racing line.
+          local applied = state.currentSplineOffset or 0.0
+          if math.abs(applied) > 0.001 then
+            local diff = -applied
+            if math.abs(diff) > greenLaneMove then
+              applied = applied + (diff > 0 and greenLaneMove or -greenLaneMove)
+            else
+              applied = 0.0
+            end
+            state.currentSplineOffset = applied
+            if isAI then SetRollingLaneOffset(carIndex, applied) end
+          end
+        elseif isAI then
+          local targetSpeed, targetOffset, cautionLevel, throttleLimit
+
+          if state.enteredPhase2 then
+            targetSpeed = ROLLING_START_SPEED_KMH
+            cautionLevel = 0.7
+            targetOffset = GetRollingLaneOffset(state.classPosition) + GetOrganicLaneOffset(carIndex)
+            local speed2, throttle2 = ApplyRollingPhaseTwoSpacing(state, group, trackLength)
+            targetSpeed = speed2
+            throttleLimit = throttle2
+          else
+            targetSpeed = ROLLING_START_FORMATION_SPEED_KMH
+            cautionLevel = 2.0
+            targetOffset = 0.0
+            throttleLimit = 1.0
+          end
+
+          local applied = state.currentSplineOffset or 0.0
+          local diff = targetOffset - applied
+          if math.abs(diff) > maxLaneMove then
+            applied = applied + (diff > 0 and maxLaneMove or -maxLaneMove)
+          else
+            applied = targetOffset
+          end
+          state.currentSplineOffset = applied
+
+          setAITopSpeed(carIndex, targetSpeed)
+          setAICaution(carIndex, cautionLevel)
+          setAIThrottleLimit(carIndex, throttleLimit)
+          setAISplineAbsoluteOffset(carIndex, applied, false)
+          physics.setAIStopCounter(carIndex, 0.0)
+        end
+      end
+    end
+  end
+
+  -- Per-class green transition: ramp caution from 0 to 1 over the reference window.
+  for _, group in ipairs(rollingStartGroups or {}) do
+    if group.green and (group.windowCloseTimer or 0) <= ROLLING_START_GREEN_WINDOW_SECONDS + 0.1 then
+      group.windowCloseTimer = (group.windowCloseTimer or 0) + dt
+      local progress = math.min(1.0, group.windowCloseTimer / ROLLING_START_GREEN_WINDOW_SECONDS)
+      for _, memberIndex in ipairs(group.cars) do
+        if memberIndex ~= 0 then
+          setAICaution(memberIndex, progress)
+        end
+      end
     end
   end
 
   -- Periodic diagnostic so the formation can be verified from the log.
   rollingStartDiagFrame = (rollingStartDiagFrame or 0) + 1
   if rollingStartDiagFrame % 30 == 0 then
-    local car = getCar(0)
-    local s = rollingStartCars[0]
-    if car and s then
-      local gapText = "n/a"
-      if s.aheadCarIndex then
-        local aheadCar = getCar(s.aheadCarIndex)
-        if aheadCar and type(aheadCar.splinePosition) == "number" then
-          local d = NormalizeTrackProgress(
-              NormalizeTrackProgress(aheadCar.splinePosition) - NormalizeTrackProgress(car.splinePosition))
-          if d > 0.5 then d = d - 1.0 end
-          gapText = sFormat("%.1fm", d * trackLength)
-        end
-      end
-      Log(sFormat("ROLLING: player p=%.3f v=%.1f km/h gap=%s offset=%.2f m",
-          NormalizeTrackProgress(car.splinePosition), car.speedKmh or -1, gapText, s.appliedOffset or 0))
-    end
-
-    -- Log the live gap from each class leader to the car ahead so the inter-class gap can be
-    -- confirmed against its intended value.
-    for _, classState in pairs(rollingStartCars) do
-      if classState.isClassLead and classState.aheadCarIndex then
-        local leadCar = getCar(classState.carIndex)
-        local aheadCar = getCar(classState.aheadCarIndex)
-        if leadCar and aheadCar and
-            type(leadCar.splinePosition) == "number" and type(aheadCar.splinePosition) == "number" then
-          local d = NormalizeTrackProgress(
-              NormalizeTrackProgress(aheadCar.splinePosition) - NormalizeTrackProgress(leadCar.splinePosition))
-          if d > 0.5 then d = d - 1.0 end
-          Log(sFormat("ROLLING: classgap class=%d car=%d target=%.1fm gap=%.1fm",
-              classState.groupIndex, classState.carIndex, classState.followGapM or -1, d * trackLength))
-        end
+    for _, carIndex in ipairs(rollingStartQueue) do
+      local state = rollingStartCars[carIndex]
+      local car = getCar(carIndex)
+      if state and car then
+        local group = rollingStartGroups and rollingStartGroups[state.groupIndex] or nil
+        Log(sFormat("ROLLING: car %d cls=%s cp=%d p=%.3f v=%.1f phase=%d off=%.2f rel=%s green=%s wrap=%d",
+            carIndex, (group and group.label) or "?", state.classPosition or -1,
+            NormalizeTrackProgress(car.splinePosition), car.speedKmh or -1,
+            state.enteredPhase2 and 2 or 1, state.currentSplineOffset or 0,
+            tostring(state.released), tostring(state.green), state.wrapCount or 0))
       end
     end
   end
@@ -2366,13 +2277,12 @@ local function GiveRollingGreen(carIndex, state, now)
 
   state.green = true
   state.greenAt = now
-  state.releasing = true
-  -- Restore racing controls now, but leave the lane offset to ease out over the next moments so the
-  -- two columns are not snapped onto the racing line the instant a car crosses the line.
-  RestoreAIControl(carIndex, false)
+  -- Hand the AI back its racing controls now; the lane offset eases out over the next moments.
+  if carIndex ~= 0 then
+    RestoreAIControl(carIndex, false)
+  end
   Log(sFormat("ROLLING: car %d green at progress %.3f", carIndex, state.lastProgress or -1))
-  if carIndex == 0 and state.originalAIControlled ~= nil then
-    physics.setCarAutopilot(state.originalAIControlled)
+  if carIndex == 0 then
     rollingStartStatus = "GREEN — GO"
     ui.toast(ui.Icons.Play, "Rolling start: green light")
   end
@@ -2380,16 +2290,14 @@ end
 
 local function UpdateRollingStart(sim)
   if rollingStartState == "idle" then return end
-  -- AC reports the race pre-start screen as the main menu. Keep the staged field latched
-  -- while this race session remains valid; session changes and validity checks handle resets.
   if not IsRaceMode(sim) then
-    RestoreRollingStartControls(false)
+    RestoreRollingStartControls()
     rollingStartState = "idle"
     rollingStartStatus = ""
     return
   end
   if rollingStartSessionKey and GetCurrentSessionKey(sim) ~= rollingStartSessionKey then
-    RestoreRollingStartControls(false)
+    RestoreRollingStartControls()
     rollingStartState = "idle"
     rollingStartStatus = ""
     return
@@ -2397,96 +2305,23 @@ local function UpdateRollingStart(sim)
   if rollingStartState == "unavailable" or rollingStartState == "complete" or rollingStartState == "finished" then return end
 
   local now = type(sim.time) == "number" and sim.time / 1000 or 0
+
   if rollingStartState == "staged" then
-    -- Keep cars held through AC's countdown and apply positions before green. Never move the
-    -- field after the race has started: that creates a visible backwards teleport.
-    MaintainRollingFormation(now, sim.trackLengthM)
-
-    local session = ac.getSession and ac.getSession(sim.currentSessionIndex) or nil
-
-    if not rollingStartPositionsApplied then
-      if IsRollingStartPositionWindow(sim, session) then
-        local applied, applyErr = ApplyRollingStartPositions()
-        if not applied then
-          MarkRollingStartUnavailable(
-            "Could not position the field during AC's pre-start countdown: " .. tostring(applyErr), true)
-          return
-        end
-        rollingStartPositionsApplied = true
-        rollingStartPositionAttempts = 1
-        rollingStartPositionsAppliedAt = now
-        rollingStartPitWaitLogged = false
-        rollingStartPositionStableFrames = 0
-        Log("ROLLING: applied 50% formation during pre-start countdown; verifying before green.")
-      end
-      if not rollingStartPositionsApplied then
-        if sim.isSessionStarted == true then
-          MarkRollingStartUnavailable(
-            "Missed the safe pre-start positioning window; no cars were teleported after green.", false)
-        end
-        return
-      end
-    end
-
-    local trackLength = sim.trackLengthM
-    if not IsFinite(trackLength) or trackLength <= ROLLING_START_GREEN_DISTANCE_M then
-      if sim.isSessionStarted == true then
-        MarkRollingStartUnavailable("Track length unavailable while verifying the pre-start formation.", false)
-      end
-      return
-    end
-
-    local fieldReady, waitingCar, waitReason = IsRollingStartFieldReady(trackLength)
-    if not fieldReady then
-      rollingStartPositionStableFrames = 0
-      if sim.isSessionStarted == true then
-        MarkRollingStartUnavailable(
-          sFormat("Field left the planned 50%% formation at race start (car %d: %s); no late teleport performed.",
-              waitingCar or -1, waitReason or "position mismatch"), false)
-        return
-      end
-
-      if rollingStartPositionAttempts < ROLLING_START_MAX_POSITION_ATTEMPTS and
-          now - (rollingStartPositionsAppliedAt or now) >= ROLLING_START_POSITION_RETRY_SECONDS then
-        local applied, applyErr = ApplyRollingStartPositions()
-        if not applied then
-          MarkRollingStartUnavailable(
-            "Could not restore the pre-start formation after AC adjusted the grid: " .. tostring(applyErr), true)
-          return
-        end
-        rollingStartPositionAttempts = rollingStartPositionAttempts + 1
-        rollingStartPositionsAppliedAt = now
-        rollingStartPitWaitLogged = false
-        rollingStartPositionStableFrames = 0
-        Log(sFormat("ROLLING: AC changed the field before green; reapplied formation (attempt %d/%d).",
-            rollingStartPositionAttempts, ROLLING_START_MAX_POSITION_ATTEMPTS))
-        return
-      end
-
-      if not rollingStartPitWaitLogged then
-        rollingStartPitWaitLogged = true
-        Log(sFormat("ROLLING: holding brakes before green; car %d is %s after %d positioning attempts.",
-            waitingCar or -1, waitReason or "not in formation", rollingStartPositionAttempts))
-      end
-      return
-    end
-
-    rollingStartPositionStableFrames = rollingStartPositionStableFrames + 1
-    if rollingStartPositionStableFrames == ROLLING_START_POSITION_STABLE_FRAMES then
-      Log("ROLLING: every car verified at its planned 50% track position before green.")
-    end
-    if rollingStartPositionStableFrames < ROLLING_START_POSITION_STABLE_FRAMES then
-      return
-    end
-    rollingStartPitWaitLogged = false
-
+    -- Cars stay on AC's real grid until the race actually starts. Nothing is teleported.
     if sim.isSessionStarted ~= true then return end
 
+    local startTrackLength = sim.trackLengthM
+    if not IsFinite(startTrackLength) or startTrackLength <= ROLLING_START_MIN_TRACK_LENGTH_M then
+      MarkRollingStartUnavailable("Track length became unavailable at race start.")
+      return
+    end
+
     rollingStartState = "rolling"
-    rollingStartStatus = "ROLLING — HOLD 80 km/h"
+    rollingStartStatus = "SINGLE FILE — FORMATION"
+    BeginRollingStart(now)
     Log("ROLLING: race start detected; formation beginning.")
   elseif rollingStartState == "rolling" and sim.isSessionStarted ~= true then
-    RestoreRollingStartControls(false)
+    RestoreRollingStartControls()
     rollingStartState = "finished"
     rollingStartStatus = ""
     Log("ROLLING: session ended before every car received green; controls restored.")
@@ -2496,80 +2331,79 @@ local function UpdateRollingStart(sim)
   if rollingStartState ~= "rolling" then return end
 
   local trackLength = sim.trackLengthM
-  if not IsFinite(trackLength) or trackLength <= ROLLING_START_GREEN_DISTANCE_M then
+  if not IsFinite(trackLength) or trackLength <= ROLLING_START_MIN_TRACK_LENGTH_M then
     MarkRollingStartUnavailable("Track length became unavailable during formation.")
     return
   end
 
-  if not rollingStartPaceStart then
-    BeginRollingStart(now)
-  end
+  local dt = now - (rollingStartLastFrame or now)
+  if dt < 0 then dt = 0 end
+  if dt > 0.25 then dt = 0.25 end
+  rollingStartLastFrame = now
 
-  MaintainRollingFormation(now, trackLength)
+  MaintainRollingFormation(dt, trackLength)
 
-  local allGreen = true
-  for carIndex, state in pairs(rollingStartCars) do
-    if state.released and not state.green then
+  -- Detect each car's line crossings. The first crossing (just off the grid) merely starts the
+  -- formation lap; the second, after a full lap, is the real race start. A whole class goes green
+  -- the moment its first car makes that second crossing (per-class green).
+  for _, carIndex in ipairs(rollingStartQueue) do
+    local state = rollingStartCars[carIndex]
+    if state and not state.green then
       local car = getCar(carIndex)
-      if car and type(car.splinePosition) == "number" then
+      if car and type(car.splinePosition) == "number" and type(state.lastProgress) == "number" then
         local progress = NormalizeTrackProgress(car.splinePosition)
-
-        -- Hold the lane offset and the staged formation until the class leader actually crosses the
-        -- start line, so the field stays double file right up to the line instead of merging early.
-        -- A large jump in progress is a wrap across the line; check either direction so a class can
-        -- never miss green because of the spline's winding order.
-        local wrapped = math.abs(progress - state.lastProgress) > 0.5
-        if wrapped then
-          -- Green the whole class as one: the first car of the class to cross the line turns the
-          -- entire class green, not just the car that crossed.
-          local group = rollingStartGroups[state.groupIndex]
-          if group then
-            for _, memberIndex in ipairs(group.cars) do
-              local memberState = rollingStartCars[memberIndex]
-              if memberState and not memberState.green then
-                GiveRollingGreen(memberIndex, memberState, now)
+        if math.abs(progress - state.lastProgress) > 0.5 then
+          state.wrapCount = (state.wrapCount or 0) + 1
+          if state.wrapCount >= 2 then
+            local group = rollingStartGroups[state.groupIndex]
+            if group and not group.green then
+              group.green = true
+              group.greenAt = now
+              group.windowCloseTimer = 0
+              for _, memberIndex in ipairs(group.cars) do
+                local memberState = rollingStartCars[memberIndex]
+                if memberState and not memberState.green then
+                  GiveRollingGreen(memberIndex, memberState, now)
+                end
               end
+            elseif not group then
+              GiveRollingGreen(carIndex, state, now)
             end
-          else
-            GiveRollingGreen(carIndex, state, now)
           end
         end
         state.lastProgress = progress
       end
     end
+  end
 
-    if not state.green then
+  -- The procedure is complete once every class has gone green.
+  local allGreen = true
+  for _, group in ipairs(rollingStartGroups or {}) do
+    if not group.green then
       allGreen = false
+      break
     end
   end
 
-  if rollingStartNextGroup > #rollingStartGroups and allGreen then
-    -- The formation is over: make sure no car is left holding a lane offset now that the whole
-    -- field is racing.
+  if allGreen then
+    -- Make sure no car is left holding a lane offset now that the whole field is racing.
     for carIndex, state in pairs(rollingStartCars) do
-      if state.releasing then
+      if carIndex ~= 0 then
         SetRollingLaneOffset(carIndex, 0.0)
-        state.appliedOffset = 0.0
-        state.releasing = false
       end
+      state.currentSplineOffset = 0.0
     end
     rollingStartState = "complete"
     rollingStartStatus = "GREEN — GO"
     raceDisplayPending = nil
     raceDisplayStable = nil
-    Log("ROLLING: all cars received green.")
+    Log("ROLLING: every class received green.")
+    return
   end
 
   local playerState = rollingStartCars[0]
   if playerState and not playerState.green then
-    if playerState.released then
-      rollingStartStatus = "ROLLING — HOLD 80 km/h"
-    else
-      local waitingGroup = rollingStartGroups[playerState.groupIndex]
-      rollingStartStatus = waitingGroup
-          and ("ROLLING — WAIT FOR " .. string.upper(waitingGroup.label))
-          or "ROLLING — WAITING"
-    end
+    rollingStartStatus = playerState.enteredPhase2 and "DOUBLE FILE — FORMATION" or "SINGLE FILE — FORMATION"
   end
 end
 
@@ -2601,12 +2435,8 @@ local function GetCurrentLapInfo()
   if playerCar then
     lapRaw = playerCar.lapCount + 1
   end
-  local lapOffset = liveSessionType == SUBFOLDER_RACE and liveRollingStartLapOffset or 0
-  totalLaps = math.max(0, totalLaps - lapOffset)
-  lapRaw = math.max(1, lapRaw - lapOffset)
-  local lapOffset = liveSessionType == SUBFOLDER_RACE and liveRollingStartLapOffset or 0
-  totalLaps = math.max(0, totalLaps - lapOffset)
-  lapRaw = math.max(1, lapRaw - lapOffset)
+  -- Display AC's natural lap count: the formation lap is lap 1 and the race begins on lap 2. The
+  -- rolling-start lap offset is applied only to the exported classification, never to the display.
   local currentLap = totalLaps > 0 and math.min(totalLaps, lapRaw) or lapRaw
 
   local speed = playerCar and (playerCar.speedKmh or 0) or 0
@@ -2868,14 +2698,8 @@ local function GetRollingStartDisplay(sim)
       end
       return nil, nil
     end
-    if player and player.released then
-      return "ROLLING — HOLD 80 km/h", rgbm(1.0, 0.75, 0.25, 1)
-    end
-    if player then
-      local group = rollingStartGroups[player.groupIndex]
-      return "ROLLING — WAIT FOR " .. string.upper(group and group.label or "CLASS"), rgbm(1.0, 0.75, 0.25, 1)
-    end
-    return "ROLLING — HOLD 80 km/h", rgbm(1.0, 0.75, 0.25, 1)
+    return player.enteredPhase2 and "DOUBLE FILE — FORMATION" or "SINGLE FILE — FORMATION",
+        rgbm(1.0, 0.75, 0.25, 1)
   end
 
   return nil, nil
