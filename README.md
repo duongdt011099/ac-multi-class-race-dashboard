@@ -9,13 +9,15 @@ The Multi-Class Race Dashboard helps you run and manage a multi-class racing cha
 
 ## What you can do
 
-- **Manage your series** — create championships, add seasons, create races, and watch each race move through its status: not started, in progress (after practice/qualifying results are loaded), and finished (after the race is done).
-- **Manage teams and drivers** — set each driver's car and skin, AI strength and aggression, nationality, and flag who is driving for real (human driver).
+- **Manage your series** — create championships, add seasons, create races, and watch each race move through its status: not started, in progress (after practice/qualifying results are loaded), and finished (after the race is done). You can clone a season to reuse its full race calendar for a new one.
+- **Define your classes** — build class settings on the **Class Settings** page: a named set of classes (for example Hypercar, LMP2, GT3), each with its own color, reorderable, with one set marked as the default.
+- **Manage teams and drivers** — assign each team its classes (one class per class setting), set each driver's car and skin, AI strength and aggression, nationality, and flag who is driving for real (human driver). Drivers take their classes from their team.
 - **Set up and run race sessions** — choose which teams race in which event, then run Practice, Qualifying and Race sessions.
 - **Import results automatically** — load practice/qualifying results and the final race result, and the dashboard handles standings and points for you.
 - **Create ready-to-load grids** — generate grid and race preset files you can open directly in Content Manager, ordered by class and qualifying position.
 - **See the cars** — preview each car's livery right from your game installation.
 - **Score the championship your way** — set up your own point systems (who earns points for finishing where) and apply them per race.
+- **Check for updates** — the sidebar shows the app version and lets you check for a newer release.
 
 ## Installing the app
 
@@ -40,12 +42,13 @@ To use the dashboard you need:
 
 ## Running a race — step by step
 
-1. **Create your championship.** From the **Championship** page, add a championship, then add a season to it.
-2. **Create the races.** Open the season and add each race event (name, country, and a point system — create one on the **Point Settings** page first if you haven't).
-3. **Add teams and drivers.** Use the **Teams** and **Drivers** pages. You can create drivers one by one, or add a whole batch from a preset file.
-4. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
-5. **Practice and Qualifying.** After the session, import its result file. The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
-6. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
+1. **Create your championship.** From the **Championship** page, add a championship, then add a season to it. When you need another season with the same races, use the clone action on the season to copy it.
+2. **Set up your classes.** On the **Class Settings** page, create a class setting — add each class with a name and color, reorder them, and mark one class setting as the default. Teams pick their classes from these settings.
+3. **Create the races.** Open the season and add each race event (name, country, and a point system — create one on the **Point Settings** page first if you haven't).
+4. **Add teams and drivers.** Use the **Teams** and **Drivers** pages. Assign each team its classes, and you can create drivers one by one, or add a whole batch from a preset file.
+5. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
+6. **Practice and Qualifying.** After the session, import its result file. The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
+7. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
 
 ## Lua App - Multiclass Leaderboard (Driver posittion)
 
@@ -62,6 +65,8 @@ To use the dashboard you need:
 ## Tips
 
 - Round status updates as you go: no data means "not started", practice/qualifying loaded means "in progress", race loaded means "finished".
+- A team can have one class per class setting. If you add a new class setting, go back to the **Teams** page and assign each team's class for it.
+- One class setting is always the default and cannot be unset; to change it, open another class setting and mark it as the default instead.
 - If two drivers use the same car and skin combo, load their results once with the right driver selected so they are not mixed up.
 - If a result needs correcting, import the file again in place of the old one.
 - Results come from the Multi_Class output; make sure the folder you enter in Game Config is the one those files are saved to.
