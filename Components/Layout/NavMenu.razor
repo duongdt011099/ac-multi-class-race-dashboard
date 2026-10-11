@@ -144,6 +144,21 @@
         <div class="nav-item px-3">
             @if (isConfigured)
             {
+                <NavLink class="nav-link" href="class-settings">
+                    <span class="bi bi-diagram-3-fill-nav-menu" aria-hidden="true"></span> Class Settings
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link wec-nav-disabled" aria-disabled="true">
+                    <span class="bi bi-diagram-3-fill-nav-menu" aria-hidden="true"></span> Class Settings
+                </span>
+            }
+        </div>
+
+        <div class="nav-item px-3">
+            @if (isConfigured)
+            {
                 <NavLink class="nav-link" href="pointsettings">
                     <span class="bi bi-scoreboard-nav-menu" aria-hidden="true"></span> Point Settings
                 </NavLink>

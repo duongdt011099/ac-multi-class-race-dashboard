@@ -8,7 +8,7 @@ public static class DependencyInjection
     {
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<ITeamRepository, TeamRepository>();
-        services.AddScoped<ITeamClassRepository, TeamClassRepository>();
+        services.AddScoped<IClassSettingRepository, ClassSettingRepository>();
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IChampionshipRepository, ChampionshipRepository>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();

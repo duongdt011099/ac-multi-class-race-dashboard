@@ -16,6 +16,10 @@ public class RaceModel
 
     public string PointSettingName { get; set; } = string.Empty;
 
+    public Guid ClassSettingId { get; set; }
+
+    public string ClassSettingName { get; set; } = string.Empty;
+
     public string? TrackName { get; set; }
 
     public string? TrackLayout { get; set; }

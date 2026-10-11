@@ -8,6 +8,14 @@ namespace MulticlassRace.Data;
 
 public class AppDbContext : DbContext
 {
+    public const string DefaultClassSettingId = "2254e881-f300-4154-a84f-600196de6000";
+
+    public const string DefaultHypercarItemId = "2254e881-f300-4154-a84f-600196de6081";
+
+    public const string DefaultLmp2ItemId = "2254e881-f300-4154-a84f-600196de6082";
+
+    public const string DefaultGt3ItemId = "2254e881-f300-4154-a84f-600196de6083";
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
@@ -18,7 +26,9 @@ public class AppDbContext : DbContext
 
     public DbSet<Race> Races => Set<Race>();
 
-    public DbSet<TeamClass> TeamClasses => Set<TeamClass>();
+    public DbSet<ClassSetting> ClassSettings => Set<ClassSetting>();
+
+    public DbSet<ClassSettingItem> ClassSettingItems => Set<ClassSettingItem>();
 
     public DbSet<Team> Teams => Set<Team>();
 
@@ -45,6 +55,23 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(r => r.PointSettingId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Race>()
+            .HasOne(r => r.ClassSetting)
+            .WithMany(c => c.Races)
+            .HasForeignKey(r => r.ClassSettingId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ClassSetting>()
+            .HasMany(c => c.Items)
+            .WithOne(i => i.ClassSetting)
+            .HasForeignKey(i => i.ClassSettingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Team>()
+            .HasMany(t => t.ClassSettingItems)
+            .WithMany(i => i.Teams)
+            .UsingEntity(j => j.ToTable("TeamClassSettingItem"));
 
         var configConverter = new ValueConverter<Dictionary<string, int>, string>(
             v => JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = false }),
@@ -75,10 +102,39 @@ public class AppDbContext : DbContext
             .HasIndex(r => new { r.FileName, r.SessionType })
                 .HasDatabaseName("IX_ImportedLuaResults_FileName_SessionType");
 
-        modelBuilder.Entity<TeamClass>().HasData(
-            new TeamClass { TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6081"), TeamClassName = "Hypercar", IsActive = true },
-            new TeamClass { TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6082"), TeamClassName = "LMP2", IsActive = true },
-            new TeamClass { TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6083"), TeamClassName = "GT3", IsActive = true });
+        modelBuilder.Entity<ClassSetting>().HasData(
+            new ClassSetting
+            {
+                ClassSettingId = new Guid(DefaultClassSettingId),
+                ClassSettingName = "WEC",
+                IsDefault = true
+            });
+
+        modelBuilder.Entity<ClassSettingItem>().HasData(
+            new ClassSettingItem
+            {
+                ClassSettingItemId = new Guid(DefaultHypercarItemId),
+                ClassSettingId = new Guid(DefaultClassSettingId),
+                Name = "Hypercar",
+                Order = 1,
+                Color = "#e10600"
+            },
+            new ClassSettingItem
+            {
+                ClassSettingItemId = new Guid(DefaultLmp2ItemId),
+                ClassSettingId = new Guid(DefaultClassSettingId),
+                Name = "LMP2",
+                Order = 2,
+                Color = "#0057b8"
+            },
+            new ClassSettingItem
+            {
+                ClassSettingItemId = new Guid(DefaultGt3ItemId),
+                ClassSettingId = new Guid(DefaultClassSettingId),
+                Name = "GT3",
+                Order = 3,
+                Color = "#3fa34d"
+            });
 
         modelBuilder.Entity<PointSetting>().HasData(
             new PointSetting

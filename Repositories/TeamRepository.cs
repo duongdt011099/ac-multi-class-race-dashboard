@@ -32,7 +32,8 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
     public async Task<IEnumerable<Team>> GetActiveTeamsAsync()
     {
         return await _context.Teams
-        .Include(team => team.TeamClass)
+        .Include(team => team.ClassSettingItems)
+            .ThenInclude(item => item.ClassSetting)
         .Where(t => t.IsActive)
         .ToListAsync();
     }
@@ -40,23 +41,20 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
     public async Task<Team?> GetTeamDetailsAsync(Guid teamId)
     {
         return await _context.Teams
-            .Include(t => t.TeamClass)
+            .Include(t => t.ClassSettingItems)
+                .ThenInclude(item => item.ClassSetting)
             .Include(t => t.Drivers)
             .FirstOrDefaultAsync(t => t.TeamId == teamId);
     }
 
-    public async Task CreateTeamAsync(Team team, IReadOnlyCollection<Guid> driverIds)
+    public async Task CreateTeamAsync(Team team, IReadOnlyCollection<Guid> classItemIds, IReadOnlyCollection<Guid> driverIds)
     {
-        var teamClass = (await _context.TeamClasses
-            .ToListAsync())
-            .FirstOrDefault(tc => tc.TeamClassId == team.TeamClass.TeamClassId);
+        var classItems = await ResolveClassItemsAsync(classItemIds);
 
-        if (teamClass is null)
+        foreach (var item in classItems)
         {
-            throw new InvalidOperationException($"Team class with ID {team.TeamClass.TeamClassId} not found.");
+            team.ClassSettingItems.Add(item);
         }
-
-        team.TeamClass = teamClass;
 
         var requestedIds = driverIds.ToList();
         var drivers = await _context.Driver 
@@ -73,10 +71,10 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
         await _context.SaveChangesAsync();
     }
 
-    public async Task UpdateTeamAsync(Team team, IReadOnlyCollection<Guid> driverIds)
+    public async Task UpdateTeamAsync(Team team, IReadOnlyCollection<Guid> classItemIds, IReadOnlyCollection<Guid> driverIds)
     {
         var existing = await _context.Teams
-            .Include(t => t.TeamClass)
+            .Include(t => t.ClassSettingItems)
             .Include(t => t.Drivers)
             .FirstOrDefaultAsync(t => t.TeamId == team.TeamId);
 
@@ -86,18 +84,18 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
             return;
         }
 
-        var teamClass = await _context.TeamClasses
-            .FirstOrDefaultAsync(tc => tc.TeamClassId == team.TeamClass.TeamClassId);
-
-        if (teamClass is null)
-        {
-            throw new InvalidOperationException($"Team class with ID {team.TeamClass.TeamClassId} not found.");
-        }
+        var classItems = await ResolveClassItemsAsync(classItemIds);
 
         existing.TeamName = team.TeamName;
         existing.TeamLogo = team.TeamLogo;
-        existing.TeamClass = teamClass;
         existing.IsActive = team.IsActive;
+
+        existing.ClassSettingItems.Clear();
+
+        foreach (var item in classItems)
+        {
+            existing.ClassSettingItems.Add(item);
+        }
 
         var requestedIds = driverIds.ToList();
         var currentIds = existing.Drivers.Select(d => d.DriverId).ToHashSet();
@@ -119,5 +117,43 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<List<ClassSettingItem>> ResolveClassItemsAsync(IEnumerable<Guid> itemIds)
+    {
+        var requested = itemIds.Distinct().ToList();
+
+        if (requested.Count == 0)
+        {
+            return new List<ClassSettingItem>();
+        }
+
+        var items = await _context.ClassSettingItems
+            .Include(i => i.ClassSetting)
+            .Where(i => requested.Contains(i.ClassSettingItemId))
+            .ToListAsync();
+
+        var found = items.Select(i => i.ClassSettingItemId).ToHashSet();
+
+        if (found.Count != requested.Count)
+        {
+            throw new InvalidOperationException("One or more selected class items no longer exist.");
+        }
+
+        var duplicateSetting = items
+            .GroupBy(i => i.ClassSettingId)
+            .FirstOrDefault(g => g.Count() > 1);
+
+        if (duplicateSetting is not null)
+        {
+            var settingName = duplicateSetting.First().ClassSetting.ClassSettingName;
+            throw new InvalidOperationException(
+                $"A team can only have one class from the same setting ('{settingName}').");
+        }
+
+        return items
+            .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(i => i.Order)
+            .ToList();
     }
 }

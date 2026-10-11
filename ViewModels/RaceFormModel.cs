@@ -12,6 +12,8 @@ public class RaceFormModel
 
     public Guid PointSettingId { get; set; }
 
+    public Guid ClassSettingId { get; set; }
+
     public string? TrackName { get; set; }
 
     public string? TrackLayout { get; set; }

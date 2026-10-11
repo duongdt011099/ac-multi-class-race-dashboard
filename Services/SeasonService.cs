@@ -52,6 +52,61 @@ public class SeasonService : ISeasonService
         await _seasonRepository.AddAsync(season);
     }
 
+    public async Task<SeasonModel> CloneSeasonAsync(Guid sourceSeasonId, string newSeasonName)
+    {
+        if (string.IsNullOrWhiteSpace(newSeasonName))
+        {
+            throw new InvalidOperationException("Season name is required.");
+        }
+
+        var source = await _seasonRepository.GetSeasonWithRacesAsync(sourceSeasonId);
+
+        if (source is null)
+        {
+            throw new InvalidOperationException("Season not found.");
+        }
+
+        var clone = new Season
+        {
+            SeasonId = Guid.NewGuid(),
+            SeasonName = newSeasonName.Trim(),
+            Championship = source.Championship
+        };
+
+        foreach (var race in source.Races)
+        {
+            clone.Races.Add(new Race
+            {
+                RaceId = Guid.NewGuid(),
+                RaceName = race.RaceName,
+                Country = race.Country,
+                Status = RaceStatus.NotStarted,
+                TrackName = race.TrackName,
+                TrackLayout = race.TrackLayout,
+                NumberOfLaps = race.NumberOfLaps,
+                RaceDuration = race.RaceDuration,
+                PracticeSessionMinutes = race.PracticeSessionMinutes,
+                QualifyingSessionMinutes = race.QualifyingSessionMinutes,
+                PointSettingId = race.PointSettingId,
+                PointSetting = race.PointSetting,
+                ClassSettingId = race.ClassSettingId,
+                ClassSetting = race.ClassSetting,
+                Season = clone,
+                Sessions = new List<Session>(),
+                EnteredTeams = new List<Team>()
+            });
+        }
+
+        await _seasonRepository.AddAsync(clone);
+
+        return new SeasonModel
+        {
+            SeasonId = clone.SeasonId,
+            SeasonName = clone.SeasonName,
+            RaceCount = clone.Races.Count
+        };
+    }
+
     public async Task DeleteSeasonAsync(Guid seasonId)
     {
         await _seasonRepository.DeleteAsync(seasonId);

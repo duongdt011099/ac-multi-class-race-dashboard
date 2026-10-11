@@ -173,6 +173,9 @@ else
                             <button type="button" class="wec-btn" title="View races for @season.SeasonName" @onclick="() => NavigateToRaces(season)">
                                 <i class="bi bi-flag"></i>
                             </button>
+                            <button type="button" class="wec-btn" title="Clone @season.SeasonName" @onclick="() => OpenCloneDialog(season)">
+                                <i class="bi bi-files"></i>
+                            </button>
                             <button type="button" class="wec-btn" title="Delete @season.SeasonName" @onclick="() => confirmDeleteSeason = season">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -207,6 +210,33 @@ else
     </div>
 }
 
+@if (cloningSeason is not null)
+{
+    <div class="wec-modal-overlay">
+        <div class="wec-modal wec-modal--small">
+            <div class="wec-modal__header">
+                <span>Clone Season</span>
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseCloneDialog">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-form-field">
+                    <label for="clone-season-name">Season Name</label>
+                    <input id="clone-season-name" type="text" value="@cloneSeasonName" @oninput="HandleCloneNameInput" @onkeydown="HandleCloneNameEnter" />
+                </div>
+                <p class="wec-form-hint">Races are copied as empty race shells, without sessions or standings.</p>
+            </div>
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CloseCloneDialog">Cancel</button>
+                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="CloneSeasonAsync" disabled="@isCloningSeason">
+                    @(isCloningSeason ? "Cloning..." : "Clone")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private enum SortColumn
     {
@@ -226,6 +256,9 @@ else
     private bool isAddingSeason;
     private SeasonModel? confirmDeleteSeason;
     private bool isDeletingSeason;
+    private SeasonModel? cloningSeason;
+    private string? cloneSeasonName;
+    private bool isCloningSeason;
     private SortColumn sortColumn = SortColumn.Championship;
     private bool sortDescending;
 
@@ -396,7 +429,7 @@ else
 
     private void CloseSeasons()
     {
-        if (!isAddingSeason && !isDeletingSeason)
+        if (!isAddingSeason && !isDeletingSeason && !isCloningSeason)
         {
             selectedChampionship = null;
             seasons = null;
@@ -485,6 +518,69 @@ else
         finally
         {
             isDeletingSeason = false;
+        }
+    }
+
+    private void OpenCloneDialog(SeasonModel season)
+    {
+        cloningSeason = season;
+        cloneSeasonName = $"{season.SeasonName} (copy)";
+    }
+
+    private void CloseCloneDialog()
+    {
+        if (!isCloningSeason)
+        {
+            cloningSeason = null;
+            cloneSeasonName = null;
+        }
+    }
+
+    private void HandleCloneNameInput(ChangeEventArgs e)
+    {
+        cloneSeasonName = e.Value?.ToString();
+    }
+
+    private async Task HandleCloneNameEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CloneSeasonAsync();
+        }
+    }
+
+    private async Task CloneSeasonAsync()
+    {
+        if (cloningSeason is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(cloneSeasonName))
+        {
+            Toast.Show("Season name is required.", isError: true);
+            return;
+        }
+
+        isCloningSeason = true;
+
+        try
+        {
+            var name = cloneSeasonName;
+            await SeasonService.CloneSeasonAsync(cloningSeason.SeasonId, name);
+            cloningSeason = null;
+            cloneSeasonName = null;
+            await LoadSeasonsAsync();
+            await LoadChampionshipsAsync();
+            Toast.Show($"Season '{name}' cloned.");
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not clone season: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isCloningSeason = false;
         }
     }
 }

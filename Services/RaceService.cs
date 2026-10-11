@@ -14,6 +14,7 @@ public class RaceService : IRaceService
     private readonly ISeasonRepository _seasonRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
+    private readonly IClassSettingRepository _classSettingRepository;
     private readonly ITrackService _trackService;
     private readonly IGameSessionLauncher _gameSessionLauncher;
     private readonly SessionLaunchTracker _launchTracker;
@@ -29,6 +30,7 @@ public class RaceService : IRaceService
         ISeasonRepository seasonRepository,
         IAssettoCorsaGameConfigRepository configRepository,
         IPointSettingRepository pointSettingRepository,
+        IClassSettingRepository classSettingRepository,
         ITrackService trackService,
         IGameSessionLauncher gameSessionLauncher,
         SessionLaunchTracker launchTracker,
@@ -38,6 +40,7 @@ public class RaceService : IRaceService
         _seasonRepository = seasonRepository;
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
+        _classSettingRepository = classSettingRepository;
         _trackService = trackService;
         _gameSessionLauncher = gameSessionLauncher;
         _launchTracker = launchTracker;
@@ -54,6 +57,8 @@ public class RaceService : IRaceService
             Status = r.Status,
             PointSettingId = r.PointSettingId,
             PointSettingName = r.PointSetting.SettingName,
+            ClassSettingId = r.ClassSettingId,
+            ClassSettingName = r.ClassSetting?.ClassSettingName ?? string.Empty,
             TrackName = r.TrackName,
             TrackLayout = r.TrackLayout,
             NumberOfLaps = r.NumberOfLaps,
@@ -73,7 +78,7 @@ public class RaceService : IRaceService
 
     public async Task<RaceModel?> GetRaceByIdAsync(Guid raceId)
     {
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         return race is null ? null : MapRace(race);
     }
@@ -106,6 +111,13 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("A point setting must be selected.");
         }
 
+        var classSetting = await _classSettingRepository.GetByIdWithItemsAsync(model.ClassSettingId);
+
+        if (classSetting is null || classSetting.Items.Count == 0)
+        {
+            throw new InvalidOperationException("A class setting with at least one class must be selected.");
+        }
+
         await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
 
         var race = new Race
@@ -122,6 +134,8 @@ public class RaceService : IRaceService
             QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5),
             PointSettingId = pointSetting.SettingId,
             PointSetting = pointSetting,
+            ClassSettingId = classSetting.ClassSettingId,
+            ClassSetting = classSetting,
             Season = season,
             Sessions = new List<Session>(),
             EnteredTeams = new List<Team>()
@@ -132,7 +146,7 @@ public class RaceService : IRaceService
 
     public async Task UpdateRaceAsync(RaceFormModel model)
     {
-        var race = await _raceRepository.GetByIdAsync(model.RaceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(model.RaceId);
 
         if (race is null)
         {
@@ -161,6 +175,17 @@ public class RaceService : IRaceService
             }
         }
 
+        if (model.ClassSettingId != Guid.Empty && race.ClassSettingId != model.ClassSettingId)
+        {
+            var classSetting = await _classSettingRepository.GetByIdWithItemsAsync(model.ClassSettingId);
+
+            if (classSetting is not null)
+            {
+                race.ClassSettingId = classSetting.ClassSettingId;
+                race.ClassSetting = classSetting;
+            }
+        }
+
         await _raceRepository.UpdateAsync(race);
     }
 
@@ -176,7 +201,7 @@ public class RaceService : IRaceService
         double sunAngle,
         bool penalties = true)
     {
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         if (race is null)
         {
@@ -219,9 +244,11 @@ public class RaceService : IRaceService
                 "Please change the race track or layout.");
         }
 
+        var classOrderByItemId = BuildClassOrderById(race);
+
         var drivers = teams
             .SelectMany(t => t.Drivers.Where(d => d.IsActive))
-            .OrderBy(d => d.Team?.TeamClass?.TeamClassName)
+            .OrderBy(d => ClassOrderIndex(ResolveTeamClassItem(race, d.Team), classOrderByItemId))
             .ThenBy(d => d.Team?.TeamName)
             .ThenBy(d => d.DriverName)
             .ToList();
@@ -249,7 +276,7 @@ public class RaceService : IRaceService
                 .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
 
             drivers = drivers
-                .OrderBy(d => ClassOrderIndex(d.Team?.TeamClass?.TeamClassName))
+                .OrderBy(d => ClassOrderIndex(ResolveTeamClassItem(race, d.Team), classOrderByItemId))
                 .ThenBy(d => qualifyingPositionByDriverId.TryGetValue(d.DriverId, out var pos) ? pos : int.MaxValue)
                 .ThenBy(d => d.Team?.TeamName)
                 .ThenBy(d => d.DriverName)
@@ -453,8 +480,19 @@ public class RaceService : IRaceService
             TeamId = t.TeamId,
             TeamName = t.TeamName,
             TeamLogo = t.TeamLogo,
-            TeamClass = t.TeamClass.TeamClassName,
-            TeamClassId = t.TeamClass.TeamClassId,
+            ClassTags = t.ClassSettingItems
+                .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(i => i.Order)
+                .Select(i => new ClassTagModel
+                {
+                    ClassSettingItemId = i.ClassSettingItemId,
+                    ClassSettingId = i.ClassSettingId,
+                    ItemName = i.Name,
+                    SettingName = i.ClassSetting.ClassSettingName,
+                    Color = i.Color,
+                    Order = i.Order
+                })
+                .ToList(),
             IsActive = t.IsActive
         });
     }
@@ -466,7 +504,7 @@ public class RaceService : IRaceService
 
     public async Task<PresetExportResult> ExportGridPresetAsync(Guid raceId, SessionType sessionType, bool humanClassOnly, string seasonName, string championshipName)
     {
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         if (race is null)
         {
@@ -493,17 +531,21 @@ public class RaceService : IRaceService
 
         if (humanClassOnly)
         {
-            var humanClassIds = rows
+            var humanClassItemIds = rows
                 .Where(r => r.Driver.IsHuman)
-                .Select(r => r.Team.TeamClass.TeamClassId)
+                .Select(r => ResolveTeamClassItem(race, r.Team)?.ClassSettingItemId)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
                 .ToHashSet();
 
-            if (humanClassIds.Count == 0)
+            if (humanClassItemIds.Count == 0)
             {
                 throw new InvalidOperationException("No human drivers found in the entered teams.");
             }
 
-            rows = rows.Where(r => humanClassIds.Contains(r.Team.TeamClass.TeamClassId)).ToList();
+            rows = rows
+                .Where(r => ResolveTeamClassItem(race, r.Team) is { } item && humanClassItemIds.Contains(item.ClassSettingItemId))
+                .ToList();
         }
 
         if (rows.Count == 0)
@@ -511,8 +553,10 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("No cars available to export from the entered teams.");
         }
 
+        var classOrderByItemId = BuildClassOrderById(race);
+
         var ordered = rows
-            .OrderBy(r => r.Team.TeamClass.TeamClassName)
+            .OrderBy(r => ClassOrderIndex(ResolveTeamClassItem(race, r.Team), classOrderByItemId))
             .ThenBy(r => r.Team.TeamName)
             .ThenBy(r => r.Driver.DriverName)
             .ToList();
@@ -541,7 +585,7 @@ public class RaceService : IRaceService
 
     public async Task<PresetExportResult> ExportRaceGridPresetAsync(Guid raceId, string seasonName, string championshipName)
     {
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         if (race is null)
         {
@@ -583,8 +627,10 @@ public class RaceService : IRaceService
                 .GroupBy(d => d.Driver!.DriverId)
                 .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
 
+        var classOrderByItemId = BuildClassOrderById(race);
+
         var ordered = rows
-            .OrderBy(r => ClassOrderIndex(r.Team.TeamClass?.TeamClassName))
+            .OrderBy(r => ClassOrderIndex(ResolveTeamClassItem(race, r.Team), classOrderByItemId))
             .ThenBy(r => qualifyingPositionByDriverId.TryGetValue(r.Driver.DriverId, out var pos) ? pos : int.MaxValue)
             .ThenBy(r => r.Team.TeamName)
             .ThenBy(r => r.Driver.DriverName)
@@ -748,7 +794,7 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("The selected file contains no race session to import.");
         }
 
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         if (race is null)
         {
@@ -804,9 +850,11 @@ public class RaceService : IRaceService
             DriverStandings = new List<DriverStanding>()
         };
 
+        var classOrderByName = BuildClassOrderByName(race);
+
         var ordered = entries
-            .GroupBy(e => e.Match.Team.TeamClass?.TeamClassName?.Trim() ?? string.Empty)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(e => ResolveRaceClassName(race, e.Match.Team))
+            .OrderBy(g => ClassOrderIndexByName(g.Key, classOrderByName))
             .SelectMany(g =>
             {
                 var classMatches = g
@@ -879,7 +927,7 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("The selected file contains no result entries.");
         }
 
-        var race = await _raceRepository.GetByIdAsync(raceId);
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
 
         if (race is null)
         {
@@ -960,9 +1008,11 @@ public class RaceService : IRaceService
             DriverStandings = new List<DriverStanding>()
         };
 
+        var classOrderByName = BuildClassOrderByName(race);
+
         var ordered = orderedEntries
-            .GroupBy(e => e.Match.Team.TeamClass?.TeamClassName?.Trim() ?? string.Empty)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(e => ResolveRaceClassName(race, e.Match.Team))
+            .OrderBy(g => ClassOrderIndexByName(g.Key, classOrderByName))
             .SelectMany(g =>
             {
                 var classMatches = g
@@ -1088,17 +1138,50 @@ public class RaceService : IRaceService
         };
     }
 
-    private static int ClassOrderIndex(string? teamClassName)
+    private static Dictionary<Guid, int> BuildClassOrderById(Race? race)
     {
-        var normalized = teamClassName?.Trim().ToLowerInvariant();
-
-        return normalized switch
+        if (race?.ClassSetting?.Items is not { Count: > 0 } items)
         {
-            "hypercar" or "h" or "lmh" => 0,
-            "lmp2" => 1,
-            "gt3" or "gts" or "lmgt" => 2,
-            _ => 3
-        };
+            return new Dictionary<Guid, int>();
+        }
+
+        return items
+            .OrderBy(i => i.Order)
+            .Select((i, index) => (i.ClassSettingItemId, index))
+            .ToDictionary(x => x.ClassSettingItemId, x => x.index);
+    }
+
+    private static Dictionary<string, int> BuildClassOrderByName(Race? race)
+    {
+        if (race?.ClassSetting?.Items is not { Count: > 0 } items)
+        {
+            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return items
+            .OrderBy(i => i.Order)
+            .Select((i, index) => (ItemName: i.Name.Trim(), index))
+            .ToDictionary(x => x.ItemName, x => x.index, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static int ClassOrderIndex(ClassSettingItem? item, IReadOnlyDictionary<Guid, int> orderByItemId)
+    {
+        return item is not null && orderByItemId.TryGetValue(item.ClassSettingItemId, out var index) ? index : int.MaxValue;
+    }
+
+    private static int ClassOrderIndexByName(string? className, IReadOnlyDictionary<string, int> orderByName)
+    {
+        return !string.IsNullOrWhiteSpace(className) && orderByName.TryGetValue(className.Trim(), out var index) ? index : int.MaxValue;
+    }
+
+    private static ClassSettingItem? ResolveTeamClassItem(Race race, Team? team)
+    {
+        return team?.ClassSettingItems.FirstOrDefault(i => i.ClassSettingId == race.ClassSettingId);
+    }
+
+    private static string ResolveRaceClassName(Race race, Team team)
+    {
+        return ResolveTeamClassItem(race, team)?.Name ?? string.Empty;
     }
 
     private static string SanitizeFileName(string value)

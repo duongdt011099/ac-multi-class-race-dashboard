@@ -20,6 +20,11 @@ public static class DependencyInjection
         return services;
     }
 
+    public static string ResolveForDesignTime(string connectionString, string contentRootPath)
+    {
+        return ResolveDataSource(connectionString, contentRootPath);
+    }
+
     private static string ResolveDataSource(string connectionString, string contentRootPath)
     {
         var match = Regex.Match(connectionString, @"(?i)(Data\s*Source\s*=)\s*(.+?)(;|$)");

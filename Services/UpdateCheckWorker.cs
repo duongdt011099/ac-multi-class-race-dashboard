@@ -72,6 +72,11 @@ public class UpdateCheckWorker : BackgroundService
         }
     }
 
+    public virtual async Task CheckNowAsync(CancellationToken cancellationToken = default)
+    {
+        await CheckAsync(cancellationToken);
+    }
+
     private async Task CheckAsync(CancellationToken cancellationToken)
     {
         var checkedAt = DateTimeOffset.UtcNow;

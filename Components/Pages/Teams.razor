@@ -3,7 +3,7 @@
 @using MulticlassRace.Models
 @using MulticlassRace.ViewModels
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
-@inject MulticlassRace.Services.Abstractions.ITeamClassService TeamClassService
+@inject MulticlassRace.Services.Abstractions.IClassSettingService ClassSettingService
 @inject MulticlassRace.Services.Abstractions.IDriverService DriverService
 @inject MulticlassRace.Services.DriverDataChangeNotifier DriverNotifier
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
@@ -30,8 +30,8 @@ else
     <div class="wec-filters">
         <div class="wec-filters__item">
             <label for="filter-team-search">Search</label>
-            <input id="filter-team-search" type="text" placeholder="Search team or driver name..."
-                   value="@searchTerm" @oninput="HandleSearchChanged" />
+            <input id="filter-team-search" type="text" placeholder="Search team or driver name..." value="@searchTerm"
+                   @oninput="HandleSearchChanged" />
         </div>
 
         <div class="wec-filters__item">
@@ -54,19 +54,22 @@ else
                     <th>
                         <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Team)">
                             Team
-                            <i class="bi @(sortColumn == SortColumn.Team && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Team ? "" : "wec-table__sort-icon--inactive")"></i>
+                            <i
+                            class="bi @(sortColumn == SortColumn.Team && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Team ? "" : "wec-table__sort-icon--inactive")"></i>
                         </button>
                     </th>
                     <th>
                         <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Class)">
                             Class
-                            <i class="bi @(sortColumn == SortColumn.Class && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Class ? "" : "wec-table__sort-icon--inactive")"></i>
+                            <i
+                            class="bi @(sortColumn == SortColumn.Class && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Class ? "" : "wec-table__sort-icon--inactive")"></i>
                         </button>
                     </th>
                     <th>
                         <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
                             Status
-                            <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                            <i
+                            class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
                         </button>
                     </th>
                     <th class="wec-table__actions">Actions</th>
@@ -95,195 +98,253 @@ else
                                     }
                                     else
                                     {
-                                        <span class="wec-table__logo wec-table__logo--fallback">@team.TeamName[..Math.Min(2, team.TeamName.Length)].ToUpper()</span>
-                                    }
-                                    <span>@team.TeamName</span>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
-                            </td>
-                            <td>
-                                <span class="wec-status @(team.IsActive ? "" : "wec-status--inactive")">
-                                    @(team.IsActive ? "Active" : "Inactive")
-                                </span>
-                            </td>
-                            <td class="wec-table__actions">
-                                <button type="button" class="wec-btn" title="Edit @team.TeamName" @onclick="() => OpenEdit(team)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-
-        @if (TotalPages > 1)
-        {
-            <div class="wec-pagination">
-                <button type="button" class="wec-pagination__btn" disabled="@(currentPage <= 1)" @onclick="() => currentPage--">
-                    <i class="bi bi-chevron-left"></i> Prev
-                </button>
-                <span class="wec-pagination__info">Page @currentPage of @TotalPages</span>
-                <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)" @onclick="() => currentPage++">
-                    Next <i class="bi bi-chevron-right"></i>
-                </button>
-            </div>
-        }
-    </div>
-}
-
-@if (editingTeam is not null)
-{
-    <div class="wec-modal-overlay">
-        <div class="wec-modal">
-            <div class="wec-modal__header">
-                <span>@(isCreating ? "New Team" : "Edit Team")</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                @if (!isCreating)
-                {
-                    <div class="wec-form-field wec-form-field--readonly">
-                        <label for="team-id">Team ID</label>
-                        <input id="team-id" type="text" value="@editingTeam.TeamId" readonly />
-                    </div>
-                }
-
-                <div class="wec-form-field">
-                    <label for="team-name">Team Name</label>
-                    <input id="team-name" type="text" @bind="editingTeam.TeamName" />
-                </div>
-
-                <div class="wec-form-field">
-                    <label for="team-logo-file">Team Logo</label>
-                    <div class="wec-form-field__upload">
-                        @if (!string.IsNullOrWhiteSpace(editingTeam.TeamLogo))
-                        {
-                            <img src="@editingTeam.TeamLogo" alt="Team logo preview" class="wec-form-field__preview" />
+                                        <span class="wec-table__logo wec-table__logo--fallback">@team.TeamName[..Math.Min(2,
+                                                                        team.TeamName.Length)].ToUpper()</span>
+                                        }
+                                        <span>@team.TeamName</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="wec-table__classes">
+                                        @if (team.ClassTags.Count == 0)
+                                        {
+                                            <span>—</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var tag in team.ClassTags)
+                                            {
+                                                <span class="wec-badge" style="background-color: @tag.Color"
+                                                      title="@tag.SettingName">@tag.ItemName</span>
+                                            }
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="wec-status @(team.IsActive ? "" : "wec-status--inactive")">
+                                        @(team.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td class="wec-table__actions">
+                                    <button type="button" class="wec-btn" title="Edit @team.TeamName" @onclick="() => OpenEdit(team)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
                         }
-                        <InputFile id="team-logo-file" OnChange="HandleLogoUpload" accept="image/*" />
-                    </div>
-                </div>
+                    }
+                </tbody>
+            </table>
 
-                <div class="wec-form-field">
-                    <label for="team-class">Team Class</label>
-                    <select id="team-class" @bind="editingTeam.TeamClassId">
-                        @if (!teamClasses.Any())
+            @if (TotalPages > 1)
+            {
+                <div class="wec-pagination">
+                    <button type="button" class="wec-pagination__btn" disabled="@(currentPage <= 1)" @onclick="() => currentPage--">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span class="wec-pagination__info">Page @currentPage of @TotalPages</span>
+                    <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)"
+                            @onclick="() => currentPage++">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+
+    @if (editingTeam is not null)
+    {
+        <div class="wec-modal-overlay">
+            <div class="wec-modal">
+                <div class="wec-modal__header">
+                    <span>@(isCreating ? "New Team" : "Edit Team")</span>
+                    <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="wec-modal__body">
+                    @if (!isCreating)
+                    {
+                        <div class="wec-form-field wec-form-field--readonly">
+                            <label for="team-id">Team ID</label>
+                            <input id="team-id" type="text" value="@editingTeam.TeamId" readonly />
+                        </div>
+                    }
+
+                    <div class="wec-form-field">
+                        <label for="team-name">Team Name</label>
+                        <input id="team-name" type="text" @bind="editingTeam.TeamName" />
+                    </div>
+
+                    <div class="wec-form-field">
+                        <label for="team-logo-file">Team Logo</label>
+                        <div class="wec-form-field__upload">
+                            @if (!string.IsNullOrWhiteSpace(editingTeam.TeamLogo))
+                            {
+                                <img src="@editingTeam.TeamLogo" alt="Team logo preview" class="wec-form-field__preview" />
+                            }
+                            <InputFile id="team-logo-file" OnChange="HandleLogoUpload" accept="image/*" />
+                        </div>
+                    </div>
+
+                    <div class="wec-form-field">
+                        <label for="team-class-search">Team Classes</label>
+                        @if (classItems.Count == 0)
                         {
-                            <option value="">No classes available</option>
+                            <p class="wec-form-hint">No class settings configured. Add one under Class Settings.</p>
                         }
                         else
                         {
-                            @foreach (var teamClass in teamClasses)
+                            <div class="wec-class-search">
+                                <input id="team-class-search" type="text" placeholder="Search classes..." value="@classSearchText"
+                                       autocomplete="off" @oninput="HandleClassSearchInput" @onfocus="OpenClassSearch" />
+                                @if (classSearchOpen)
+                                {
+                                    <div class="wec-class-search__menu">
+                                        @if (ClassSearchResults.Count == 0)
+                                        {
+                                            <div class="wec-class-search__empty">No matching classes</div>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var option in ClassSearchResults)
+                                            {
+                                                <button type="button" class="wec-class-search__option" @onclick="() => AddClassTag(option)">
+                                                    <span class="wec-class-search__swatch" style="background-color: @option.Color"></span>
+                                                    <span class="wec-class-search__option-text">@option.SettingName - @option.Name</span>
+                                                </button>
+                                            }
+                                        }
+                                    </div>
+                                    <div class="wec-class-search__backdrop" @onclick="CloseClassSearch"></div>
+                                }
+                            </div>
+                            @if (SelectedClassTags.Count > 0)
                             {
-                                <option value="@teamClass.TeamClassId">@teamClass.TeamClassName</option>
+                                <div class="wec-class-tags">
+                                    @foreach (var tag in SelectedClassTags)
+                                    {
+                                        <span class="wec-class-tags__chip">
+                                            <span class="wec-class-search__swatch" style="background-color: @tag.Color"></span>
+                                            <span class="wec-class-tags__chip-text">@tag.SettingName - @tag.Name</span>
+                                            <button type="button" class="wec-class-tags__chip-remove" title="Remove"
+                                                    @onclick="() => RemoveClassTag(tag)">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </span>
+                                    }
+                                </div>
                             }
                         }
-                    </select>
-                </div>
-
-                <div class="wec-form-field wec-form-field--checkbox">
-                    <input id="team-active" type="checkbox" @bind="editingTeam.IsActive" />
-                    <label for="team-active">Is Active</label>
-                </div>
-
-                <div class="wec-drivers">
-                    <div class="wec-drivers__head">
-                        <span class="wec-drivers__title">Drivers @(editingDrivers is null ? "" : $"({editingDrivers.Count})")</span>
-                        <button type="button" class="wec-drivers__add" disabled="@(editingDrivers is null || isAddingDriver)" @onclick="OpenDriverSearch">
-                            <i class="bi bi-person-plus"></i> Add Driver
-                        </button>
                     </div>
 
-                    @if (editingDrivers is null)
-                    {
-                        <div class="wec-drivers__empty">Loading drivers...</div>
-                    }
-                    else
-                    {
-                        <div class="wec-drivers__grid">
-                            @if (!editingDrivers.Any())
+                    <div class="wec-form-field wec-form-field--checkbox">
+                        <input id="team-active" type="checkbox" @bind="editingTeam.IsActive" />
+                        <label for="team-active">Is Active</label>
+                    </div>
+
+                    <div class="wec-drivers">
+                        <div class="wec-drivers__head">
+                            <span class="wec-drivers__title">Drivers @(editingDrivers is null ? "" :
+                                                        $"({editingDrivers.Count})")</span>
+                                <button type="button" class="wec-drivers__add"
+                                        disabled="@(editingDrivers is null || isAddingDriver)" @onclick="OpenDriverSearch">
+                                    <i class="bi bi-person-plus"></i> Add Driver
+                                </button>
+                            </div>
+
+                            @if (editingDrivers is null)
                             {
-                                <div class="wec-drivers__empty">No drivers on this team</div>
+                                <div class="wec-drivers__empty">Loading drivers...</div>
                             }
                             else
                             {
-                                @foreach (var driver in editingDrivers)
+                                <div class="wec-drivers__grid">
+                                    @if (!editingDrivers.Any())
+                                    {
+                                        <div class="wec-drivers__empty">No drivers on this team</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var driver in editingDrivers)
+                                        {
+                                            <div class="wec-drivers__row">
+                                                <div class="wec-drivers__info">
+                                                    <span class="wec-drivers__name">@driver.DriverName</span>
+                                                    <span class="wec-drivers__car">
+                                                        @if (!string.IsNullOrWhiteSpace(driver.Nationality))
+                                                        {
+                                                            @Countries.GetFlag(driver.Nationality)
+                                                            @(" ")
+                                                            @driver.Nationality
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>—</span>
+                                                        }
+                                                    </span>
+                                                </div>
+                                                <button type="button" class="wec-drivers__remove" title="Remove @driver.DriverName"
+                                                        @onclick="() => RemoveDriver(driver)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+
+                                @if (isAddingDriver)
                                 {
-                                    <div class="wec-drivers__row">
-                                        <div class="wec-drivers__info">
-                                            <span class="wec-drivers__name">@driver.DriverName</span>
-                                            <span class="wec-drivers__car">
-                                                @if (!string.IsNullOrWhiteSpace(driver.Nationality))
-                                                {
-                                                    @Countries.GetFlag(driver.Nationality)@(" ")@driver.Nationality
-                                                }
-                                                else
-                                                {
-                                                    <span>—</span>
-                                                }
-                                            </span>
-                                        </div>
-                                        <button type="button" class="wec-drivers__remove" title="Remove @driver.DriverName" @onclick="() => RemoveDriver(driver)">
+                                    <div class="wec-drivers__searchbox">
+                                        <input type="text" placeholder="Search driver name..." value="@driverSearchTerm"
+                                               @oninput="HandleDriverSearch" />
+                                        <button type="button" class="wec-drivers__search-close" title="Close search" @onclick="ClearSearch">
                                             <i class="bi bi-x-lg"></i>
                                         </button>
+
+                                        <div class="wec-drivers__results">
+                                            @if (!driverSearchResults.Any())
+                                            {
+                                                <div class="wec-drivers__result wec-drivers__result--empty">No available drivers</div>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var result in driverSearchResults)
+                                                {
+                                                    <button type="button" class="wec-drivers__result" @onclick="() => AddDriver(result)">
+                                                        <span class="wec-drivers__result-name">@result.DriverName</span>
+                                                        <span class="wec-drivers__result-meta">
+                                                            @if (!string.IsNullOrWhiteSpace(result.Nationality))
+                                                            {
+                                                                @Countries.GetFlag(result.Nationality)
+                                                                @(" ")
+                                                                @result.Nationality
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>—</span>
+                                                            }
+                                                        </span>
+                                                    </button>
+                                                }
+                                            }
+                                        </div>
                                     </div>
                                 }
                             }
                         </div>
 
-                        @if (isAddingDriver)
-                        {
-                            <div class="wec-drivers__searchbox">
-                                <input type="text" placeholder="Search driver name..." value="@driverSearchTerm" @oninput="HandleDriverSearch" />
-                                <button type="button" class="wec-drivers__search-close" title="Close search" @onclick="ClearSearch">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-
-                                <div class="wec-drivers__results">
-                                    @if (!driverSearchResults.Any())
-                                    {
-                                        <div class="wec-drivers__result wec-drivers__result--empty">No available drivers</div>
-                                    }
-                                    else
-                                    {
-                                        @foreach (var result in driverSearchResults)
-                                        {
-                                            <button type="button" class="wec-drivers__result" @onclick="() => AddDriver(result)">
-                                                <span class="wec-drivers__result-name">@result.DriverName</span>
-                                                <span class="wec-drivers__result-meta">
-                                                    @if (!string.IsNullOrWhiteSpace(result.Nationality))
-                                                    {
-                                                        @Countries.GetFlag(result.Nationality)@(" ")@result.Nationality
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>—</span>
-                                                    }
-                                                </span>
-                                            </button>
-                                        }
-                                    }
-                                </div>
-                            </div>
-                        }
-                    }
+                    </div>
+                    <div class="wec-modal__footer">
+                        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
+                        <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveTeamAsync"
+                                disabled="@(isSaving || editingDrivers is null)">
+                            @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
+                        </button>
+                    </div>
                 </div>
-
             </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveTeamAsync" disabled="@(isSaving || editingDrivers is null)">
-                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
-                </button>
-            </div>
-        </div>
-    </div>
-}
+        }
 
 @code {
     private enum SortColumn
@@ -299,7 +360,9 @@ else
         { "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml" };
 
     private List<TeamModel>? teams;
-    private List<TeamClassModel> teamClasses = new();
+    private List<ClassItemOption> classItems = new();
+    private string classSearchText = "";
+    private bool classSearchOpen;
     private TeamFormModel? editingTeam;
     private List<DriverModel>? editingDrivers;
     private bool isCreating;
@@ -316,6 +379,17 @@ else
     private string searchTerm = "";
     private List<DriverModel> activeDrivers = new();
 
+    private sealed class ClassItemOption
+    {
+        public Guid Id { get; init; }
+        public Guid SettingId { get; init; }
+        public required string SettingName { get; init; }
+        public required string Name { get; init; }
+        public required string Color { get; init; }
+        public int Order { get; init; }
+        public string Label => $"{SettingName} - {Name}";
+    }
+
     private IEnumerable<TeamModel> DisplayTeams
     {
         get
@@ -327,7 +401,8 @@ else
 
             IEnumerable<TeamModel> filtered = string.IsNullOrEmpty(selectedClassFilter)
                 ? teams
-                : teams.Where(t => string.Equals(t.TeamClass, selectedClassFilter, StringComparison.OrdinalIgnoreCase));
+                : teams.Where(t => t.ClassTags.Any(tag =>
+                    string.Equals(ClassTagLabel(tag), selectedClassFilter, StringComparison.OrdinalIgnoreCase)));
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
@@ -343,8 +418,8 @@ else
                     ? filtered.OrderByDescending(t => t.TeamName)
                     : filtered.OrderBy(t => t.TeamName),
                 SortColumn.Class => sortDescending
-                    ? filtered.OrderByDescending(t => t.TeamClass)
-                    : filtered.OrderBy(t => t.TeamClass),
+                    ? filtered.OrderByDescending(TeamPrimaryClassLabel)
+                    : filtered.OrderBy(TeamPrimaryClassLabel),
                 SortColumn.Status => sortDescending
                     ? filtered.OrderByDescending(t => t.IsActive)
                     : filtered.OrderBy(t => t.IsActive),
@@ -355,11 +430,17 @@ else
 
     private IEnumerable<string> TeamClassNames =>
         teams?
-            .Select(t => t.TeamClass)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct()
+            .SelectMany(t => t.ClassTags)
+            .Select(ClassTagLabel)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
         ?? Enumerable.Empty<string>();
+
+    private static string ClassTagLabel(ClassTagModel tag)
+        => $"{tag.SettingName} - {tag.ItemName}";
+
+    private static string TeamPrimaryClassLabel(TeamModel team)
+        => team.ClassTags.Count == 0 ? string.Empty : ClassTagLabel(team.ClassTags[0]);
 
     private IEnumerable<TeamModel> PagedTeams
     {
@@ -400,7 +481,18 @@ else
     protected override async Task OnInitializedAsync()
     {
         teams = (await TeamService.GetActiveTeamsAsync()).ToList();
-        teamClasses = (await TeamClassService.GetActiveTeamClassesAsync()).ToList();
+        classItems = (await ClassSettingService.GetAllAsync())
+            .SelectMany(s => s.Items.Select(i => new ClassItemOption
+            {
+                Id = i.ClassSettingItemId,
+                SettingId = s.ClassSettingId,
+                SettingName = s.ClassSettingName,
+                Name = i.Name,
+                Color = i.Color,
+                Order = i.Order
+            }))
+            .OrderBy(o => o.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         activeDrivers = (await DriverService.GetActiveDriversAsync()).ToList();
         currentPage = 1;
     }
@@ -422,13 +514,15 @@ else
     {
         isCreating = true;
         ClearSearch();
+        classSearchText = "";
+        classSearchOpen = false;
         editingDrivers = new List<DriverModel>();
         editingTeam = new TeamFormModel
         {
             TeamId = Guid.NewGuid(),
             TeamName = string.Empty,
             IsActive = true,
-            TeamClassId = teamClasses.FirstOrDefault()?.TeamClassId ?? Guid.Empty
+            ClassSettingItemIds = new List<Guid>()
         };
     }
 
@@ -436,14 +530,16 @@ else
     {
         isCreating = false;
         ClearSearch();
+        classSearchText = "";
+        classSearchOpen = false;
         editingDrivers = null;
         editingTeam = new TeamFormModel
         {
             TeamId = team.TeamId,
             TeamName = team.TeamName,
             TeamLogo = team.TeamLogo,
-            TeamClassId = team.TeamClassId,
-            IsActive = team.IsActive
+            IsActive = team.IsActive,
+            ClassSettingItemIds = team.ClassTags.Select(t => t.ClassSettingItemId).ToList()
         };
 
         var detail = await TeamService.GetTeamByIdAsync(team.TeamId);
@@ -473,6 +569,8 @@ else
         editingTeam = null;
         editingDrivers = null;
         isCreating = false;
+        classSearchText = "";
+        classSearchOpen = false;
         ClearSearch();
     }
 
@@ -489,9 +587,9 @@ else
             return;
         }
 
-        if (editingTeam.TeamClassId == Guid.Empty)
+        if (editingTeam.ClassSettingItemIds.Count == 0)
         {
-            Toast.Show("Please select a team class.", isError: true);
+            Toast.Show("Please select at least one team class.", isError: true);
             return;
         }
 
@@ -590,6 +688,95 @@ else
         driverSearchResults = new List<DriverModel>();
     }
 
+    private List<ClassItemOption> ClassSearchResults
+    {
+        get
+        {
+            if (editingTeam is null)
+            {
+                return new();
+            }
+
+            var selected = editingTeam.ClassSettingItemIds.ToHashSet();
+            var selectedOrders = classItems
+                .Where(o => selected.Contains(o.Id))
+                .Select(o => o.Order)
+                .ToHashSet();
+
+            IEnumerable<ClassItemOption> results = classItems.Where(o => !selected.Contains(o.Id));
+
+            if (selectedOrders.Count > 0)
+            {
+                results = results.Where(o => selectedOrders.Contains(o.Order));
+            }
+
+            if (!string.IsNullOrWhiteSpace(classSearchText))
+            {
+                results = results.Where(o =>
+                    o.Label.Contains(classSearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return results
+                .OrderBy(o => o.SettingName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(o => o.Order)
+                .ToList();
+        }
+    }
+
+    private List<ClassItemOption> SelectedClassTags
+    {
+        get
+        {
+            if (editingTeam is null)
+            {
+                return new();
+            }
+
+            var byId = classItems.ToDictionary(o => o.Id);
+
+            return editingTeam.ClassSettingItemIds
+                .Select(id => byId.TryGetValue(id, out var option) ? option : null)
+                .Where(o => o is not null)
+                .Cast<ClassItemOption>()
+                .ToList();
+        }
+    }
+
+    private void OpenClassSearch()
+    {
+        if (editingTeam is not null)
+        {
+            classSearchOpen = true;
+        }
+    }
+
+    private void HandleClassSearchInput(ChangeEventArgs e)
+    {
+        classSearchText = e.Value?.ToString() ?? "";
+        classSearchOpen = true;
+    }
+
+    private void CloseClassSearch()
+    {
+        classSearchOpen = false;
+    }
+
+    private void AddClassTag(ClassItemOption option)
+    {
+        if (editingTeam is null || editingTeam.ClassSettingItemIds.Contains(option.Id))
+        {
+            return;
+        }
+
+        editingTeam.ClassSettingItemIds.Add(option.Id);
+        classSearchText = "";
+    }
+
+    private void RemoveClassTag(ClassItemOption option)
+    {
+        editingTeam?.ClassSettingItemIds.Remove(option.Id);
+    }
+
     private async Task HandleLogoUpload(InputFileChangeEventArgs e)
     {
         if (editingTeam is null || e.File is null)
@@ -645,22 +832,5 @@ else
         }
 
         editingTeam.TeamLogo = $"/uploads/team-logos/{fileName}";
-    }
-
-    private string GetClassBadgeClass(string teamClass)
-    {
-        if (string.IsNullOrWhiteSpace(teamClass))
-        {
-            return "wec-badge--default";
-        }
-
-        var normalized = teamClass.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "hypercar" or "h" or "lmh" => "wec-badge--hypercar",
-            "lmp2" => "wec-badge--lmp2",
-            "gt3" or "gts" or "lmgt" => "wec-badge--lmgt3",
-            _ => "wec-badge--default"
-        };
     }
 }

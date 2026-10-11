@@ -8,9 +8,7 @@ public class TeamModel
 
     public string? TeamLogo { get; set; }
 
-    public required string TeamClass { get; set; }
-
-    public Guid TeamClassId { get; set; }
+    public List<ClassTagModel> ClassTags { get; set; } = new();
 
     public bool IsActive { get; set; } = true;
 

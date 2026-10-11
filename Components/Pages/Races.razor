@@ -10,6 +10,7 @@
 @inject MulticlassRace.Services.Abstractions.ISeasonService SeasonService
 @inject MulticlassRace.Services.Abstractions.ITeamService TeamService
 @inject MulticlassRace.Services.Abstractions.IPointSettingService PointSettingService
+@inject MulticlassRace.Services.Abstractions.IClassSettingService ClassSettingService
 @inject MulticlassRace.Services.Abstractions.ITrackService TrackService
 @inject MulticlassRace.Services.Abstractions.ILuaResultImportService LuaResultImportService
 @inject MulticlassRace.Services.RaceSessionChangeNotifier RaceSessionChangeNotifier
@@ -84,6 +85,7 @@
                 <th>Country</th>
                 <th>Track</th>
                 <th>Point Setting</th>
+                <th>Class Setting</th>
                 <th>
                     <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
                         Status
@@ -98,19 +100,19 @@
             @if (!hasSeason)
             {
                 <tr>
-                    <td colspan="6" class="wec-empty">Select a championship and a season to view races.</td>
+                    <td colspan="7" class="wec-empty">Select a championship and a season to view races.</td>
                 </tr>
             }
             else if (races is null)
             {
                 <tr>
-                    <td colspan="6" class="wec-empty">Loading races...</td>
+                    <td colspan="7" class="wec-empty">Loading races...</td>
                 </tr>
             }
             else if (!DisplayRaces.Any())
             {
                 <tr>
-                    <td colspan="6" class="wec-empty">No races found. Click Add Race to create one.</td>
+                    <td colspan="7" class="wec-empty">No races found. Click Add Race to create one.</td>
                 </tr>
             }
             else
@@ -149,6 +151,16 @@
                             }
                         </td>
                         <td>@(string.IsNullOrWhiteSpace(race.PointSettingName) ? "—" : race.PointSettingName)</td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(race.ClassSettingName))
+                            {
+                                <span class="wec-badge wec-badge--default">Not set</span>
+                            }
+                            else
+                            {
+                                <span class="wec-badge wec-badge--default">@race.ClassSettingName</span>
+                            }
+                        </td>
                         <td>
                             <span class="wec-status @StatusClass(race.Status)">
                                 @StatusLabel(race.Status)
@@ -233,7 +245,7 @@
                                         <div class="wec-podium__name">@standing.DriverName</div>
                                         <div class="wec-podium__points">@standing.Points<span class="wec-podium__points-label"> pts</span></div>
                                         <div>
-                                            <span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span>
+                                            <span class="wec-badge" style="background-color: @ClassColorFor(standing.DriverClass)">@standing.DriverClass</span>
                                         </div>
                                     </div>
                                 }
@@ -264,7 +276,7 @@
                                             <td class="wec-table__position">@(i + 4)</td>
                                             <td>@standing.DriverName</td>
                                             <td>@standing.TeamName</td>
-                                            <td><span class="wec-badge @(GetClassBadgeClass(standing.DriverClass))">@standing.DriverClass</span></td>
+                                            <td><span class="wec-badge" style="background-color: @ClassColorFor(standing.DriverClass)">@standing.DriverClass</span></td>
                                             <td>@standing.Points</td>
                                         </tr>
                                     }
@@ -407,6 +419,29 @@
                 </div>
 
                 <div class="wec-form-field">
+                    <label for="race-class-setting">Class Setting</label>
+                    <select id="race-class-setting" @bind="editingRace.ClassSettingId">
+                        <option value="@Guid.Empty">Select class setting...</option>
+                        @foreach (var setting in classSettings.OrderBy(s => s.ClassSettingName, StringComparer.OrdinalIgnoreCase))
+                        {
+                            <option value="@setting.ClassSettingId">@setting.ClassSettingName@(setting.IsDefault ? " (default)" : "")</option>
+                        }
+                    </select>
+
+                    <div class="wec-text-muted">
+                        @if (editingRace.ClassSettingId != Guid.Empty)
+                        {
+                            var selectedSetting = classSettings.FirstOrDefault(c => c.ClassSettingId == editingRace.ClassSettingId);
+                            if (selectedSetting is not null)
+                            {
+                                var preview = string.Join(" › ", selectedSetting.Items.OrderBy(i => i.Order).Select(i => $"{i.Name}"));
+                                <span>@preview</span>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="wec-form-field">
                     <label for="race-practice-minutes">Practice Time: <strong>@PracticeMinutesLabel</strong></label>
                     <input id="race-practice-minutes" type="range" min="0" max="90" step="1"
                            title="Practice duration from 0 to 90 minutes. Set to 0 to skip practice."
@@ -439,7 +474,7 @@
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
                         @onclick="CancelRaceEdit">Cancel</button>
                 <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveRaceAsync"
-                        disabled="@(isSavingRace || editingRace.PointSettingId == Guid.Empty)">
+                        disabled="@(isSavingRace || editingRace.PointSettingId == Guid.Empty || editingRace.ClassSettingId == Guid.Empty)">
                     @(isSavingRace ? "Saving..." : isCreatingRace ? "Create" : "Save")
                 </button>
             </div>
@@ -625,7 +660,7 @@
                     </div>
                 }
 
-                @if (selectedTab is not RacePopupTab.Teams && StandingClassNames.Any())
+                @if (selectedTab is not RacePopupTab.Teams && HasRaceClassSetting && StandingClassNames.Any())
                 {
                     <div class="wec-session-toolbar">
                         <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
@@ -647,21 +682,24 @@
                             least one team is selected.</div>
 
                             <div class="wec-race-teams__toolbar">
-                                <div class="wec-race-teams__filter">
-                                    <label for="race-teams-class">Class</label>
-                                    <select id="race-teams-class" value="@selectedTeamClassFilter"
-                                            @onchange="HandleTeamClassFilterChanged">
-                                        <option value="">All classes</option>
-                                        @foreach (var cls in ClassNames)
-                                        {
-                                            <option value="@cls">@cls</option>
-                                        }
-                                        @if (HasUncategorized)
-                                        {
-                                            <option value="@UncategorizedKey">Uncategorized</option>
-                                        }
-                                    </select>
-                                </div>
+                                @if (HasRaceClassSetting)
+                                {
+                                    <div class="wec-race-teams__filter">
+                                        <label for="race-teams-class">Class</label>
+                                        <select id="race-teams-class" value="@selectedTeamClassFilter"
+                                                @onchange="HandleTeamClassFilterChanged">
+                                            <option value="">All classes</option>
+                                            @foreach (var cls in ClassNames)
+                                            {
+                                                <option value="@cls">@cls</option>
+                                            }
+                                            @if (HasUncategorized)
+                                            {
+                                                <option value="@UncategorizedKey">Uncategorized</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
 
                                 <label class="wec-race-teams__select-all @(FilteredTeams.Count > 0 ? "" : "wec-disabled")">
                                     <input type="checkbox" checked="@allVisibleSelected"
@@ -692,7 +730,7 @@
                                                 <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
                                             }
                                             <span>@team.TeamName</span>
-                                            <span class="wec-badge @(GetClassBadgeClass(team.TeamClass))">@team.TeamClass</span>
+                                            <span class="wec-badge" style="background-color: @RaceTeamClassColor(team)">@RaceTeamClassName(team)</span>
                                         </label>
                                     }
                                 </div>
@@ -746,7 +784,7 @@
                                                         <td class="wec-table__position">@standing.Position</td>
                                                         <td>@standing.DriverName</td>
                                                         <td>@standing.TeamName</td>
-                                                        <td><span class="wec-badge @(GetClassBadgeClass(standing.TeamClassName))">@standing.TeamClassName</span></td>
+                                                        <td><span class="wec-badge" style="background-color: @ClassColorFor(standing.TeamClassName)">@standing.TeamClassName</span></td>
                                                         <td>@FormatLap(standing.BestLapTimeMs)</td>
                                                         @if (selectedSessionType == SessionType.Race)
                                                         {
@@ -796,6 +834,8 @@
     private bool isLoadingRacePopup;
     private RacePopupTab selectedTab = RacePopupTab.Race;
     private List<PointSettingModel> pointSettings = new();
+    private List<ClassSettingModel> classSettings = new();
+    private Dictionary<string, string> classColorByName = new(StringComparer.OrdinalIgnoreCase);
     private SessionType selectedSessionType = SessionType.Race;
     private List<SessionModel>? sessionsCache;
     private List<TeamModel> availableTeams = new();
@@ -905,15 +945,46 @@
 
     private bool hasSessionData => sessionsCache?.Any(s => s.DriverStandings.Any()) == true;
 
+    private ClassSettingModel? SelectedRaceClassSetting =>
+        viewingSessionsFor is not null
+            ? classSettings.FirstOrDefault(s => s.ClassSettingId == viewingSessionsFor.ClassSettingId)
+            : null;
+
+    private bool HasRaceClassSetting => SelectedRaceClassSetting is not null;
+
+    private ClassTagModel? ResolvedRaceClass(TeamModel team)
+    {
+        return SelectedRaceClassSetting is { } setting
+            ? team.ClassTags.FirstOrDefault(t => t.ClassSettingId == setting.ClassSettingId)
+            : null;
+    }
+
+    private string RaceTeamClassName(TeamModel team)
+    {
+        return ResolvedRaceClass(team)?.ItemName ?? string.Empty;
+    }
+
+    private string RaceTeamClassColor(TeamModel team)
+    {
+        return ResolvedRaceClass(team)?.Color ?? "#52525b";
+    }
+
+    private string RaceTeamClassLabel(TeamModel team)
+    {
+        var tag = ResolvedRaceClass(team);
+
+        return tag is null ? string.Empty : $"{tag.SettingName} - {tag.ItemName}";
+    }
+
     private IOrderedEnumerable<string> ClassNames =>
         availableTeams
-            .Select(t => t.TeamClass)
+            .Select(RaceTeamClassLabel)
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct()
             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase);
 
     private bool HasUncategorized =>
-        availableTeams.Any(t => string.IsNullOrWhiteSpace(t.TeamClass));
+        availableTeams.Any(t => string.IsNullOrWhiteSpace(RaceTeamClassName(t)));
 
     private List<TeamModel> FilteredTeams
     {
@@ -922,8 +993,8 @@
             IEnumerable<TeamModel> teams = selectedTeamClassFilter switch
             {
                 "" => availableTeams,
-                UncategorizedKey => availableTeams.Where(t => string.IsNullOrWhiteSpace(t.TeamClass)),
-                _ => availableTeams.Where(t => string.Equals(t.TeamClass, selectedTeamClassFilter, StringComparison.OrdinalIgnoreCase))
+                UncategorizedKey => availableTeams.Where(t => string.IsNullOrWhiteSpace(RaceTeamClassName(t))),
+                _ => availableTeams.Where(t => string.Equals(RaceTeamClassLabel(t), selectedTeamClassFilter, StringComparison.OrdinalIgnoreCase))
             };
 
             return teams
@@ -1027,6 +1098,8 @@
     {
         championships = (await ChampionshipService.GetActiveChampionshipsAsync()).ToList();
         pointSettings = (await PointSettingService.GetAllAsync()).ToList();
+        classSettings = (await ClassSettingService.GetAllAsync()).ToList();
+        await BuildClassColorMapAsync();
         availableTracks = (await TrackService.GetTrackOptionsAsync()).ToList();
 
         var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
@@ -1256,7 +1329,7 @@
         }
 
         driverStandings = (await SeasonService.GetDriverStandingsAsync(selectedSeason.SeasonId)).ToList();
-        selectedStandingsClassFilter = "Hypercar";
+        selectedStandingsClassFilter = "";
 
         isOpeningStandings = true;
     }
@@ -1308,12 +1381,14 @@
 
         isCreatingRace = true;
         var defaultPointSetting = pointSettings.FirstOrDefault(p => p.IsDefault);
+        var defaultClassSetting = classSettings.FirstOrDefault(c => c.IsDefault);
         editingRace = new RaceFormModel
         {
             RaceId = Guid.NewGuid(),
             RaceName = string.Empty,
             SeasonId = selectedSeason.SeasonId,
             PointSettingId = defaultPointSetting?.SettingId ?? Guid.Empty,
+            ClassSettingId = defaultClassSetting?.ClassSettingId ?? Guid.Empty,
             NumberOfLaps = 10,
             PracticeSessionMinutes = 20,
             QualifyingSessionMinutes = 20
@@ -1337,6 +1412,7 @@
             Country = race.Country,
             SeasonId = selectedSeason.SeasonId,
             PointSettingId = race.PointSettingId,
+            ClassSettingId = race.ClassSettingId,
             TrackName = race.TrackName,
             TrackLayout = race.TrackLayout,
             NumberOfLaps = race.NumberOfLaps,
@@ -1394,6 +1470,12 @@
         if (editingRace.PointSettingId == Guid.Empty)
         {
             Toast.Show("Select a point setting.", isError: true);
+            return;
+        }
+
+        if (editingRace.ClassSettingId == Guid.Empty)
+        {
+            Toast.Show("Select a class setting.", isError: true);
             return;
         }
 
@@ -1974,6 +2056,31 @@
             "gt3" or "gts" or "lmgt" => "wec-badge--lmgt3",
             _ => "wec-badge--default"
         };
+    }
+
+    private async Task BuildClassColorMapAsync()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var setting in classSettings)
+        {
+            foreach (var item in setting.Items.OrderBy(i => i.Order))
+            {
+                map.TryAdd(item.Name.Trim(), item.Color);
+            }
+        }
+
+        classColorByName = map;
+    }
+
+    private string ClassColorFor(string? className)
+    {
+        if (!string.IsNullOrWhiteSpace(className) && classColorByName.TryGetValue(className.Trim(), out var color))
+        {
+            return color;
+        }
+
+        return "#52525b";
     }
 
     private static string SessionTypeLabel(SessionType type)

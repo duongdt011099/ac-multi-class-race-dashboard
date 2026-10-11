@@ -18,7 +18,8 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
     {
         return await _context.Driver
             .Include(d => d.Team)
-            .ThenInclude(t => t!.TeamClass)
+                .ThenInclude(t => t!.ClassSettingItems)
+                    .ThenInclude(i => i.ClassSetting)
             .Where(d => d.IsActive)
             .ToListAsync();
     }
@@ -28,6 +29,15 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
         return await _context.Driver
             .Where(d => d.Team != null && d.Team.TeamId == teamId)
             .ToListAsync();
+    }
+
+    public async Task<Driver?> GetDriverWithDetailsAsync(Guid driverId)
+    {
+        return await _context.Driver
+            .Include(d => d.Team)
+                .ThenInclude(t => t!.ClassSettingItems)
+                    .ThenInclude(i => i.ClassSetting)
+            .FirstOrDefaultAsync(d => d.DriverId == driverId);
     }
 
     public async Task DeacivateDriverAsync(Guid driverId)
