@@ -8,7 +8,7 @@ public class TeamFormModel
 
     public string? TeamLogo { get; set; }
 
-    public Guid TeamClassId { get; set; }
+    public List<Guid> ClassSettingItemIds { get; set; } = new();
 
     public bool IsActive { get; set; } = true;
 }

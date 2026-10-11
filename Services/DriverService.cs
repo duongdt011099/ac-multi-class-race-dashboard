@@ -14,7 +14,10 @@ public class DriverService : IDriverService
     private readonly AssettoCorsaPathResolver _pathResolver;
     private readonly ITeamRepository _teamRepository;
 
-    public DriverService(IDriverRepository driverRepository, AssettoCorsaPathResolver pathResolver, ITeamRepository teamRepository)
+    public DriverService(
+        IDriverRepository driverRepository,
+        AssettoCorsaPathResolver pathResolver,
+        ITeamRepository teamRepository)
     {
         _driverRepository = driverRepository;
         _pathResolver = pathResolver;
@@ -39,7 +42,7 @@ public class DriverService : IDriverService
 
     public async Task<DriverFormModel?> GetDriverByIdAsync(Guid driverId)
     {
-        var driver = await _driverRepository.GetByIdAsync(driverId);
+        var driver = await _driverRepository.GetDriverWithDetailsAsync(driverId);
 
         return driver is null ? null : ToFormModel(driver);
     }
@@ -72,7 +75,7 @@ public class DriverService : IDriverService
 
     public async Task UpdateDriverAsync(DriverFormModel model)
     {
-        var driver = await _driverRepository.GetByIdAsync(model.DriverId);
+        var driver = await _driverRepository.GetDriverWithDetailsAsync(model.DriverId);
 
         if (driver is null)
         {
@@ -207,7 +210,21 @@ public class DriverService : IDriverService
             TeamName = driver.Team?.TeamName,
             TeamId = driver.Team?.TeamId,
             TeamLogo = driver.Team?.TeamLogo,
-            TeamClassName = driver.Team?.TeamClass?.TeamClassName,
+            ClassTags = driver.Team is null
+                ? new List<ClassTagModel>()
+                : driver.Team.ClassSettingItems
+                    .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(i => i.Order)
+                    .Select(i => new ClassTagModel
+                    {
+                        ClassSettingItemId = i.ClassSettingItemId,
+                        ClassSettingId = i.ClassSettingId,
+                        ItemName = i.Name,
+                        SettingName = i.ClassSetting.ClassSettingName,
+                        Color = i.Color,
+                        Order = i.Order
+                    })
+                    .ToList(),
             IsActive = driver.IsActive,
             IsHuman = driver.IsHuman
         };

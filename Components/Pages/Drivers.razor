@@ -37,8 +37,8 @@ else
     <div class="wec-filters">
         <div class="wec-filters__item">
             <label for="filter-driver-search">Search</label>
-            <input id="filter-driver-search" type="text" placeholder="Search driver or team name..."
-                   value="@searchTerm" @oninput="HandleSearchChanged" />
+            <input id="filter-driver-search" type="text" placeholder="Search driver or team name..." value="@searchTerm"
+                   @oninput="HandleSearchChanged" />
         </div>
 
         <div class="wec-filters__item">
@@ -67,7 +67,8 @@ else
                     <th>
                         <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Driver)">
                             Driver
-                            <i class="bi @(sortColumn == SortColumn.Driver && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Driver ? "" : "wec-table__sort-icon--inactive")"></i>
+                            <i
+                            class="bi @(sortColumn == SortColumn.Driver && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Driver ? "" : "wec-table__sort-icon--inactive")"></i>
                         </button>
                     </th>
                     <th>Nationality</th>
@@ -78,7 +79,8 @@ else
                     <th>
                         <button type="button" class="wec-table__sort" @onclick="() => SortBy(SortColumn.Status)">
                             Status
-                            <i class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
+                            <i
+                            class="bi @(sortColumn == SortColumn.Status && sortDescending ? "bi-arrow-down-short" : "bi-arrow-up-short") wec-table__sort-icon @(sortColumn == SortColumn.Status ? "" : "wec-table__sort-icon--inactive")"></i>
                         </button>
                     </th>
                     <th class="wec-table__actions">Actions</th>
@@ -102,14 +104,17 @@ else
                             <td>
                                 @if (!string.IsNullOrEmpty(driver.LiveryImageUrl))
                                 {
-                                    <img src="@driver.LiveryImageUrl" class="wec-drivers__livery" alt="@driver.Car livery" onerror="this.style.display='none'" />
+                                    <img src="@driver.LiveryImageUrl" class="wec-drivers__livery" alt="@driver.Car livery"
+                                         onerror="this.style.display='none'" />
                                 }
                             </td>
                             <td>
                                 @if (!string.IsNullOrEmpty(driver.CarImageUrl))
                                 {
-                                    <button type="button" class="wec-drivers__car-btn" title="View bigger" @onclick="() => OpenCarImageAsync(driver)">
-                                        <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car" onerror="this.style.display='none'" />
+                                    <button type="button" class="wec-drivers__car-btn" title="View bigger"
+                                            @onclick="() => OpenCarImageAsync(driver)">
+                                        <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car"
+                                             onerror="this.style.display='none'" />
                                     </button>
                                 }
                             </td>
@@ -128,14 +133,21 @@ else
                                 }
                             </td>
                             <td>
-                                @if (string.IsNullOrWhiteSpace(driver.TeamClassName))
-                                {
-                                    <span>—</span>
-                                }
-                                else
-                                {
-                                    <span class="wec-badge @(GetClassBadgeClass(driver.TeamClassName))">@driver.TeamClassName</span>
-                                }
+                                <div class="wec-table__classes">
+                                    @if (driver.ClassTags.Count == 0)
+                                    {
+                                        <span>—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var tag in driver.ClassTags)
+                                        {
+                                            <span class="wec-badge" style="background-color: @tag.Color"
+                                                  title="@tag.SettingName">@tag.ItemName</span>
+                                        }
+                                    }
+                                </div>
+                                
                             </td>
                             <td>@(driver.DriverStrength?.ToString() ?? "—")</td>
                             <td>@(driver.DriverAgression?.ToString() ?? "—")</td>
@@ -145,10 +157,12 @@ else
                                 </span>
                             </td>
                             <td class="wec-table__actions">
-                                <button type="button" class="wec-btn" title="Edit @driver.DriverName" @onclick="() => OpenEdit(driver)">
+                                <button type="button" class="wec-btn" title="Edit @driver.DriverName"
+                                        @onclick="() => OpenEdit(driver)">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button type="button" class="wec-btn" title="Delete @driver.DriverName" @onclick="() => confirmDeleteDriver = driver">
+                                <button type="button" class="wec-btn" title="Delete @driver.DriverName"
+                                        @onclick="() => confirmDeleteDriver = driver">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </td>
@@ -165,7 +179,8 @@ else
                     <i class="bi bi-chevron-left"></i> Prev
                 </button>
                 <span class="wec-pagination__info">Page @currentPage of @TotalPages</span>
-                <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)" @onclick="() => currentPage++">
+                <button type="button" class="wec-pagination__btn" disabled="@(currentPage >= TotalPages)"
+                        @onclick="() => currentPage++">
                     Next <i class="bi bi-chevron-right"></i>
                 </button>
             </div>
@@ -203,164 +218,179 @@ else
                                 disabled="@isLoadingCarContent">
                             <option value="">@(isLoadingCarContent ? "Loading cars..." : "Select car...")</option>
                             @if (!string.IsNullOrEmpty(editingDriver.Car) &&
-                                 !carOptions.Any(car => string.Equals(car.CarId, editingDriver.Car, StringComparison.OrdinalIgnoreCase)))
+                                 !carOptions.Any(car => string.Equals(car.CarId, editingDriver.Car,
+                        StringComparison.OrdinalIgnoreCase)))
                             {
-                                <option value="@editingDriver.Car">@GetCarOptionFallbackName(editingDriver.Car) (not found on disk)</option>
-                            }
-                            @foreach (var car in carOptions)
+                                <option value="@editingDriver.Car">@GetCarOptionFallbackName(editingDriver.Car) (not found on
+                                    disk)</option>
+                                }
+                                @foreach (var car in carOptions)
+                                {
+                                    <option value="@car.CarId">@car.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="wec-form-field">
+                            <label for="driver-skin">Skin</label>
+                            <select id="driver-skin" @bind="editingDriver.Skin"
+                                    disabled="@(string.IsNullOrWhiteSpace(editingDriver.Car) || isLoadingSkinContent || skinOptions.Count == 0)">
+                                <option value="">@SkinPlaceholder</option>
+                                @if (!string.IsNullOrEmpty(editingDriver.Skin) && !skinOptions.Contains(editingDriver.Skin))
+                                {
+                                    <option value="@editingDriver.Skin">@editingDriver.Skin (not found on disk)</option>
+                                }
+                                @foreach (var skin in skinOptions)
+                                {
+                                    <option value="@skin">@skin</option>
+                                }
+                            </select>
+                            @if (!string.IsNullOrWhiteSpace(editingDriver.Car) && !isLoadingSkinContent && skinOptions.Count ==
+                        0)
                             {
-                                <option value="@car.CarId">@car.DisplayName</option>
+                                <p class="wec-form-hint">No skins found for this car.</p>
                             }
-                        </select>
+                        </div>
                     </div>
 
-                    <div class="wec-form-field">
-                        <label for="driver-skin">Skin</label>
-                        <select id="driver-skin" @bind="editingDriver.Skin"
-                                disabled="@(string.IsNullOrWhiteSpace(editingDriver.Car) || isLoadingSkinContent || skinOptions.Count == 0)">
-                            <option value="">@SkinPlaceholder</option>
-                            @if (!string.IsNullOrEmpty(editingDriver.Skin) && !skinOptions.Contains(editingDriver.Skin))
-                            {
-                                <option value="@editingDriver.Skin">@editingDriver.Skin (not found on disk)</option>
-                            }
-                            @foreach (var skin in skinOptions)
-                            {
-                                <option value="@skin">@skin</option>
-                            }
-                        </select>
-                        @if (!string.IsNullOrWhiteSpace(editingDriver.Car) && !isLoadingSkinContent && skinOptions.Count == 0)
-                        {
-                            <p class="wec-form-hint">No skins found for this car.</p>
-                        }
+                    @if (!string.IsNullOrWhiteSpace(skinPreviewUrl))
+                    {
+                        <div class="wec-skin-preview">
+                            <img src="@skinPreviewUrl" class="wec-skin-preview__img" alt="@(editingDriver.Skin) preview"
+                                 onerror="this.parentElement.style.display='none'" />
+                        </div>
+                    }
+
+                    <div class="wec-form-row">
+                        <div class="wec-form-field">
+                            <label for="driver-nationality">Nationality</label>
+                            <select id="driver-nationality" @bind="editingDriver.Nationality">
+                                <option value="">Select nationality...</option>
+                                @if (!string.IsNullOrEmpty(editingDriver.Nationality) &&
+                            !Countries.All.Contains(editingDriver.Nationality))
+                                {
+                                    <option value="@editingDriver.Nationality">@editingDriver.Nationality</option>
+                                }
+                                @foreach (var country in Countries.All)
+                                {
+                                    <option value="@country">@Countries.GetFlag(country) @country</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="wec-form-field">
+                            <label for="driver-team">Team</label>
+                            <select id="driver-team" value="@(editingDriver.TeamId?.ToString())" @onchange="HandleTeamChanged">
+                                <option value="">No team</option>
+                                @if (editingDriver.TeamId is { } currentTeamId && !teamOptions.Any(t => t.TeamId ==
+                            currentTeamId))
+                                {
+                                    <option value="@currentTeamId">@(editingDriver.TeamName)</option>
+                                }
+                                @foreach (var team in teamOptions)
+                                {
+                                    <option value="@team.TeamId">@team.TeamName</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="wec-form-row">
+                        <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
+                            <label for="driver-age">Age</label>
+                            <input id="driver-age" type="number" min="0" @bind="editingDriver.Age" />
+                        </div>
+
+                        <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
+                            <label for="driver-strength">AI Strength</label>
+                            <input id="driver-strength" type="number" min="0" @bind="editingDriver.DriverStrength" />
+                        </div>
+                    </div>
+
+                    <div class="wec-form-row">
+                        <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
+                            <label for="driver-agression">AI Aggression</label>
+                            <input id="driver-agression" type="number" min="0" @bind="editingDriver.DriverAgression" />
+                        </div>
+                    </div>
+
+                    <div class="wec-form-row">
+                        <div class="wec-form-field wec-form-field--checkbox wec-form-field--checkbox-human @(CanToggleHuman ? null : "wec-form-field--disabled")"
+                             title="@(CanToggleHuman ? null : $"A human driver is already selected: {HumanDriverName}")">
+                            <input id="driver-human" type="checkbox" @bind="editingDriver.IsHuman"
+                                   disabled="@(!CanToggleHuman)" />
+                            <label for="driver-human">Is Human</label>
+                        </div>
                     </div>
                 </div>
-
-                @if (!string.IsNullOrWhiteSpace(skinPreviewUrl))
-                {
-                    <div class="wec-skin-preview">
-                        <img src="@skinPreviewUrl" class="wec-skin-preview__img" alt="@(editingDriver.Skin) preview"
-                             onerror="this.parentElement.style.display='none'" />
-                    </div>
-                }
-
-                <div class="wec-form-row">
-                    <div class="wec-form-field">
-                        <label for="driver-nationality">Nationality</label>
-                        <select id="driver-nationality" @bind="editingDriver.Nationality">
-                            <option value="">Select nationality...</option>
-                            @if (!string.IsNullOrEmpty(editingDriver.Nationality) && !Countries.All.Contains(editingDriver.Nationality))
-                            {
-                                <option value="@editingDriver.Nationality">@editingDriver.Nationality</option>
-                            }
-                            @foreach (var country in Countries.All)
-                            {
-                                <option value="@country">@Countries.GetFlag(country) @country</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="wec-form-field">
-                        <label for="driver-team">Team</label>
-                        <select id="driver-team" value="@(editingDriver.TeamId?.ToString())" @onchange="HandleTeamChanged">
-                            <option value="">No team</option>
-                            @if (editingDriver.TeamId is { } currentTeamId && !teamOptions.Any(t => t.TeamId == currentTeamId))
-                            {
-                                <option value="@currentTeamId">@(editingDriver.TeamName)</option>
-                            }
-                            @foreach (var team in teamOptions)
-                            {
-                                <option value="@team.TeamId">@team.TeamName</option>
-                            }
-                        </select>
-                    </div>
+                <div class="wec-modal__footer">
+                    @if (!isCreating)
+                    {
+                        <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="RequestDeleteEditing"
+                                disabled="@isSaving">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    }
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
+                    <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveDriverAsync"
+                            disabled="@isSaving">
+                        @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
+                    </button>
                 </div>
-
-                <div class="wec-form-row">
-                    <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
-                        <label for="driver-age">Age</label>
-                        <input id="driver-age" type="number" min="0" @bind="editingDriver.Age" />
-                    </div>
-
-                    <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
-                        <label for="driver-strength">AI Strength</label>
-                        <input id="driver-strength" type="number" min="0" @bind="editingDriver.DriverStrength" />
-                    </div>
-                </div>
-
-                <div class="wec-form-row">
-                    <div class="wec-form-field wec-form-field--number wec-form-field--number--wide">
-                        <label for="driver-agression">AI Aggression</label>
-                        <input id="driver-agression" type="number" min="0" @bind="editingDriver.DriverAgression" />
-                    </div>
-                </div>
-
-                <div class="wec-form-row">
-                    <div class="wec-form-field wec-form-field--checkbox">
-                        <input id="driver-active" type="checkbox" @bind="editingDriver.IsActive" />
-                        <label for="driver-active">Is Active</label>
-                    </div>
-                    <div class="wec-form-field wec-form-field--checkbox wec-form-field--checkbox-human @(CanToggleHuman ? null : "wec-form-field--disabled")" title="@(CanToggleHuman ? null : $"A human driver is already selected: {HumanDriverName}")">
-                        <input id="driver-human" type="checkbox" @bind="editingDriver.IsHuman" disabled="@(!CanToggleHuman)" />
-                        <label for="driver-human">Is Human</label>
-                    </div>
-                </div>
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveDriverAsync" disabled="@isSaving">
-                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
-                </button>
             </div>
         </div>
-    </div>
-}
+    }
 
-@if (confirmDeleteDriver is not null)
-{
-    <div class="wec-modal-overlay">
-        <div class="wec-modal wec-modal--small">
-            <div class="wec-modal__header">
-                <span>Delete Driver</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDeleteDriver = null">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                <p>Delete @confirmDeleteDriver.DriverName? This cannot be undone.</p>
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => confirmDeleteDriver = null">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteDriverAsync" disabled="@isDeleting">
-                    @(isDeleting ? "Deleting..." : "Delete")
-                </button>
+    @if (confirmDeleteDriver is not null)
+    {
+        <div class="wec-modal-overlay">
+            <div class="wec-modal wec-modal--small">
+                <div class="wec-modal__header">
+                    <span>Delete Driver</span>
+                    <button type="button" class="wec-modal__close" aria-label="Close"
+                            @onclick="() => confirmDeleteDriver = null">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="wec-modal__body">
+                    <p>Do you want to delete this driver? This action could not be undone.</p>
+                </div>
+                <div class="wec-modal__footer">
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                            @onclick="() => confirmDeleteDriver = null">No</button>
+                    <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteDriverAsync"
+                            disabled="@isDeleting">
+                        @(isDeleting ? "Deleting..." : "Yes")
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
-}
+    }
 
-@if (viewingCar is not null)
-{
-    <div class="wec-modal-overlay" @onclick="CloseCarImage">
-        <div class="wec-modal wec-modal--wider" @onclick:stopPropagation="true">
-            <div class="wec-modal__header">
-                <span>@viewingCarDisplayName</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseCarImage">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                <img src="@viewingCar.CarImageUrl" class="wec-image-viewer__img" alt="@viewingCarDisplayName" />
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CloseCarImage">Close</button>
+    @if (viewingCar is not null)
+    {
+        <div class="wec-modal-overlay" @onclick="CloseCarImage">
+            <div class="wec-modal wec-modal--wider" @onclick:stopPropagation="true">
+                <div class="wec-modal__header">
+                    <span>@viewingCarDisplayName</span>
+                    <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CloseCarImage">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="wec-modal__body">
+                    <img src="@viewingCar.CarImageUrl" class="wec-image-viewer__img" alt="@viewingCarDisplayName" />
+                </div>
+                <div class="wec-modal__footer">
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                            @onclick="CloseCarImage">Close</button>
+                </div>
             </div>
         </div>
-    </div>
-}
+    }
 
-<FolderPicker FieldLabel="Preset" Title="Select Assetto Corsa Preset" InputId="driver-preset-path"
-              Value="presetPath" RootPath="presetPath" ValueChanged="ImportPresetFromPath" @ref="presetPicker"
-              ShowBrowseButton="false" IncludeFiles="true" />
+<FolderPicker FieldLabel="Preset" Title="Select Assetto Corsa Preset" InputId="driver-preset-path" Value="presetPath"
+              RootPath="presetPath" ValueChanged="ImportPresetFromPath" @ref="presetPicker" ShowBrowseButton="false"
+              IncludeFiles="true" />
 
 @code {
     private enum SortColumn
@@ -435,8 +465,9 @@ else
             IEnumerable<DriverModel> filtered = selectedClassFilter switch
             {
                 "" => drivers,
-                UncategorizedKey => drivers.Where(d => string.IsNullOrWhiteSpace(d.TeamClassName)),
-                _ => drivers.Where(d => string.Equals(d.TeamClassName, selectedClassFilter, StringComparison.OrdinalIgnoreCase))
+                UncategorizedKey => drivers.Where(d => d.ClassTags.Count == 0),
+                _ => drivers.Where(d => d.ClassTags.Any(t =>
+                    string.Equals(ClassTagLabel(t), selectedClassFilter, StringComparison.OrdinalIgnoreCase)))
             };
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -461,15 +492,17 @@ else
 
     private IEnumerable<string> DriverClassNames =>
         drivers?
-            .Select(d => d.TeamClassName)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => c!)
-            .Distinct()
+            .SelectMany(d => d.ClassTags)
+            .Select(ClassTagLabel)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
         ?? Enumerable.Empty<string>();
 
     private bool HasUncategorizedDrivers =>
-        drivers?.Any(d => string.IsNullOrWhiteSpace(d.TeamClassName)) ?? false;
+        drivers?.Any(d => d.ClassTags.Count == 0) ?? false;
+
+    private static string ClassTagLabel(ClassTagModel tag)
+        => $"{tag.SettingName} - {tag.ItemName}";
 
     private IEnumerable<DriverModel> PagedDrivers
     {
@@ -709,21 +742,25 @@ else
             : driver.CarDisplayName.Trim();
     }
 
-    private string GetClassBadgeClass(string? teamClass)
+    private void RequestDeleteEditing()
     {
-        if (string.IsNullOrWhiteSpace(teamClass))
+        if (editingDriver is null)
         {
-            return "wec-badge--default";
+            return;
         }
 
-        var normalized = teamClass.Trim().ToLowerInvariant();
-        return normalized switch
+        var match = drivers?.FirstOrDefault(d => d.DriverId == editingDriver.DriverId);
+
+        if (match is null)
         {
-            "hypercar" or "h" or "lmh" => "wec-badge--hypercar",
-            "lmp2" => "wec-badge--lmp2",
-            "gt3" or "gts" or "lmgt" => "wec-badge--lmgt3",
-            _ => "wec-badge--default"
-        };
+            Toast.Show("This driver is not loaded and cannot be deleted from here.", isError: true);
+            return;
+        }
+
+        editingDriver = null;
+        isCreating = false;
+        skinOptions = new();
+        confirmDeleteDriver = match;
     }
 
     private void CancelEdit()
@@ -826,7 +863,8 @@ else
 
         if (!Directory.Exists(path))
         {
-            Toast.Show($"Content Manager's preset folder '{path}' does not exist. Install Content Manager to import a grid.", isError: true);
+            Toast.Show($"Content Manager's preset folder '{path}' does not exist. Install Content Manager to import a grid.",
+isError: true);
             return;
         }
 

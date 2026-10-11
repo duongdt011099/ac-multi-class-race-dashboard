@@ -19,4 +19,15 @@ public class SeasonRepository : GenericRepository<Season>, ISeasonRepository
             .OrderBy(s => s.SeasonName)
             .ToListAsync();
     }
+
+    public async Task<Season?> GetSeasonWithRacesAsync(Guid seasonId)
+    {
+        return await _context.Seasons
+            .Include(s => s.Championship)
+            .Include(s => s.Races)
+                .ThenInclude(r => r.PointSetting)
+            .Include(s => s.Races)
+                .ThenInclude(r => r.ClassSetting)
+            .FirstOrDefaultAsync(s => s.SeasonId == seasonId);
+    }
 }

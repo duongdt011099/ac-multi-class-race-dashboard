@@ -17,9 +17,18 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
             .Include(r => r.Sessions)
                 .ThenInclude(s => s.DriverStandings)
             .Include(r => r.PointSetting)
+            .Include(r => r.ClassSetting)
             .Where(r => r.Season.SeasonId == seasonId)
             .OrderBy(r => r.RaceName)
             .ToListAsync();
+    }
+
+    public async Task<Race?> GetRaceWithClassSettingAsync(Guid raceId)
+    {
+        return await _context.Races
+            .Include(r => r.ClassSetting)
+                .ThenInclude(c => c.Items)
+            .FirstOrDefaultAsync(r => r.RaceId == raceId);
     }
 
     public async Task<IEnumerable<Session>> GetSessionsByRaceAsync(Guid raceId)
@@ -41,6 +50,7 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
             .Include(r => r.Season)
                 .ThenInclude(s => s.Championship)
             .Include(r => r.PointSetting)
+            .Include(r => r.ClassSetting)
             .AsQueryable();
 
         if (!includeFinished)
@@ -66,7 +76,8 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
         return await _context.Races
             .Where(r => r.RaceId == raceId)
             .SelectMany(r => r.EnteredTeams)
-            .Include(t => t.TeamClass)
+            .Include(t => t.ClassSettingItems)
+                .ThenInclude(i => i.ClassSetting)
             .OrderBy(t => t.TeamName)
             .ToListAsync();
     }
@@ -76,7 +87,8 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
         return await _context.Races
             .Where(r => r.RaceId == raceId)
             .SelectMany(r => r.EnteredTeams)
-            .Include(t => t.TeamClass)
+            .Include(t => t.ClassSettingItems)
+                .ThenInclude(i => i.ClassSetting)
             .Include(t => t.Drivers)
             .OrderBy(t => t.TeamName)
             .ToListAsync();

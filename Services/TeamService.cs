@@ -37,12 +37,12 @@ public class TeamService : ITeamService
 
     public Task CreateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds)
     {
-        return _teamRepository.CreateTeamAsync(ToTeam(team), driverIds);
+        return _teamRepository.CreateTeamAsync(ToTeam(team), team.ClassSettingItemIds, driverIds);
     }
 
     public Task UpdateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds)
     {
-        return _teamRepository.UpdateTeamAsync(ToTeam(team), driverIds);
+        return _teamRepository.UpdateTeamAsync(ToTeam(team), team.ClassSettingItemIds, driverIds);
     }
 
     private static TeamModel MapTeam(Models.Team team, bool includeDrivers)
@@ -52,8 +52,19 @@ public class TeamService : ITeamService
             TeamId = team.TeamId,
             TeamName = team.TeamName,
             TeamLogo = team.TeamLogo,
-            TeamClass = team.TeamClass.TeamClassName,
-            TeamClassId = team.TeamClass.TeamClassId,
+            ClassTags = team.ClassSettingItems
+                .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(i => i.Order)
+                .Select(i => new ClassTagModel
+                {
+                    ClassSettingItemId = i.ClassSettingItemId,
+                    ClassSettingId = i.ClassSettingId,
+                    ItemName = i.Name,
+                    SettingName = i.ClassSetting.ClassSettingName,
+                    Color = i.Color,
+                    Order = i.Order
+                })
+                .ToList(),
             IsActive = team.IsActive,
             Drivers = includeDrivers
                 ? team.Drivers.Select(MapDriver).ToList()
@@ -84,11 +95,6 @@ public class TeamService : ITeamService
             TeamId = model.TeamId,
             TeamName = model.TeamName,
             TeamLogo = model.TeamLogo,
-            TeamClass = new Models.TeamClass
-            {
-                TeamClassId = model.TeamClassId,
-                TeamClassName = string.Empty
-            },
             IsActive = model.IsActive
         };
     }

@@ -33,7 +33,11 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
 
     public async Task UpdateAsync(T entity)
     {
-        _dbSet.Update(entity);
+        if (_context.Entry(entity).State == EntityState.Detached)
+        {
+            _dbSet.Update(entity);
+        }
+
         await _context.SaveChangesAsync();
     }
 

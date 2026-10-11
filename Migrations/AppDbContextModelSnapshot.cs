@@ -17,6 +17,21 @@ namespace multi_class_race_dashboard.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("ClassSettingItemTeam", b =>
+                {
+                    b.Property<Guid>("ClassSettingItemsClassSettingItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TeamsTeamId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClassSettingItemsClassSettingItemId", "TeamsTeamId");
+
+                    b.HasIndex("TeamsTeamId");
+
+                    b.ToTable("TeamClassSettingItem", (string)null);
+                });
+
             modelBuilder.Entity("MulticlassRace.Models.AppUpdateState", b =>
                 {
                     b.Property<Guid>("AppUpdateStateId")
@@ -78,6 +93,85 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasKey("ChampionshipId");
 
                     b.ToTable("Championships");
+                });
+
+            modelBuilder.Entity("MulticlassRace.Models.ClassSetting", b =>
+                {
+                    b.Property<Guid>("ClassSettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClassSettingName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ClassSettingId");
+
+                    b.ToTable("ClassSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            ClassSettingId = new Guid("2254e881-f300-4154-a84f-600196de6000"),
+                            ClassSettingName = "WEC",
+                            IsDefault = true
+                        });
+                });
+
+            modelBuilder.Entity("MulticlassRace.Models.ClassSettingItem", b =>
+                {
+                    b.Property<Guid>("ClassSettingItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClassSettingId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ClassSettingItemId");
+
+                    b.HasIndex("ClassSettingId");
+
+                    b.ToTable("ClassSettingItems");
+
+                    b.HasData(
+                        new
+                        {
+                            ClassSettingItemId = new Guid("2254e881-f300-4154-a84f-600196de6081"),
+                            ClassSettingId = new Guid("2254e881-f300-4154-a84f-600196de6000"),
+                            Color = "#e10600",
+                            Name = "Hypercar",
+                            Order = 1
+                        },
+                        new
+                        {
+                            ClassSettingItemId = new Guid("2254e881-f300-4154-a84f-600196de6082"),
+                            ClassSettingId = new Guid("2254e881-f300-4154-a84f-600196de6000"),
+                            Color = "#0057b8",
+                            Name = "LMP2",
+                            Order = 2
+                        },
+                        new
+                        {
+                            ClassSettingItemId = new Guid("2254e881-f300-4154-a84f-600196de6083"),
+                            ClassSettingId = new Guid("2254e881-f300-4154-a84f-600196de6000"),
+                            Color = "#3fa34d",
+                            Name = "GT3",
+                            Order = 3
+                        });
                 });
 
             modelBuilder.Entity("MulticlassRace.Models.Driver", b =>
@@ -266,6 +360,9 @@ namespace multi_class_race_dashboard.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("ClassSettingId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Country")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -302,6 +399,8 @@ namespace multi_class_race_dashboard.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("RaceId");
+
+                    b.HasIndex("ClassSettingId");
 
                     b.HasIndex("PointSettingId");
 
@@ -361,9 +460,6 @@ namespace multi_class_race_dashboard.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TeamClassId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TeamLogo")
                         .HasColumnType("TEXT");
 
@@ -373,47 +469,7 @@ namespace multi_class_race_dashboard.Migrations
 
                     b.HasKey("TeamId");
 
-                    b.HasIndex("TeamClassId");
-
                     b.ToTable("Teams");
-                });
-
-            modelBuilder.Entity("MulticlassRace.Models.TeamClass", b =>
-                {
-                    b.Property<Guid>("TeamClassId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("TeamClassName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("TeamClassId");
-
-                    b.ToTable("TeamClasses");
-
-                    b.HasData(
-                        new
-                        {
-                            TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6081"),
-                            IsActive = true,
-                            TeamClassName = "Hypercar"
-                        },
-                        new
-                        {
-                            TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6082"),
-                            IsActive = true,
-                            TeamClassName = "LMP2"
-                        },
-                        new
-                        {
-                            TeamClassId = new Guid("2254e881-f300-4154-a84f-600196de6083"),
-                            IsActive = true,
-                            TeamClassName = "GT3"
-                        });
                 });
 
             modelBuilder.Entity("RaceTeam", b =>
@@ -429,6 +485,32 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasIndex("RaceId");
 
                     b.ToTable("RaceTeam");
+                });
+
+            modelBuilder.Entity("ClassSettingItemTeam", b =>
+                {
+                    b.HasOne("MulticlassRace.Models.ClassSettingItem", null)
+                        .WithMany()
+                        .HasForeignKey("ClassSettingItemsClassSettingItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MulticlassRace.Models.Team", null)
+                        .WithMany()
+                        .HasForeignKey("TeamsTeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MulticlassRace.Models.ClassSettingItem", b =>
+                {
+                    b.HasOne("MulticlassRace.Models.ClassSetting", "ClassSetting")
+                        .WithMany("Items")
+                        .HasForeignKey("ClassSettingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClassSetting");
                 });
 
             modelBuilder.Entity("MulticlassRace.Models.Driver", b =>
@@ -465,6 +547,12 @@ namespace multi_class_race_dashboard.Migrations
 
             modelBuilder.Entity("MulticlassRace.Models.Race", b =>
                 {
+                    b.HasOne("MulticlassRace.Models.ClassSetting", "ClassSetting")
+                        .WithMany("Races")
+                        .HasForeignKey("ClassSettingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("MulticlassRace.Models.PointSetting", "PointSetting")
                         .WithMany()
                         .HasForeignKey("PointSettingId")
@@ -476,6 +564,8 @@ namespace multi_class_race_dashboard.Migrations
                         .HasForeignKey("SeasonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ClassSetting");
 
                     b.Navigation("PointSetting");
 
@@ -504,17 +594,6 @@ namespace multi_class_race_dashboard.Migrations
                     b.Navigation("Race");
                 });
 
-            modelBuilder.Entity("MulticlassRace.Models.Team", b =>
-                {
-                    b.HasOne("MulticlassRace.Models.TeamClass", "TeamClass")
-                        .WithMany("Teams")
-                        .HasForeignKey("TeamClassId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TeamClass");
-                });
-
             modelBuilder.Entity("RaceTeam", b =>
                 {
                     b.HasOne("MulticlassRace.Models.Team", null)
@@ -535,6 +614,13 @@ namespace multi_class_race_dashboard.Migrations
                     b.Navigation("Seasons");
                 });
 
+            modelBuilder.Entity("MulticlassRace.Models.ClassSetting", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Races");
+                });
+
             modelBuilder.Entity("MulticlassRace.Models.Race", b =>
                 {
                     b.Navigation("Sessions");
@@ -553,11 +639,6 @@ namespace multi_class_race_dashboard.Migrations
             modelBuilder.Entity("MulticlassRace.Models.Team", b =>
                 {
                     b.Navigation("Drivers");
-                });
-
-            modelBuilder.Entity("MulticlassRace.Models.TeamClass", b =>
-                {
-                    b.Navigation("Teams");
                 });
 #pragma warning restore 612, 618
         }

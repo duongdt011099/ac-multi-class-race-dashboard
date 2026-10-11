@@ -9,7 +9,7 @@ public static class DependencyInjection
     public static IServiceCollection RegisterServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ITeamService, TeamService>();
-        services.AddScoped<ITeamClassService, TeamClassService>();
+        services.AddScoped<IClassSettingService, ClassSettingService>();
         services.AddScoped<IDriverService, DriverService>();
         services.AddScoped<IChampionshipService, ChampionshipService>();
         services.AddScoped<ISeasonService, SeasonService>();
@@ -43,7 +43,8 @@ public static class DependencyInjection
         {
             client.Timeout = TimeSpan.FromSeconds(10);
         });
-        services.AddHostedService<UpdateCheckWorker>();
+        services.AddSingleton<UpdateCheckWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckWorker>());
         services.AddHostedService<LuaResultImportWorker>();
         services.AddHostedService<LuaResultCleanupService>();
 

@@ -4,6 +4,7 @@
 @inject UpdateStateService StateService
 @inject AppVersionProvider VersionProvider
 @inject UpdateNotificationRequest UpdateRequest
+@inject MulticlassRace.Services.UpdateCheckWorker UpdateWorker
 @inject MulticlassRace.Services.Abstractions.IAppUpdatePreferenceService UpdatePreferences
 @implements IDisposable
 
@@ -60,9 +61,12 @@
                     </p>
                 }
             </div>
-            @if (result.IsUpdateAvailable)
-            {
-                <div class="wec-modal__footer">
+            <div class="wec-modal__footer">
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CheckForUpdateAsync" disabled="@isChecking">
+                    @(isChecking ? "Checking..." : "Check for update")
+                </button>
+                @if (result.IsUpdateAvailable)
+                {
                     <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
                         Later
                     </button>
@@ -76,8 +80,8 @@
                             Download Update
                         </a>
                     }
-                </div>
-            }
+                }
+            </div>
         </div>
     </div>
 }
@@ -89,6 +93,7 @@
     private string? truncatedNotes;
     private string lastSeen = string.Empty;
     private bool isOpen;
+    private bool isChecking;
     private bool isDismissing;
 
     private string HeaderTitle => result switch
@@ -139,12 +144,52 @@
 
     private void OnOpenRequested()
     {
-        InvokeAsync(() =>
+        InvokeAsync(async () =>
         {
+            await EnsureResultAsync();
             ApplyResult(StateService.Current);
-            isOpen = result is not null;
+            isOpen = true;
             StateHasChanged();
         });
+    }
+
+    private async Task EnsureResultAsync()
+    {
+        if (StateService.Current is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            await UpdateWorker.CheckNowAsync();
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (isChecking)
+        {
+            return;
+        }
+
+        isChecking = true;
+
+        try
+        {
+            await UpdateWorker.CheckNowAsync();
+            ApplyResult(StateService.Current);
+        }
+        catch
+        {
+        }
+        finally
+        {
+            isChecking = false;
+        }
     }
 
     private void ApplyResult(UpdateCheckResult? value)

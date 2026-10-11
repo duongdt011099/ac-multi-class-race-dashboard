@@ -10,6 +10,8 @@ public class Race
 
     public Guid PointSettingId { get; set; }
 
+    public Guid ClassSettingId { get; set; }
+
     public required RaceStatus Status { get; set; } = RaceStatus.NotStarted;
 
     public string? TrackName { get; set; }
@@ -27,6 +29,8 @@ public class Race
     public required Season Season { get; set; }
     
     public required PointSetting PointSetting { get; set; }
+
+    public ClassSetting ClassSetting { get; set; } = null!;
 
     public required ICollection<Session> Sessions { get; set; } = new List<Session>();
 

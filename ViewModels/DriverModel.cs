@@ -30,7 +30,7 @@ public class DriverModel
 
     public string? TeamLogo { get; set; }
 
-    public string? TeamClassName { get; set; }
+    public List<ClassTagModel> ClassTags { get; set; } = new();
 
     public bool IsActive { get; set; } = true;
 
