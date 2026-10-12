@@ -80,6 +80,12 @@ local ROLLING_START_LANE_RAMP_MPS       = 1.5
 -- caution level ramps from 0 to 1 over GREEN_WINDOW_SECONDS (reference green-flag transition).
 local ROLLING_START_GREEN_OFFSET_RAMP_MPS = 0.5
 local ROLLING_START_GREEN_WINDOW_SECONDS  = 10.0
+-- Minimum lap-fraction a class leader must have covered since leaving the grid before its next
+-- start-line crossing counts as the race start. This keeps the green flag track-agnostic: tracks
+-- whose grid sits before the line (first crossing immediate, green after a full lap) and tracks
+-- whose grid sits after the line (first crossing is already ~a lap in, green right there) both go
+-- green after a single formation lap.
+local ROLLING_START_GREEN_MIN_TRAVEL_LAP  = 0.5
 -- Catch-up multiplier used by the phase-two spacing (reference GetLinearMultiplier default).
 local ROLLING_START_CATCHUP_LIMIT       = 1.5
 -- Single-file run-up catch-up. Cars released later begin further back; the rear of the pack may
@@ -2226,6 +2232,7 @@ local function PrepareRollingStart(sim)
         currentSplineOffset = 0.0,
         green = false,
         wrapCount = 0,
+        travelled = 0.0,
         lastProgress = nil,
       }
     end
@@ -2487,11 +2494,12 @@ local function MaintainRollingFormation(dt, trackLength)
       local car = getCar(carIndex)
       if state and car then
         local group = rollingStartGroups and rollingStartGroups[state.groupIndex] or nil
-        Log(sFormat("ROLLING: car %d cls=%s cp=%d p=%.3f v=%.1f phase=%d off=%.2f rel=%s green=%s wrap=%d",
+        Log(sFormat("ROLLING: car %d cls=%s cp=%d p=%.3f v=%.1f phase=%d off=%.2f rel=%s green=%s wrap=%d trav=%.2f",
             carIndex, (group and group.label) or "?", state.classPosition or -1,
             NormalizeTrackProgress(car.splinePosition), car.speedKmh or -1,
             state.enteredPhase2 and 2 or 1, state.currentSplineOffset or 0,
-            tostring(state.released), tostring(state.green), state.wrapCount or 0))
+            tostring(state.released), tostring(state.green), state.wrapCount or 0,
+            state.travelled or 0.0))
       end
     end
   end
@@ -2568,32 +2576,46 @@ local function UpdateRollingStart(sim)
 
   MaintainRollingFormation(dt, trackLength)
 
-  -- Detect each car's line crossings. The first crossing (just off the grid) merely starts the
-  -- formation lap; the second, after a full lap, is the real race start. A whole class goes green
-  -- the moment its first car makes that second crossing (per-class green).
+  -- Detect each car's line crossings. A class goes green the moment its first car crosses the
+  -- start line having already covered at least GREEN_MIN_TRAVEL_LAP of a lap since leaving the
+  -- grid. Measuring travel (rather than counting crossings) keeps this correct whether the grid
+  -- sits just before the line (first crossing immediate, green after a full lap) or just after it
+  -- (first crossing already ~a lap in, green right there). The old fixed "two crossings" rule
+  -- made grid-after-line tracks such as Spa force a second, ~10-minute formation lap.
   for _, carIndex in ipairs(rollingStartQueue) do
     local state = rollingStartCars[carIndex]
     if state and not state.green then
       local car = getCar(carIndex)
       if car and type(car.splinePosition) == "number" and type(state.lastProgress) == "number" then
         local progress = NormalizeTrackProgress(car.splinePosition)
-        if math.abs(progress - state.lastProgress) > 0.5 then
+        local rawDelta = progress - state.lastProgress
+        local crossedForward = rawDelta < -0.5
+        -- Fold the line wrap into the per-frame delta so travel stays continuous across laps.
+        local delta = rawDelta
+        if delta < -0.5 then
+          delta = delta + 1.0
+        elseif delta > 0.5 then
+          delta = delta - 1.0
+        end
+        state.travelled = (state.travelled or 0.0) + delta
+        if math.abs(rawDelta) > 0.5 then
           state.wrapCount = (state.wrapCount or 0) + 1
-          if state.wrapCount >= 2 then
-            local group = rollingStartGroups[state.groupIndex]
-            if group and not group.green then
-              group.green = true
-              group.greenAt = now
-              group.windowCloseTimer = 0
-              for _, memberIndex in ipairs(group.cars) do
-                local memberState = rollingStartCars[memberIndex]
-                if memberState and not memberState.green then
-                  GiveRollingGreen(memberIndex, memberState, now)
-                end
+        end
+
+        if crossedForward and state.travelled >= ROLLING_START_GREEN_MIN_TRAVEL_LAP then
+          local group = rollingStartGroups[state.groupIndex]
+          if group and not group.green then
+            group.green = true
+            group.greenAt = now
+            group.windowCloseTimer = 0
+            for _, memberIndex in ipairs(group.cars) do
+              local memberState = rollingStartCars[memberIndex]
+              if memberState and not memberState.green then
+                GiveRollingGreen(memberIndex, memberState, now)
               end
-            elseif not group then
-              GiveRollingGreen(carIndex, state, now)
             end
+          elseif not group then
+            GiveRollingGreen(carIndex, state, now)
           end
         end
         state.lastProgress = progress
