@@ -82,9 +82,18 @@ local ROLLING_START_GREEN_OFFSET_RAMP_MPS = 0.5
 local ROLLING_START_GREEN_WINDOW_SECONDS  = 10.0
 -- Catch-up multiplier used by the phase-two spacing (reference GetLinearMultiplier default).
 local ROLLING_START_CATCHUP_LIMIT       = 1.5
--- Release cadence: two-car rows go every ROW_SECONDS; each class starts CLASS_GAP_SECONDS after
--- the previous class's final row, so the classes never bunch together on the run-up.
-local ROLLING_START_ROW_SECONDS         = 1.5
+-- Single-file run-up catch-up. Cars released later begin further back; the rear of the pack may
+-- run up to PHASE1_CATCHUP times the formation speed to close on the car ahead before the
+-- double-file zone, so the class is not still strung out when it stacks into columns. The boost
+-- starts only beyond MIN_GAP metres and eases back to 1.0 by FULL_GAP, keeping it gentle enough
+-- that a follower never overshoots into hard braking.
+local ROLLING_START_PHASE1_CATCHUP      = 1.15
+local ROLLING_START_PHASE1_MIN_GAP      = 10.0
+local ROLLING_START_PHASE1_FULL_GAP     = 80.0
+-- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
+-- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
+-- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.
+local ROLLING_START_CAR_SECONDS         = 0.7
 local ROLLING_START_CLASS_GAP_SECONDS   = 3.0
 -- AC resets an AI to the pits once its internal "stopped for" timer (physics.setAIStopCounter)
 -- exceeds a few seconds. While a car is held on the grid we must keep that counter near zero, or
@@ -148,13 +157,28 @@ local function SetRollingLaneOffset(carIndex, offsetMeters)
   pcall(physics.setAISplineAbsoluteOffset, carIndex, offsetMeters, false)
 end
 
--- Belt-and-suspenders guard against AC teleporting a long-held car to the pits. The exact CSP
--- signature is not documented in the public SDK, so this is existence-checked and pcall-guarded:
--- if the function or its arguments differ on this build, it quietly does nothing and the
--- stop-counter fix alone prevents the teleport.
-local function SetRollingPitBlock(carIndex, blocked)
-  if physics.blockTeleportingToPits then
-    pcall(physics.blockTeleportingToPits, carIndex, blocked)
+-- Belt-and-suspenders guard against AC teleporting a long-held car to the pits while it is being
+-- held on the grid. physics.blockTeleportingToPits() takes NO arguments, is GLOBAL (it is not a
+-- per-car flag) and returns an ac.Disposable - a function you must call to release the block.
+-- The old code called it as (carIndex, blocked) and discarded the returned disposable, so every
+-- hold/release left a fresh permanent global block active. That is what stopped the PLAYER from
+-- being moved to the pits at the end of the race (black screen / lost wheel / no pit teleport).
+-- Acquire the block once for the formation and release it as soon as the formation is over.
+local rollingPitBlock = nil
+
+local function AcquireRollingPitBlock()
+  if rollingPitBlock == nil and type(physics.blockTeleportingToPits) == "function" then
+    local ok, disposable = pcall(physics.blockTeleportingToPits)
+    if ok and disposable ~= nil then
+      rollingPitBlock = disposable
+    end
+  end
+end
+
+local function ReleaseRollingPitBlock()
+  if rollingPitBlock ~= nil then
+    pcall(rollingPitBlock)
+    rollingPitBlock = nil
   end
 end
 
@@ -1667,6 +1691,15 @@ local function DetectRollingStartPoleSide()
 
   local dx, dy, dz = pp.x - gp.x, pp.y - gp.y, pp.z - gp.z
   local lateral = dx * sx + dy * sy + dz * sz
+
+  -- Reject ambiguous rows: when the player and its row partner are nearly coincident laterally the
+  -- sign is just noise, so keep the reference default rather than mirroring the whole field.
+  if math.abs(lateral) < 1.5 then
+    Log(sFormat("ROLLING: pole-side detect ambiguous (slot=%d partner=%d lateral=%.3f); default LEFT",
+        pos, partnerPos, lateral))
+    return
+  end
+
   local playerOnRight = lateral < 0
   local playerIsOdd = (pos % 2 == 1)
 
@@ -1675,6 +1708,27 @@ local function DetectRollingStartPoleSide()
 
   Log(sFormat("ROLLING: pole-side detect slot=%d partner=%d lateral=%.3f side=(%.2f,%.2f,%.2f) playerRight=%s -> poleOnRight=%s",
       pos, partnerPos, lateral, sx, sy, sz, tostring(playerOnRight), tostring(rollingStartPoleOnRight)))
+end
+
+-- Measures which side of its two-wide grid row a car starts on from its world position relative to
+-- the car sharing the row (same geometry as DetectRollingStartPoleSide). Returns 1 when the car
+-- sits on the right of its partner, -1 on the left, or nil when the geometry is unavailable or the
+-- row is too ambiguous to read. Used so the double-file columns reproduce the real starting grid.
+local function MeasureRollingStartSide(car, partner)
+  if not (car and partner) then return nil end
+
+  local pp, gp = car.position, partner.position
+  if not (pp and gp) then return nil end
+
+  local sx, sy, sz = GetCarLeftAxis(car)
+  if not sx then return nil end
+
+  local dx, dy, dz = pp.x - gp.x, pp.y - gp.y, pp.z - gp.z
+  local lateral = dx * sx + dy * sy + dz * sz
+  if math.abs(lateral) < 1.5 then return nil end
+
+  -- A positive dot of (car - partner) with the left axis means the car sits on the LEFT.
+  return lateral < 0 and 1 or -1
 end
 
 local function ReorderGridByClass()
@@ -1745,7 +1799,6 @@ local function RestoreAIControl(carIndex, clearOffset)
   pcall(setAIThrottleLimit, carIndex, 1.0)
   pcall(setAICaution, carIndex, 1.0)
   pcall(physics.setAIStopCounter, carIndex, 0.0)
-  SetRollingPitBlock(carIndex, false)
   if clearOffset ~= false then
     SetRollingLaneOffset(carIndex, 0.0)
   end
@@ -1759,6 +1812,8 @@ local function RestoreRollingStartControls()
       RestoreAIControl(carIndex, true)
     end
   end
+
+  ReleaseRollingPitBlock()
 
   rollingStartCars = {}
   rollingStartGroups = {}
@@ -1895,12 +1950,14 @@ local function GetOrganicLaneOffset(carIndex)
 end
 
 -- Time-based release: a car goes when the shared release timer reaches its class start plus its
--- own row. Row 0 of the first class has threshold 0, so the overall leader always gets the field
--- moving (which then starts the timer via the "field is moving" check).
+-- own slot within the class. The first car of the first class has threshold 0, so the overall
+-- leader always gets the field moving (which then starts the timer via the "field is moving"
+-- check). Cars leave one at a time in grid order, so the run-up is a true single file.
 local function IsRollingCarReleased(state)
   local group = rollingStartGroups[state.groupIndex]
   if not group then return true end
-  local threshold = (group.classStartTime or 0.0) + (state.row or 0) * ROLLING_START_ROW_SECONDS
+  local slot = (state.classPosition or 1) - 1
+  local threshold = (group.classStartTime or 0.0) + slot * ROLLING_START_CAR_SECONDS
   return rollingStartReleaseTimer >= threshold
 end
 
@@ -2006,7 +2063,7 @@ local function ApplyRollingPhaseTwoSpacing(state, group, trackLength)
           else
             local leadError = math.abs(longDistRow)
             targetSpeedRow = math.max(ROLLING_START_SPEED_KMH * 0.80, ROLLING_START_SPEED_KMH - leadError * 4.0)
-            throttleLimit = math.max(0.70, 1.0 - (leadError / 5.0))
+            throttleRow = math.max(0.70, 1.0 - (leadError / 5.0))
           end
         end
       end
@@ -2047,7 +2104,6 @@ local function HoldRollingCar(carIndex)
   setAIThrottleLimit(carIndex, 0.0)
   setAICaution(carIndex, 1.0)
   physics.setAIStopCounter(carIndex, ROLLING_START_STOP_COUNTER_HELD)
-  SetRollingPitBlock(carIndex, true)
   SetRollingLaneOffset(carIndex, 0.0)
 end
 
@@ -2060,7 +2116,6 @@ local function ReleaseRollingCar(carIndex)
   if carIndex == 0 then return end
 
   physics.setAIStopCounter(carIndex, 0.0)
-  SetRollingPitBlock(carIndex, false)
   Log(sFormat("ROLLING: released car %d (queue %d)", carIndex, state.queueIndex or -1))
 end
 
@@ -2134,21 +2189,35 @@ local function PrepareRollingStart(sim)
   rollingStartQueue = {}
   rollingStartLaneDiagDone = false
 
+  -- Map of overall grid slot -> car so each car can find the partner sharing its two-wide row and
+  -- measure which side it started on (used to keep the real grid sides in the double file).
+  local carByGridPosition = {}
+  for carIndex = 0, driverCount - 1 do
+    local grid = rollingStartGridPositions[carIndex]
+    if type(grid) == "number" and grid > 0 then carByGridPosition[grid] = carIndex end
+  end
+
   -- Per-car rolling state. Longitudinal positions are class-relative so each class forms its own
-  -- single-file then double-file grid, while the lane follows the car's overall starting grid slot
-  -- (so every car keeps the side it started on). The player is included so the AI queue behind
+  -- single-file then double-file grid, while the lane is measured from the car's own starting grid
+  -- side (so the columns reproduce the real grid). The player is included so the AI queue behind
   -- them, but is never controlled.
   for groupIndex, group in ipairs(groups) do
     group.rows = math.max(1, math.ceil(#group.cars / 2))
     for classPosition, carIndex in ipairs(group.cars) do
       local gridPosition = rollingStartGridPositions[carIndex] or (carIndex + 1)
+      local partnerGrid = (gridPosition % 2 == 1) and (gridPosition + 1) or (gridPosition - 1)
+      local partnerIndex = carByGridPosition[partnerGrid]
+      local startSide = MeasureRollingStartSide(getCar(carIndex), partnerIndex and getCar(partnerIndex))
+      if not startSide then
+        startSide = GetRollingLaneOffset(gridPosition) < 0 and -1 or 1
+      end
       rollingStartCars[carIndex] = {
         carIndex = carIndex,
         groupIndex = groupIndex,
         classKey = group.classKey,
         classPosition = classPosition,
         row = math.floor((classPosition - 1) / 2),
-        laneSide = GetRollingLaneOffset(gridPosition) < 0 and -1 or 1,
+        startSide = startSide,
         gridPosition = gridPosition,
         released = false,
         hasRolledOver = false,
@@ -2173,11 +2242,11 @@ local function PrepareRollingStart(sim)
   end
 
   -- Cumulative class release schedule: each class starts CLASS_GAP seconds after the previous
-  -- class's final row, so the gap between the tail of one and the head of the next is fixed.
+  -- class's final car, so the gap between the tail of one and the head of the next is fixed.
   local startTime = 0.0
   for _, group in ipairs(groups) do
     group.classStartTime = startTime
-    startTime = startTime + group.rows * ROLLING_START_ROW_SECONDS + ROLLING_START_CLASS_GAP_SECONDS
+    startTime = startTime + #group.cars * ROLLING_START_CAR_SECONDS + ROLLING_START_CLASS_GAP_SECONDS
     group.green = false
     group.complete = false
     group.windowCloseTimer = 0
@@ -2199,6 +2268,9 @@ local function BeginRollingStart(now)
   rollingStartReleaseTimer = 0.0
   rollingStartSessionTime = 0.0
   rollingStartLastFrame = now
+
+  -- One global block for the whole formation; released when the field is green / torn down.
+  AcquireRollingPitBlock()
 
   for _, carIndex in ipairs(rollingStartQueue) do
     local state = rollingStartCars[carIndex]
@@ -2234,12 +2306,14 @@ local function MaintainRollingFormation(dt, trackLength)
   local maxLaneMove = ROLLING_START_LANE_RAMP_MPS * dt
   local greenLaneMove = ROLLING_START_GREEN_OFFSET_RAMP_MPS * dt
 
-  -- Class-relative locked-position maps used by the phase-two (double file) spacing.
+  -- Class-relative slot maps used by the phase-two (double file) spacing. Every car is placed by
+  -- its class position, not only those already double-filing, so a car that has not entered phase
+  -- two yet never leaves a hole in the column chain behind it.
   for _, group in ipairs(rollingStartGroups or {}) do
     local map = {}
     for _, carIndex in ipairs(group.cars) do
       local state = rollingStartCars[carIndex]
-      if state and state.enteredPhase2 then
+      if state then
         local pos = state.lockedPhase2Position or state.classPosition
         if pos and not map[pos] then map[pos] = carIndex end
       end
@@ -2311,12 +2385,25 @@ local function MaintainRollingFormation(dt, trackLength)
           if state.enteredPhase2 then
             targetSpeed = ROLLING_START_SPEED_KMH
             cautionLevel = 0.7
-            targetOffset = GetRollingLaneOffset(state.gridPosition) + GetOrganicLaneOffset(carIndex)
+            targetOffset = (state.startSide or 1) * ROLLING_START_LANE_METERS + GetOrganicLaneOffset(carIndex)
             local speed2, throttle2 = ApplyRollingPhaseTwoSpacing(state, group, trackLength)
             targetSpeed = speed2
             throttleLimit = throttle2
           else
-            targetSpeed = ROLLING_START_FORMATION_SPEED_KMH
+            -- Single-file run-up: cars released later start further back, so let the rear of the
+            -- pack run faster (up to PHASE1_CATCHUP) to close on the car ahead before the
+            -- formation point; otherwise the class reaches the double-file zone strung out.
+            local formationSpeed = ROLLING_START_FORMATION_SPEED_KMH
+            local aheadIndex = group and group.cars and group.cars[(state.classPosition or 1) - 1]
+            local aheadCar = aheadIndex and getCar(aheadIndex)
+            if aheadCar and car then
+              local gap = (aheadCar.splinePosition - car.splinePosition) * trackLength
+              if gap < -(trackLength * 0.5) then gap = gap + trackLength end
+              formationSpeed = ROLLING_START_FORMATION_SPEED_KMH *
+                  GetLinearMultiplier(gap, ROLLING_START_PHASE1_MIN_GAP, ROLLING_START_PHASE1_FULL_GAP,
+                      ROLLING_START_PHASE1_CATCHUP)
+            end
+            targetSpeed = formationSpeed
             cautionLevel = 2.0
             targetOffset = 0.0
             throttleLimit = 1.0
@@ -2531,6 +2618,7 @@ local function UpdateRollingStart(sim)
       end
       state.currentSplineOffset = 0.0
     end
+    ReleaseRollingPitBlock()
     rollingStartState = "complete"
     rollingStartStatus = "GREEN — GO"
     raceDisplayPending = nil
