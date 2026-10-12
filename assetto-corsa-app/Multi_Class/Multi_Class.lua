@@ -148,13 +148,28 @@ local function SetRollingLaneOffset(carIndex, offsetMeters)
   pcall(physics.setAISplineAbsoluteOffset, carIndex, offsetMeters, false)
 end
 
--- Belt-and-suspenders guard against AC teleporting a long-held car to the pits. The exact CSP
--- signature is not documented in the public SDK, so this is existence-checked and pcall-guarded:
--- if the function or its arguments differ on this build, it quietly does nothing and the
--- stop-counter fix alone prevents the teleport.
-local function SetRollingPitBlock(carIndex, blocked)
-  if physics.blockTeleportingToPits then
-    pcall(physics.blockTeleportingToPits, carIndex, blocked)
+-- Belt-and-suspenders guard against AC teleporting a long-held car to the pits while it is being
+-- held on the grid. physics.blockTeleportingToPits() takes NO arguments, is GLOBAL (it is not a
+-- per-car flag) and returns an ac.Disposable - a function you must call to release the block.
+-- The old code called it as (carIndex, blocked) and discarded the returned disposable, so every
+-- hold/release left a fresh permanent global block active. That is what stopped the PLAYER from
+-- being moved to the pits at the end of the race (black screen / lost wheel / no pit teleport).
+-- Acquire the block once for the formation and release it as soon as the formation is over.
+local rollingPitBlock = nil
+
+local function AcquireRollingPitBlock()
+  if rollingPitBlock == nil and type(physics.blockTeleportingToPits) == "function" then
+    local ok, disposable = pcall(physics.blockTeleportingToPits)
+    if ok and disposable ~= nil then
+      rollingPitBlock = disposable
+    end
+  end
+end
+
+local function ReleaseRollingPitBlock()
+  if rollingPitBlock ~= nil then
+    pcall(rollingPitBlock)
+    rollingPitBlock = nil
   end
 end
 
@@ -1745,7 +1760,6 @@ local function RestoreAIControl(carIndex, clearOffset)
   pcall(setAIThrottleLimit, carIndex, 1.0)
   pcall(setAICaution, carIndex, 1.0)
   pcall(physics.setAIStopCounter, carIndex, 0.0)
-  SetRollingPitBlock(carIndex, false)
   if clearOffset ~= false then
     SetRollingLaneOffset(carIndex, 0.0)
   end
@@ -1759,6 +1773,8 @@ local function RestoreRollingStartControls()
       RestoreAIControl(carIndex, true)
     end
   end
+
+  ReleaseRollingPitBlock()
 
   rollingStartCars = {}
   rollingStartGroups = {}
@@ -2047,7 +2063,6 @@ local function HoldRollingCar(carIndex)
   setAIThrottleLimit(carIndex, 0.0)
   setAICaution(carIndex, 1.0)
   physics.setAIStopCounter(carIndex, ROLLING_START_STOP_COUNTER_HELD)
-  SetRollingPitBlock(carIndex, true)
   SetRollingLaneOffset(carIndex, 0.0)
 end
 
@@ -2060,7 +2075,6 @@ local function ReleaseRollingCar(carIndex)
   if carIndex == 0 then return end
 
   physics.setAIStopCounter(carIndex, 0.0)
-  SetRollingPitBlock(carIndex, false)
   Log(sFormat("ROLLING: released car %d (queue %d)", carIndex, state.queueIndex or -1))
 end
 
@@ -2199,6 +2213,9 @@ local function BeginRollingStart(now)
   rollingStartReleaseTimer = 0.0
   rollingStartSessionTime = 0.0
   rollingStartLastFrame = now
+
+  -- One global block for the whole formation; released when the field is green / torn down.
+  AcquireRollingPitBlock()
 
   for _, carIndex in ipairs(rollingStartQueue) do
     local state = rollingStartCars[carIndex]
@@ -2531,6 +2548,7 @@ local function UpdateRollingStart(sim)
       end
       state.currentSplineOffset = 0.0
     end
+    ReleaseRollingPitBlock()
     rollingStartState = "complete"
     rollingStartStatus = "GREEN — GO"
     raceDisplayPending = nil
