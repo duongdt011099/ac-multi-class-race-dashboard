@@ -1,5 +1,5 @@
 #define MyAppName "Endurance Race Dashboard"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.3.1"
 #define MyAppPublisher "Endurance Race Dashboard"
 #define MyAppExeName "multi-class-race-dashboard.exe"
 #define MyLegacyServiceName "EnduranceRace"
