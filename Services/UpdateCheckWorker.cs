@@ -174,7 +174,7 @@ public class UpdateCheckWorker : BackgroundService
 
         if (latestVersion <= currentVersion)
         {
-            return UpdateCheckResult.UpToDate(currentVersionText, latestVersion.ToString(), checkedAt);
+            return UpdateCheckResult.UpToDate(currentVersionText, FormatVersion(latestVersion), checkedAt);
         }
 
         var options = _options.Value;
@@ -184,7 +184,7 @@ public class UpdateCheckWorker : BackgroundService
 
         return new UpdateCheckResult(
             currentVersionText,
-            latestVersion.ToString(),
+            FormatVersion(latestVersion),
             release.TagName,
             releaseUrl,
             release.Body,
@@ -263,7 +263,15 @@ public class UpdateCheckWorker : BackgroundService
         return new Version(
             version.Major,
             version.Minor,
-            version.Build < 0 ? 0 : version.Build);
+            version.Build < 0 ? 0 : version.Build,
+            version.Revision < 0 ? 0 : version.Revision);
+    }
+
+    private static string FormatVersion(Version version)
+    {
+        return version.Revision > 0
+            ? version.ToString()
+            : new Version(version.Major, version.Minor, version.Build).ToString();
     }
 
     private sealed class GithubRelease
