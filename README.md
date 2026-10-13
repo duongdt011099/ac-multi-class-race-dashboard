@@ -71,6 +71,31 @@ To use the dashboard you need:
 - If a result needs correcting, import the file again in place of the old one.
 - Results come from the Multi_Class output; make sure the folder you enter in Game Config is the one those files are saved to.
 
+## For contributors
+
+The app is a Blazor Server (.NET) project with a SQLite database. Build and test it with:
+
+```
+dotnet build multi-class-race-dashboard.csproj
+dotnet test tests/MulticlassRace.Tests
+```
+
+| Folder | What lives there |
+| --- | --- |
+| `Components/Pages` | One page per route. Each page is a thin `.razor` file (markup) plus a `.razor.cs` code-behind. |
+| `Components/Features/<Feature>` | Dialogs and panels that belong to one feature (Teams, Drivers, Races). |
+| `Components/Shared` | Reusable pieces: `Modal`, `ConfirmDialog`, `FormField`, `AppSelect`, `DataTable`, `SortableHeader`, `Pagination`, `StatusBadge`, `PageBase`, ... Use these instead of writing new markup for dialogs, tables, or dropdowns. |
+| `ViewModels` | What the UI binds to, plus plain classes holding UI rules (list queries, form validation, session rules) that can be unit tested without rendering anything. |
+| `Common` | Small generic helpers such as `PagedList<T>` and `SortState<T>`. |
+| `Mapping` | Entity to view-model mapping, as extension methods, one file per aggregate. |
+| `Services/<Feature>` | Business logic grouped by feature (Championships, Races, Teams, Drivers, Settings, Results, AssettoCorsa, Updates, Notifications). An interface sits next to its implementation, and each feature registers itself in its own `*ServiceRegistration.cs`. |
+| `BackgroundServices` | Hosted workers (update check, Lua result import and cleanup). |
+| `Infrastructure` | Process-level plumbing: single-instance guard, tray icon, paths, logging, startup failure reporting. |
+| `Web` | Middleware and HTTP endpoints (uploads, game images, game folder gate). |
+| `Repositories` | EF Core data access. |
+| `Data` | `AppDbContext`, one `IEntityTypeConfiguration` per entity in `Configurations`, JSON `Converters`, and `Seed` data. |
+| `tests/MulticlassRace.Tests` | xUnit and bUnit tests. They use an in-memory SQLite database and never touch `app.db`. |
+
 ## License
 
 This project is licensed under the **MIT License** with additional terms. See the [`LICENSE`](LICENSE) file for the full text.
