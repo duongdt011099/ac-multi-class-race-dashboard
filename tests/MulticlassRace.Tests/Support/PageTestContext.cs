@@ -29,6 +29,9 @@ public class PageTestContext : TestContext
         Services.AddSingleton<IDriverService>(DriverService);
         Services.AddScoped<ITeamLogoStorage>(_ => new TeamLogoStorage(UploadsRoot));
         Services.AddScoped<DriverDataChangeNotifier>();
+        Services.AddScoped<GameConfigChangeNotifier>();
+        Services.AddSingleton<IAssettoCorsaContentService>(new FakeContentService());
+        Services.AddSingleton<IAssettoCorsaGameConfigService>(new FakeGameConfigService());
         Services.AddScoped<ToastService>();
     }
 

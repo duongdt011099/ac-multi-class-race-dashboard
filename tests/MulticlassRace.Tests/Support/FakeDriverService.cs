@@ -8,6 +8,10 @@ public sealed class FakeDriverService : IDriverService
 {
     public List<DriverModel> Drivers { get; } = new();
 
+    public List<DriverFormModel> Saved { get; } = new();
+
+    public List<Guid> Deleted { get; } = new();
+
     public static DriverModel Driver(string name, Guid? teamId = null, string? teamName = null, params ClassTagModel[] tags)
     {
         return new DriverModel
@@ -37,13 +41,42 @@ public sealed class FakeDriverService : IDriverService
 
     public Task<DriverFormModel?> GetDriverByIdAsync(Guid driverId) => throw new NotSupportedException();
 
-    public Task CreateDriverAsync(DriverFormModel model) => throw new NotSupportedException();
+    public Task CreateDriverAsync(DriverFormModel model) => Store(model);
 
-    public Task UpdateDriverAsync(DriverFormModel model) => throw new NotSupportedException();
+    public Task UpdateDriverAsync(DriverFormModel model)
+    {
+        Drivers.RemoveAll(d => d.DriverId == model.DriverId);
+        return Store(model);
+    }
 
-    public Task DeleteDriverAsync(Guid driverId) => throw new NotSupportedException();
+    public Task DeleteDriverAsync(Guid driverId)
+    {
+        Deleted.Add(driverId);
+        Drivers.RemoveAll(d => d.DriverId == driverId);
+        return Task.CompletedTask;
+    }
 
     public Task<PresetImportResult> ImportAssettoCorsaPresetAsync(Stream presetStream, string presetName) => throw new NotSupportedException();
 
     public Task<PresetImportResult> ImportAssettoCorsaPresetFileAsync(string presetFilePath) => throw new NotSupportedException();
+
+    private Task Store(DriverFormModel model)
+    {
+        Saved.Add(model);
+        Drivers.Add(new DriverModel
+        {
+            DriverId = model.DriverId,
+            DriverName = model.DriverName,
+            Car = model.Car,
+            CarDisplayName = model.CarDisplayName,
+            Skin = model.Skin,
+            Nationality = model.Nationality,
+            TeamId = model.TeamId,
+            TeamName = model.TeamName,
+            IsActive = model.IsActive,
+            IsHuman = model.IsHuman
+        });
+
+        return Task.CompletedTask;
+    }
 }

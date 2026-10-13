@@ -1,0 +1,224 @@
+@implements IDisposable
+@using MulticlassRace.Models
+@using MulticlassRace.Services
+@using MulticlassRace.Services.Abstractions
+@using MulticlassRace.ViewModels
+@inject IAssettoCorsaContentService CarContentService
+@inject GameConfigChangeNotifier ConfigNotifier
+@inject ToastService Toast
+
+<Modal Title="@(IsCreating ? "New Driver" : "Edit Driver")" Size="ModalSize.Wide" OnClose="OnCancel">
+    <ChildContent>
+        <div class="wec-form-row">
+            <FormField For="driver-name" Label="Driver Name">
+                <input id="driver-name" type="text" @bind="Driver.DriverName" />
+            </FormField>
+
+            <FormField For="driver-car-display" Label="Car Display Name">
+                <input id="driver-car-display" type="text" @bind="Driver.CarDisplayName" />
+            </FormField>
+        </div>
+
+        <div class="wec-form-row">
+            <FormField For="driver-car" Label="Car">
+                <AppSelect Id="driver-car" Value="@Driver.Car" ValueChanged="HandleCarChanged"
+                           Disabled="IsLoadingCars" Options="CarSelectOptions"
+                           EmptyLabel="@(IsLoadingCars ? "Loading cars..." : "Select car...")"
+                           OrphanLabel="@(IsCarMissingOnDisk ? $"{CarFallbackName} (not found on disk)" : null)" />
+            </FormField>
+
+            <FormField For="driver-skin" Label="Skin" Hint="@(NoSkinsFound ? "No skins found for this car." : null)">
+                <AppSelect Id="driver-skin" @bind-Value="Driver.Skin" Options="SkinSelectOptions"
+                           EmptyLabel="@SkinPlaceholder"
+                           OrphanLabel="@($"{Driver.Skin} (not found on disk)")"
+                           Disabled="@(string.IsNullOrWhiteSpace(Driver.Car) || isLoadingSkins || skinOptions.Count == 0)" />
+            </FormField>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(SkinPreviewUrl))
+        {
+            <div class="wec-skin-preview">
+                <img src="@SkinPreviewUrl" class="wec-skin-preview__img" alt="@(Driver.Skin) preview"
+                     onerror="this.parentElement.style.display='none'" />
+            </div>
+        }
+
+        <div class="wec-form-row">
+            <FormField For="driver-nationality" Label="Nationality">
+                <AppSelect Id="driver-nationality" @bind-Value="Driver.Nationality" Options="CountryOptions"
+                           EmptyLabel="Select nationality..." OrphanLabel="@Driver.Nationality" />
+            </FormField>
+
+            <FormField For="driver-team" Label="Team">
+                <AppSelect Id="driver-team" Value="@(Driver.TeamId?.ToString())" ValueChanged="HandleTeamChanged"
+                           Options="TeamSelectOptions" EmptyLabel="No team" OrphanLabel="@Driver.TeamName" />
+            </FormField>
+        </div>
+
+        <div class="wec-form-row">
+            <FormField For="driver-age" Label="Age" CssClass="wec-form-field--number wec-form-field--number--wide">
+                <input id="driver-age" type="number" min="0" @bind="Driver.Age" />
+            </FormField>
+
+            <FormField For="driver-strength" Label="AI Strength" CssClass="wec-form-field--number wec-form-field--number--wide">
+                <input id="driver-strength" type="number" min="0" @bind="Driver.DriverStrength" />
+            </FormField>
+        </div>
+
+        <div class="wec-form-row">
+            <FormField For="driver-agression" Label="AI Aggression" CssClass="wec-form-field--number wec-form-field--number--wide">
+                <input id="driver-agression" type="number" min="0" @bind="Driver.DriverAgression" />
+            </FormField>
+        </div>
+
+        <div class="wec-form-row">
+            <CheckboxField Id="driver-human" Label="Is Human" @bind-Value="Driver.IsHuman" Disabled="!CanToggleHuman"
+                           CssClass="@("wec-form-field--checkbox-human " + (CanToggleHuman ? null : "wec-form-field--disabled"))"
+                           Title="@(CanToggleHuman ? null : $"A human driver is already selected: {HumanDriverName}")" />
+        </div>
+    </ChildContent>
+    <Footer>
+        @if (!IsCreating)
+        {
+            <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="OnDelete" disabled="@IsSaving">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        }
+        <ModalActions ConfirmText="@(IsCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="IsSaving"
+                      OnCancel="OnCancel" OnConfirm="OnSave" />
+    </Footer>
+</Modal>
+
+@code {
+    private List<string> skinOptions = new();
+    private bool isLoadingSkins;
+
+    [Parameter, EditorRequired] public DriverFormModel Driver { get; set; } = default!;
+
+    [Parameter] public bool IsCreating { get; set; }
+
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public IReadOnlyList<CarOptionModel> CarOptions { get; set; } = Array.Empty<CarOptionModel>();
+
+    [Parameter] public bool IsLoadingCars { get; set; }
+
+    [Parameter] public IReadOnlyList<TeamModel> TeamOptions { get; set; } = Array.Empty<TeamModel>();
+
+    [Parameter] public bool CanToggleHuman { get; set; } = true;
+
+    [Parameter] public string? HumanDriverName { get; set; }
+
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private static readonly IReadOnlyList<SelectOption> CountryOptions =
+        Countries.All.Select(c => new SelectOption(c, $"{Countries.GetFlag(c)} {c}")).ToList();
+
+    private IEnumerable<SelectOption> CarSelectOptions => CarOptions.Select(c => new SelectOption(c.CarId, c.DisplayName));
+
+    private IEnumerable<SelectOption> SkinSelectOptions => skinOptions.Select(s => new SelectOption(s, s));
+
+    private IEnumerable<SelectOption> TeamSelectOptions => TeamOptions.Select(t => new SelectOption(t.TeamId.ToString(), t.TeamName));
+
+    private string? SkinPreviewUrl => CarContentService.BuildSkinPreviewUrl(Driver.Car, Driver.Skin);
+
+    private bool NoSkinsFound => !string.IsNullOrWhiteSpace(Driver.Car) && !isLoadingSkins && skinOptions.Count == 0;
+
+    private bool IsCarMissingOnDisk =>
+        !string.IsNullOrEmpty(Driver.Car) &&
+        !CarOptions.Any(car => string.Equals(car.CarId, Driver.Car, StringComparison.OrdinalIgnoreCase));
+
+    private string CarFallbackName =>
+        !string.IsNullOrWhiteSpace(Driver.CarDisplayName) ? Driver.CarDisplayName.Trim() : Driver.Car;
+
+    private string SkinPlaceholder
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Driver.Car))
+            {
+                return "Select a car first...";
+            }
+
+            if (isLoadingSkins)
+            {
+                return "Loading skins...";
+            }
+
+            return skinOptions.Count == 0 ? "No skins" : "Select skin...";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConfigNotifier.Changed += OnConfigChanged;
+
+        if (!IsCreating)
+        {
+            await LoadSkinsAsync(Driver.Car);
+        }
+    }
+
+    private async Task HandleCarChanged(string car)
+    {
+        Driver.Car = car;
+        Driver.Skin = string.Empty;
+        await LoadSkinsAsync(car);
+    }
+
+    private void HandleTeamChanged(string value)
+    {
+        Driver.TeamId = Guid.TryParse(value, out var teamId) ? teamId : null;
+    }
+
+    private async Task LoadSkinsAsync(string? car)
+    {
+        skinOptions = new();
+
+        if (string.IsNullOrWhiteSpace(car))
+        {
+            return;
+        }
+
+        isLoadingSkins = true;
+
+        try
+        {
+            skinOptions = (await CarContentService.GetSkinsAsync(car)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not read skins: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isLoadingSkins = false;
+        }
+    }
+
+    private async void OnConfigChanged()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(Driver.Car))
+            {
+                await LoadSkinsAsync(Driver.Car);
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // The dialog may already be gone; the next open reads the skins afresh.
+        }
+    }
+
+    public void Dispose()
+    {
+        ConfigNotifier.Changed -= OnConfigChanged;
+    }
+}
