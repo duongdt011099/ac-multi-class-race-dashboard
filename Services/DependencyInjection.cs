@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using MulticlassRace.Configuration;
 using MulticlassRace.Services.Abstractions;
+using MulticlassRace.Services.Browser;
 using MulticlassRace.Services.Teams;
 
 namespace MulticlassRace.Services;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IPointSettingService, PointSettingService>();
         services.AddScoped<ITeamLogoStorage>(sp =>
             new TeamLogoStorage(UploadsEndpointExtensions.ResolveRoot(sp.GetRequiredService<IWebHostEnvironment>())));
+        services.AddScoped<BrowserStorage>();
         services.AddScoped<ToastService>();
         services.AddScoped<GameConfigChangeNotifier>();
         services.AddScoped<DriverDataChangeNotifier>();

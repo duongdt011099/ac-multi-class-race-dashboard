@@ -1,0 +1,94 @@
+@using MulticlassRace.Common
+@using MulticlassRace.ViewModels
+
+<div class="wec-race-teams">
+    <div class="wec-race-teams__hint">Select the teams entered in this race. Session tabs unlock once at
+        least one team is selected.</div>
+
+    <div class="wec-race-teams__toolbar">
+        @if (HasClassSetting)
+        {
+            <div class="wec-race-teams__filter">
+                <label for="race-teams-class">Class</label>
+                <AppSelect Id="race-teams-class" Value="@ClassFilter" ValueChanged="ClassFilterChanged"
+                           EmptyLabel="All classes" Options="ClassFilterOptions" />
+            </div>
+        }
+
+        <label class="wec-race-teams__select-all @(visibleTeams.Count > 0 ? "" : "wec-disabled")">
+            <input type="checkbox" checked="@allVisibleSelected"
+                   disabled="@(IsSaving || visibleTeams.Count == 0)"
+                   @onchange="OnToggleAllVisible" />
+            <span>@(allVisibleSelected ? "Unselect all visible" : "Select all visible")</span>
+        </label>
+    </div>
+
+    @if (!Teams.Any())
+    {
+        <div class="wec-empty">No active teams available.</div>
+    }
+    else if (!visibleTeams.Any())
+    {
+        <div class="wec-empty">No teams in this class.</div>
+    }
+    else
+    {
+        <div class="wec-race-teams__list">
+            @foreach (var team in visibleTeams)
+            {
+                <label class="wec-race-teams__row @(SelectedTeamIds.Contains(team.TeamId) ? "wec-race-teams__row--selected" : "")">
+                    <input type="checkbox" checked="@SelectedTeamIds.Contains(team.TeamId)"
+                           disabled="@IsSaving" @onchange="() => OnToggleTeam.InvokeAsync(team.TeamId)" />
+                    @if (!string.IsNullOrWhiteSpace(team.TeamLogo))
+                    {
+                        <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
+                    }
+                    <span>@team.TeamName</span>
+                    <span class="wec-badge" style="background-color: @Filter.ClassColor(team)">@Filter.ClassName(team)</span>
+                </label>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<TeamModel> visibleTeams = new();
+    private bool allVisibleSelected;
+
+    [Parameter, EditorRequired] public IReadOnlyList<TeamModel> Teams { get; set; } = Array.Empty<TeamModel>();
+
+    [Parameter, EditorRequired] public ISet<Guid> SelectedTeamIds { get; set; } = new HashSet<Guid>();
+
+    [Parameter, EditorRequired] public RaceTeamFilter Filter { get; set; } = default!;
+
+    /// <summary>Whether the race has a class setting; without one there is nothing to filter by.</summary>
+    [Parameter] public bool HasClassSetting { get; set; }
+
+    [Parameter] public string ClassFilter { get; set; } = "";
+
+    [Parameter] public EventCallback<string> ClassFilterChanged { get; set; }
+
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public EventCallback<Guid> OnToggleTeam { get; set; }
+
+    [Parameter] public EventCallback OnToggleAllVisible { get; set; }
+
+    private IEnumerable<SelectOption> ClassFilterOptions
+    {
+        get
+        {
+            var options = Filter.ClassLabels(Teams).Select(c => new SelectOption(c, c));
+
+            return Filter.HasUncategorized(Teams)
+                ? options.Append(new SelectOption(ClassFilterKeys.Uncategorized, "Uncategorized"))
+                : options;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        visibleTeams = Filter.Filter(Teams, ClassFilter);
+        allVisibleSelected = visibleTeams.Count > 0 && visibleTeams.All(t => SelectedTeamIds.Contains(t.TeamId));
+    }
+}

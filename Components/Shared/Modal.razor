@@ -1,5 +1,5 @@
 <div class="wec-modal-overlay @OverlayClass" @attributes="OverlayAttributes">
-    <div class="wec-modal @SizeClass" @onclick:stopPropagation="CloseOnBackdropClick">
+    <div class="wec-modal @SizeClass @ModalClass" @onclick:stopPropagation="CloseOnBackdropClick">
         <div class="wec-modal__header">
             <span>@Title</span>
             @if (OnClose.HasDelegate)
@@ -9,7 +9,7 @@
                 </button>
             }
         </div>
-        <div class="wec-modal__body">
+        <div class="wec-modal__body @BodyClass">
             @ChildContent
         </div>
         @if (Footer is not null)
@@ -26,7 +26,14 @@
 
     [Parameter] public ModalSize Size { get; set; } = ModalSize.Default;
 
+    /// <summary>Extra classes on the dimmed overlay, e.g. wec-modal-overlay--top.</summary>
     [Parameter] public string? OverlayClass { get; set; }
+
+    /// <summary>Extra classes on the dialog itself.</summary>
+    [Parameter] public string? ModalClass { get; set; }
+
+    /// <summary>Extra classes on the body.</summary>
+    [Parameter] public string? BodyClass { get; set; }
 
     [Parameter] public EventCallback OnClose { get; set; }
 

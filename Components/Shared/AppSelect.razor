@@ -1,7 +1,7 @@
-<select id="@Id" class="@CssClass" value="@Value" disabled="@Disabled" @onchange="HandleChange">
+<select id="@Id" class="@CssClass" value="@Value" disabled="@Disabled" @onchange="HandleChange" @attributes="AdditionalAttributes">
     @if (EmptyLabel is not null)
     {
-        <option value="">@EmptyLabel</option>
+        <option value="@EmptyValue">@EmptyLabel</option>
     }
     @if (!string.IsNullOrEmpty(Value) && OrphanLabel is not null && !Options.Any(o => o.Value == Value))
     {
@@ -28,6 +28,9 @@
     /// <summary>Text of the leading empty option; leave null for no empty option.</summary>
     [Parameter] public string? EmptyLabel { get; set; }
 
+    /// <summary>Value of the leading empty option.</summary>
+    [Parameter] public string EmptyValue { get; set; } = "";
+
     /// <summary>Shown for a current value that is not in <see cref="Options"/>, such as a car removed from disk.</summary>
     [Parameter] public string? OrphanLabel { get; set; }
 
@@ -35,6 +38,9 @@
 
     /// <summary>Extra raw options appended after <see cref="Options"/>.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Any other attribute (required, title, aria-label, ...) is passed to the select element.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
 
     private Task HandleChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
 }

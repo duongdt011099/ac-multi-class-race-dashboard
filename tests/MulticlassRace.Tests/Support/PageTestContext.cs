@@ -4,6 +4,7 @@ using MulticlassRace.Data;
 using MulticlassRace.Repositories;
 using MulticlassRace.Services;
 using MulticlassRace.Services.Abstractions;
+using MulticlassRace.Services.Browser;
 using MulticlassRace.Services.Teams;
 
 namespace MulticlassRace.Tests.Support;
@@ -32,6 +33,14 @@ public class PageTestContext : TestContext
         Services.AddScoped<GameConfigChangeNotifier>();
         Services.AddSingleton<IAssettoCorsaContentService>(new FakeContentService());
         Services.AddSingleton<IAssettoCorsaGameConfigService>(new FakeGameConfigService());
+
+        RaceService = new FakeRaceService();
+        TrackService = new FakeTrackService();
+        Services.AddSingleton<IRaceService>(RaceService);
+        Services.AddSingleton<ITrackService>(TrackService);
+        Services.AddSingleton<ILuaResultImportService>(new FakeLuaResultImportService());
+        Services.AddSingleton<RaceSessionChangeNotifier>();
+        Services.AddScoped<BrowserStorage>();
         Services.AddScoped<ToastService>();
     }
 
@@ -40,6 +49,10 @@ public class PageTestContext : TestContext
     protected string UploadsRoot { get; }
 
     protected FakeDriverService DriverService { get; }
+
+    protected FakeRaceService RaceService { get; }
+
+    protected FakeTrackService TrackService { get; }
 
     protected ToastService Toast => Services.GetRequiredService<ToastService>();
 
