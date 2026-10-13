@@ -3,13 +3,15 @@
         <p>@ChildContent</p>
     </ChildContent>
     <Footer>
-        <ModalActions ConfirmText="@ConfirmText" BusyText="@BusyText" IsBusy="IsBusy" Danger="true"
+        <ModalActions CancelText="@CancelText" ConfirmText="@ConfirmText" BusyText="@BusyText" IsBusy="IsBusy" Danger="true"
                       OnCancel="OnCancel" OnConfirm="OnConfirm" />
     </Footer>
 </Modal>
 
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string CancelText { get; set; } = "Cancel";
 
     [Parameter] public string ConfirmText { get; set; } = "Delete";
 
