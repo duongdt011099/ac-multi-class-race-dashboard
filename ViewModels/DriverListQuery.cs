@@ -12,7 +12,7 @@ public enum DriverSortColumn
 public static class DriverListQuery
 {
     /// <summary>Filter value that selects drivers with no class at all.</summary>
-    public const string UncategorizedKey = "__uncategorized__";
+    public const string UncategorizedKey = ClassFilterKeys.Uncategorized;
 
     public static IEnumerable<DriverModel> Apply(
         IEnumerable<DriverModel> drivers,

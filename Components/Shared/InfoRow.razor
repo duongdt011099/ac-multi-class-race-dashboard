@@ -1,0 +1,12 @@
+<div class="wec-nav-human__row">
+    <div class="wec-nav-human__info">
+        <span class="wec-nav-human__name">@Label</span>
+        <span class="wec-nav-human__team">@Value</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public string? Value { get; set; }
+}
