@@ -1,3 +1,4 @@
+using MulticlassRace.Data.Seed;
 using Bunit;
 using Microsoft.EntityFrameworkCore;
 using multi_class_race_dashboard.Components.Pages;
@@ -11,7 +12,7 @@ namespace MulticlassRace.Tests.Pages;
 
 public class TeamsPageTests : PageTestContext
 {
-    private static readonly Guid Hypercar = new(MulticlassRace.Data.AppDbContext.DefaultHypercarItemId);
+    private static readonly Guid Hypercar = new(SeedIds.DefaultHypercarItemId);
 
     private async Task SeedTeamsAsync(params string[] names)
     {

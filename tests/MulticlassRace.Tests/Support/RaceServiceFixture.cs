@@ -1,3 +1,4 @@
+using MulticlassRace.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,7 +28,7 @@ public sealed class FakeGameSessionLauncher : IGameSessionLauncher
 /// </summary>
 public sealed class RaceServiceFixture : IDisposable
 {
-    public static readonly Guid WecSettingId = new(AppDbContext.DefaultClassSettingId);
+    public static readonly Guid WecSettingId = new(SeedIds.DefaultClassSettingId);
 
     public RaceServiceFixture()
     {

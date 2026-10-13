@@ -1,3 +1,4 @@
+using MulticlassRace.Data.Seed;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +15,8 @@ namespace MulticlassRace.Tests.Pages;
 
 public class RacesPageTests : PageTestContext
 {
-    private static readonly Guid WecSetting = new(AppDbContext.DefaultClassSettingId);
-    private static readonly Guid Hypercar = new(AppDbContext.DefaultHypercarItemId);
+    private static readonly Guid WecSetting = new(SeedIds.DefaultClassSettingId);
+    private static readonly Guid Hypercar = new(SeedIds.DefaultHypercarItemId);
 
     private Guid championshipId;
     private Guid seasonId;
