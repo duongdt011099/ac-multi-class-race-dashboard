@@ -1,0 +1,80 @@
+@using MulticlassRace.ViewModels
+
+<div class="wec-class-search">
+    <input id="@Id" type="text" placeholder="Search classes..." value="@searchText"
+           autocomplete="off" @oninput="HandleInput" @onfocus="Open" />
+    @if (isOpen)
+    {
+        <div class="wec-class-search__menu">
+            @if (Available.Count == 0)
+            {
+                <div class="wec-class-search__empty">No matching classes</div>
+            }
+            else
+            {
+                @foreach (var option in Available)
+                {
+                    <button type="button" class="wec-class-search__option" @onclick="() => Add(option)">
+                        <span class="wec-class-search__swatch" style="background-color: @option.Color"></span>
+                        <span class="wec-class-search__option-text">@option.SettingName - @option.Name</span>
+                    </button>
+                }
+            }
+        </div>
+        <div class="wec-class-search__backdrop" @onclick="Close"></div>
+    }
+</div>
+@if (Selected.Count > 0)
+{
+    <div class="wec-class-tags">
+        @foreach (var tag in Selected)
+        {
+            <span class="wec-class-tags__chip">
+                <span class="wec-class-search__swatch" style="background-color: @tag.Color"></span>
+                <span class="wec-class-tags__chip-text">@tag.SettingName - @tag.Name</span>
+                <button type="button" class="wec-class-tags__chip-remove" title="Remove" @onclick="() => Remove(tag)">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </span>
+        }
+    </div>
+}
+
+@code {
+    private string searchText = "";
+    private bool isOpen;
+
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyCollection<ClassItemOption> Options { get; set; } = Array.Empty<ClassItemOption>();
+
+    /// <summary>Selected class item ids; the list is edited in place.</summary>
+    [Parameter, EditorRequired] public List<Guid> SelectedIds { get; set; } = new();
+
+    private List<ClassItemOption> Available => ClassItemOption.Available(Options, SelectedIds, searchText);
+
+    private List<ClassItemOption> Selected => ClassItemOption.Selected(Options, SelectedIds);
+
+    private void Open() => isOpen = true;
+
+    private void Close() => isOpen = false;
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? "";
+        isOpen = true;
+    }
+
+    private void Add(ClassItemOption option)
+    {
+        if (SelectedIds.Contains(option.Id))
+        {
+            return;
+        }
+
+        SelectedIds.Add(option.Id);
+        searchText = "";
+    }
+
+    private void Remove(ClassItemOption option) => SelectedIds.Remove(option.Id);
+}

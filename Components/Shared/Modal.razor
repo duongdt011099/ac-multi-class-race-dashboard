@@ -1,5 +1,5 @@
-<div class="wec-modal-overlay @OverlayClass">
-    <div class="wec-modal @SizeClass">
+<div class="wec-modal-overlay @OverlayClass" @attributes="OverlayAttributes">
+    <div class="wec-modal @SizeClass" @onclick:stopPropagation="CloseOnBackdropClick">
         <div class="wec-modal__header">
             <span>@Title</span>
             @if (OnClose.HasDelegate)
@@ -30,6 +30,9 @@
 
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>Also close when the dimmed area around the dialog is clicked.</summary>
+    [Parameter] public bool CloseOnBackdropClick { get; set; }
+
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     [Parameter] public RenderFragment? Footer { get; set; }
@@ -38,6 +41,12 @@
     {
         ModalSize.Small => "wec-modal--small",
         ModalSize.Wide => "wec-modal--wide",
+        ModalSize.Wider => "wec-modal--wider",
         _ => null
     };
+
+    // Only attached when backdrop closing is on, so otherwise every click inside a dialog does not round-trip.
+    private IReadOnlyDictionary<string, object>? OverlayAttributes => CloseOnBackdropClick
+        ? new Dictionary<string, object> { ["onclick"] = OnClose }
+        : null;
 }

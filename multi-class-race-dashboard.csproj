@@ -32,6 +32,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MulticlassRace.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
   <Content Update="wwwroot\uploads\**">
     <CopyToPublishDirectory>Never</CopyToPublishDirectory>
   </Content>

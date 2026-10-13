@@ -1,0 +1,127 @@
+@using MulticlassRace.Services.Abstractions
+@using MulticlassRace.ViewModels
+@inject IDriverService DriverService
+
+<div class="wec-drivers">
+    <div class="wec-drivers__head">
+        <span class="wec-drivers__title">Drivers @(Drivers is null ? "" : $"({Drivers.Count})")</span>
+        <button type="button" class="wec-drivers__add" disabled="@(Drivers is null || isAdding)" @onclick="OpenSearch">
+            <i class="bi bi-person-plus"></i> Add Driver
+        </button>
+    </div>
+
+    @if (Drivers is null)
+    {
+        <div class="wec-drivers__empty">Loading drivers...</div>
+    }
+    else
+    {
+        <div class="wec-drivers__grid">
+            @if (!Drivers.Any())
+            {
+                <div class="wec-drivers__empty">No drivers on this team</div>
+            }
+            else
+            {
+                @foreach (var driver in Drivers)
+                {
+                    <div class="wec-drivers__row">
+                        <div class="wec-drivers__info">
+                            <span class="wec-drivers__name">@driver.DriverName</span>
+                            <span class="wec-drivers__car"><DriverNationality Nationality="@driver.Nationality" /></span>
+                        </div>
+                        <button type="button" class="wec-drivers__remove" title="Remove @driver.DriverName"
+                                @onclick="() => Drivers.Remove(driver)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+
+        @if (isAdding)
+        {
+            <div class="wec-drivers__searchbox">
+                <input type="text" placeholder="Search driver name..." value="@searchTerm" @oninput="HandleSearch" />
+                <button type="button" class="wec-drivers__search-close" title="Close search" @onclick="CloseSearch">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+
+                <div class="wec-drivers__results">
+                    @if (!results.Any())
+                    {
+                        <div class="wec-drivers__result wec-drivers__result--empty">No available drivers</div>
+                    }
+                    else
+                    {
+                        @foreach (var result in results)
+                        {
+                            <button type="button" class="wec-drivers__result" @onclick="() => Add(result)">
+                                <span class="wec-drivers__result-name">@result.DriverName</span>
+                                <span class="wec-drivers__result-meta"><DriverNationality Nationality="@result.Nationality" /></span>
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isAdding;
+    private string? searchTerm;
+    private List<DriverModel> results = new();
+    private int searchSequence;
+
+    /// <summary>The team's drivers, edited in place; null while they are still loading.</summary>
+    [Parameter] public List<DriverModel>? Drivers { get; set; }
+
+    private void OpenSearch()
+    {
+        isAdding = true;
+        searchTerm = string.Empty;
+        results = new List<DriverModel>();
+        _ = SearchAsync(string.Empty);
+    }
+
+    private async Task HandleSearch(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString();
+        await SearchAsync(searchTerm);
+    }
+
+    private async Task SearchAsync(string? term)
+    {
+        var sequence = ++searchSequence;
+        var found = (await DriverService.SearchAvailableDriversAsync(term)).ToList();
+
+        // A newer keystroke or a closed box makes this answer stale.
+        if (sequence != searchSequence || Drivers is null)
+        {
+            return;
+        }
+
+        var currentIds = Drivers.Select(d => d.DriverId).ToHashSet();
+        results = found.Where(r => !currentIds.Contains(r.DriverId)).ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Add(DriverModel driver)
+    {
+        if (Drivers is not null && Drivers.All(d => d.DriverId != driver.DriverId))
+        {
+            Drivers.Add(driver);
+        }
+
+        CloseSearch();
+    }
+
+    private void CloseSearch()
+    {
+        searchSequence++;
+        isAdding = false;
+        searchTerm = null;
+        results = new List<DriverModel>();
+    }
+}

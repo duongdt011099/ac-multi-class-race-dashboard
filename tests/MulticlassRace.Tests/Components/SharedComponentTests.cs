@@ -47,6 +47,25 @@ public class SharedComponentTests : TestContext
     }
 
     [Fact]
+    public void Modal_BackdropClick_ClosesOnlyWhenEnabled()
+    {
+        var closed = 0;
+        var enabled = RenderComponent<Modal>(p => p
+            .Add(m => m.Title, "T")
+            .Add(m => m.CloseOnBackdropClick, true)
+            .Add(m => m.OnClose, () => closed++));
+        var disabled = RenderComponent<Modal>(p => p
+            .Add(m => m.Title, "T")
+            .Add(m => m.OnClose, () => closed++));
+
+        Assert.Throws<MissingEventHandlerException>(() => disabled.Find(".wec-modal-overlay").Click());
+        Assert.Equal(0, closed);
+
+        enabled.Find(".wec-modal-overlay").Click();
+        Assert.Equal(1, closed);
+    }
+
+    [Fact]
     public void Modal_AppliesOverlayClass()
     {
         var cut = RenderComponent<Modal>(p => p

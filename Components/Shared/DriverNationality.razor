@@ -1,0 +1,16 @@
+@using MulticlassRace.Models
+
+@if (!string.IsNullOrWhiteSpace(Nationality))
+{
+    @Countries.GetFlag(Nationality)
+    @(" ")
+    @Nationality
+}
+else
+{
+    <span>—</span>
+}
+
+@code {
+    [Parameter] public string? Nationality { get; set; }
+}

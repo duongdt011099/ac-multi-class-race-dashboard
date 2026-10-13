@@ -4,5 +4,6 @@ public enum ModalSize
 {
     Default,
     Small,
-    Wide
+    Wide,
+    Wider
 }

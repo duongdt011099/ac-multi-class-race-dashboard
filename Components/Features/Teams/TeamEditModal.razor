@@ -1,0 +1,92 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using MulticlassRace.Services
+@using MulticlassRace.Services.Teams
+@using MulticlassRace.ViewModels
+@inject ITeamLogoStorage LogoStorage
+@inject ToastService Toast
+
+<Modal Title="@(IsCreating ? "New Team" : "Edit Team")" OnClose="OnCancel">
+    <ChildContent>
+        @if (!IsCreating)
+        {
+            <FormField For="team-id" Label="Team ID" CssClass="wec-form-field--readonly">
+                <input id="team-id" type="text" value="@Team.TeamId" readonly />
+            </FormField>
+        }
+
+        <FormField For="team-name" Label="Team Name">
+            <input id="team-name" type="text" @bind="Team.TeamName" />
+        </FormField>
+
+        <div class="wec-form-field">
+            <label for="team-logo-file">Team Logo</label>
+            <div class="wec-form-field__upload">
+                @if (!string.IsNullOrWhiteSpace(Team.TeamLogo))
+                {
+                    <img src="@Team.TeamLogo" alt="Team logo preview" class="wec-form-field__preview" />
+                }
+                <InputFile id="team-logo-file" OnChange="HandleLogoUpload" accept="image/*" />
+            </div>
+        </div>
+
+        <div class="wec-form-field">
+            <label for="team-class-search">Team Classes</label>
+            @if (ClassOptions.Count == 0)
+            {
+                <p class="wec-form-hint">No class settings configured. Add one under Class Settings.</p>
+            }
+            else
+            {
+                <ClassTagPicker Id="team-class-search" Options="ClassOptions" SelectedIds="Team.ClassSettingItemIds" />
+            }
+        </div>
+
+        <CheckboxField Id="team-active" Label="Is Active" @bind-Value="Team.IsActive" />
+
+        <TeamDriverList Drivers="Drivers" />
+    </ChildContent>
+    <Footer>
+        <ModalActions ConfirmText="@(IsCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="IsSaving"
+                      Disabled="@(Drivers is null)" OnCancel="OnCancel" OnConfirm="OnSave" />
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter, EditorRequired] public TeamFormModel Team { get; set; } = default!;
+
+    [Parameter] public bool IsCreating { get; set; }
+
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public List<DriverModel>? Drivers { get; set; }
+
+    [Parameter] public IReadOnlyCollection<ClassItemOption> ClassOptions { get; set; } = Array.Empty<ClassItemOption>();
+
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    {
+        if (e.File is null)
+        {
+            return;
+        }
+
+        var file = e.File;
+
+        try
+        {
+            Team.TeamLogo = await LogoStorage.SaveAsync(
+                Team.TeamId,
+                file.Name,
+                file.ContentType,
+                file.Size,
+                () => file.OpenReadStream(TeamLogoStorage.MaxLogoSizeBytes));
+        }
+        catch (InvalidLogoException ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+    }
+}

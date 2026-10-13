@@ -23,7 +23,7 @@ public static class UploadsEndpointExtensions
         });
     }
 
-    private static string ResolveRoot(IWebHostEnvironment environment)
+    public static string ResolveRoot(IWebHostEnvironment environment)
     {
         var webRoot = environment.WebRootPath;
 
