@@ -1,0 +1,9 @@
+<PageTitle>@Title</PageTitle>
+
+<h1 class="nav-title">@Title</h1>
+
+<ToastHost />
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+}

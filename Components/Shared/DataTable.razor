@@ -1,0 +1,35 @@
+<div class="wec-table-wrapper">
+    <table class="wec-table">
+        <thead>
+            <tr>@Header</tr>
+        </thead>
+        <tbody>
+            @if (IsEmpty)
+            {
+                <tr>
+                    <td colspan="@ColumnCount" class="wec-empty">@EmptyText</td>
+                </tr>
+            }
+            else
+            {
+                @Body
+            }
+        </tbody>
+    </table>
+    @Footer
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment? Header { get; set; }
+
+    [Parameter, EditorRequired] public RenderFragment? Body { get; set; }
+
+    /// <summary>Rendered below the table inside the wrapper, typically a <see cref="Pagination"/>.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    [Parameter] public bool IsEmpty { get; set; }
+
+    [Parameter] public int ColumnCount { get; set; } = 1;
+
+    [Parameter] public string EmptyText { get; set; } = "No items found";
+}

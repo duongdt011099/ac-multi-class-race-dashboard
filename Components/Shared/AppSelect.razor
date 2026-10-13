@@ -1,0 +1,40 @@
+<select id="@Id" class="@CssClass" value="@Value" disabled="@Disabled" @onchange="HandleChange">
+    @if (EmptyLabel is not null)
+    {
+        <option value="">@EmptyLabel</option>
+    }
+    @if (!string.IsNullOrEmpty(Value) && OrphanLabel is not null && !Options.Any(o => o.Value == Value))
+    {
+        <option value="@Value">@OrphanLabel</option>
+    }
+    @foreach (var option in Options)
+    {
+        <option value="@option.Value">@option.Label</option>
+    }
+    @ChildContent
+</select>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter] public string? CssClass { get; set; }
+
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter] public IEnumerable<SelectOption> Options { get; set; } = Array.Empty<SelectOption>();
+
+    /// <summary>Text of the leading empty option; leave null for no empty option.</summary>
+    [Parameter] public string? EmptyLabel { get; set; }
+
+    /// <summary>Shown for a current value that is not in <see cref="Options"/>, such as a car removed from disk.</summary>
+    [Parameter] public string? OrphanLabel { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Extra raw options appended after <see cref="Options"/>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task HandleChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+}

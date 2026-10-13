@@ -1,0 +1,25 @@
+<Modal Title="@Title" Size="ModalSize.Small" OnClose="OnCancel">
+    <ChildContent>
+        <p>@ChildContent</p>
+    </ChildContent>
+    <Footer>
+        <ModalActions ConfirmText="@ConfirmText" BusyText="@BusyText" IsBusy="IsBusy" Danger="true"
+                      OnCancel="OnCancel" OnConfirm="OnConfirm" />
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string ConfirmText { get; set; } = "Delete";
+
+    [Parameter] public string BusyText { get; set; } = "Deleting...";
+
+    [Parameter] public bool IsBusy { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,43 @@
+<div class="wec-modal-overlay @OverlayClass">
+    <div class="wec-modal @SizeClass">
+        <div class="wec-modal__header">
+            <span>@Title</span>
+            @if (OnClose.HasDelegate)
+            {
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="OnClose">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            }
+        </div>
+        <div class="wec-modal__body">
+            @ChildContent
+        </div>
+        @if (Footer is not null)
+        {
+            <div class="wec-modal__footer">
+                @Footer
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Default;
+
+    [Parameter] public string? OverlayClass { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private string? SizeClass => Size switch
+    {
+        ModalSize.Small => "wec-modal--small",
+        ModalSize.Wide => "wec-modal--wide",
+        _ => null
+    };
+}

@@ -1,0 +1,20 @@
+<div class="wec-table__team">
+    @if (!string.IsNullOrWhiteSpace(Logo))
+    {
+        <img src="@Logo" alt="@Name" class="wec-table__logo" />
+    }
+    else if (ShowInitialsFallback && !string.IsNullOrEmpty(Name))
+    {
+        <span class="wec-table__logo wec-table__logo--fallback">@Name[..Math.Min(2, Name.Length)].ToUpper()</span>
+    }
+    <span>@Name</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    [Parameter] public string? Logo { get; set; }
+
+    /// <summary>Show the first two letters of the name in place of a missing logo.</summary>
+    [Parameter] public bool ShowInitialsFallback { get; set; }
+}
