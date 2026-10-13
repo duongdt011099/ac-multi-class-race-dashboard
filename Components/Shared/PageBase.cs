@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Components;
-using MulticlassRace.Services;
+using MulticlassRace.Services.Notifications;
 
 namespace multi_class_race_dashboard.Components.Shared;
 

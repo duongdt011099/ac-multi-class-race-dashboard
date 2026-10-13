@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using MulticlassRace.Repositories;
-using MulticlassRace.Services;
 using MulticlassRace.Tests.Support;
 using MulticlassRace.ViewModels;
+using MulticlassRace.Services.Settings;
 
 namespace MulticlassRace.Tests.Services;
 

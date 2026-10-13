@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using MulticlassRace.Common;
-using MulticlassRace.Services.Abstractions;
 using MulticlassRace.ViewModels;
+using MulticlassRace.Services.Championships;
 
 namespace multi_class_race_dashboard.Components.Pages;
 

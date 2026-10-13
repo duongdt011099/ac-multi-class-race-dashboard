@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components;
-using MulticlassRace.Services.Abstractions;
 using MulticlassRace.ViewModels;
+using MulticlassRace.Services.Settings;
 
 namespace multi_class_race_dashboard.Components.Pages;
 

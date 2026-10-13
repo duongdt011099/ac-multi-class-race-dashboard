@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
-using MulticlassRace.Services;
-using MulticlassRace.Services.Abstractions;
+using MulticlassRace.BackgroundServices;
+using MulticlassRace.Services.Updates;
 
 namespace multi_class_race_dashboard.Components;
 
