@@ -38,7 +38,7 @@
 </ItemGroup>
 
   <PropertyGroup>
-    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- The .NET 10 framework-assets target only registers blazor.web.js and blazor.server.js when
