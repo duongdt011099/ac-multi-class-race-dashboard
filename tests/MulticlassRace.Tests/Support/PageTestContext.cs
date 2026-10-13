@@ -37,6 +37,9 @@ public class PageTestContext : TestContext
         RaceService = new FakeRaceService();
         TrackService = new FakeTrackService();
         Services.AddSingleton<IRaceService>(RaceService);
+        Services.AddSingleton<IRaceSessionLauncher>(RaceService);
+        Services.AddSingleton<IRaceResultService>(RaceService);
+        Services.AddSingleton<IGridPresetService>(RaceService);
         Services.AddSingleton<ITrackService>(TrackService);
         Services.AddSingleton<ILuaResultImportService>(new FakeLuaResultImportService());
         Services.AddSingleton<RaceSessionChangeNotifier>();

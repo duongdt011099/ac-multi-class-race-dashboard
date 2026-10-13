@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MulticlassRace.Mapping;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -29,7 +30,7 @@ public class DriverService : IDriverService
         var drivers = await _driverRepository.SearchUnassignedDriversAsync(searchTerm);
         var gamePath = await GetGamePathAsync();
 
-        return drivers.Select(d => ToModel(d, gamePath));
+        return drivers.Select(d => d.ToModel(gamePath));
     }
 
     public async Task<IEnumerable<DriverModel>> GetActiveDriversAsync()
@@ -37,14 +38,14 @@ public class DriverService : IDriverService
         var drivers = await _driverRepository.GetActiveDriversAsync();
         var gamePath = await GetGamePathAsync();
 
-        return drivers.Select(d => ToModel(d, gamePath));
+        return drivers.Select(d => d.ToModel(gamePath));
     }
 
     public async Task<DriverFormModel?> GetDriverByIdAsync(Guid driverId)
     {
         var driver = await _driverRepository.GetDriverWithDetailsAsync(driverId);
 
-        return driver is null ? null : ToFormModel(driver);
+        return driver?.ToFormModel();
     }
 
     public async Task CreateDriverAsync(DriverFormModel model)
@@ -190,74 +191,6 @@ public class DriverService : IDriverService
         }
 
         return value < 0 ? null : value;
-    }
-
-    private static DriverModel ToModel(Driver driver, string? gamePath)
-    {
-        return new DriverModel
-        {
-            DriverId = driver.DriverId,
-            DriverName = driver.DriverName,
-            CarDisplayName = driver.CarDisplayName,
-            Car = driver.Car,
-            Skin = driver.Skin,
-            LiveryImageUrl = BuildImageUrl(gamePath, driver.Car, driver.Skin, "livery"),
-            CarImageUrl = BuildImageUrl(gamePath, driver.Car, driver.Skin, "car"),
-            Nationality = driver.Nationality,
-            Age = driver.Age,
-            DriverAgression = driver.DriverAgression,
-            DriverStrength = driver.DriverStrength,
-            TeamName = driver.Team?.TeamName,
-            TeamId = driver.Team?.TeamId,
-            TeamLogo = driver.Team?.TeamLogo,
-            ClassTags = driver.Team is null
-                ? new List<ClassTagModel>()
-                : driver.Team.ClassSettingItems
-                    .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(i => i.Order)
-                    .Select(i => new ClassTagModel
-                    {
-                        ClassSettingItemId = i.ClassSettingItemId,
-                        ClassSettingId = i.ClassSettingId,
-                        ItemName = i.Name,
-                        SettingName = i.ClassSetting.ClassSettingName,
-                        Color = i.Color,
-                        Order = i.Order
-                    })
-                    .ToList(),
-            IsActive = driver.IsActive,
-            IsHuman = driver.IsHuman
-        };
-    }
-
-    private static DriverFormModel ToFormModel(Driver driver)
-    {
-        return new DriverFormModel
-        {
-            DriverId = driver.DriverId,
-            DriverName = driver.DriverName,
-            CarDisplayName = driver.CarDisplayName,
-            Car = driver.Car,
-            Skin = driver.Skin,
-            Nationality = driver.Nationality,
-            Age = driver.Age,
-            DriverAgression = driver.DriverAgression,
-            DriverStrength = driver.DriverStrength,
-            TeamId = driver.Team?.TeamId,
-            TeamName = driver.Team?.TeamName,
-            IsActive = driver.IsActive,
-            IsHuman = driver.IsHuman
-        };
-    }
-
-    private static string? BuildImageUrl(string? gamePath, string car, string skin, string type)
-    {
-        if (string.IsNullOrWhiteSpace(gamePath) || string.IsNullOrWhiteSpace(car) || string.IsNullOrWhiteSpace(skin))
-        {
-            return null;
-        }
-
-        return $"/car-image?car={Uri.EscapeDataString(car)}&skin={Uri.EscapeDataString(skin)}&type={type}";
     }
 
     private sealed class AcGridPreset

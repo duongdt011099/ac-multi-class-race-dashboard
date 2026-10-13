@@ -1,3 +1,4 @@
+using MulticlassRace.Mapping;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -18,13 +19,7 @@ public class PointSettingService : IPointSettingService
     {
         var settings = await _pointSettingRepository.GetAllOrderedAsync();
 
-        return settings.Select(s => new PointSettingModel
-        {
-            SettingId = s.SettingId,
-            SettingName = s.SettingName,
-            IsDefault = s.IsDefault,
-            Config = s.Config
-        });
+        return settings.Select(s => s.ToModel());
     }
 
     public async Task CreateAsync(PointSettingFormModel model)

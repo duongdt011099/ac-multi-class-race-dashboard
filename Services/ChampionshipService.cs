@@ -1,3 +1,4 @@
+using MulticlassRace.Mapping;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -18,20 +19,14 @@ public class ChampionshipService : IChampionshipService
     {
         var championships = await _championshipRepository.GetActiveChampionshipsAsync();
 
-        return championships.Select(c => new ChampionshipModel
-        {
-            ChampionshipId = c.ChampionshipId,
-            ChampionshipName = c.ChampionshipName,
-            SeasonCount = c.Seasons.Count,
-            IsActive = c.IsActive
-        });
+        return championships.Select(c => c.ToModel());
     }
 
     public async Task<ChampionshipFormModel?> GetChampionshipByIdAsync(Guid championshipId)
     {
         var championship = await _championshipRepository.GetByIdAsync(championshipId);
 
-        return championship is null ? null : ToFormModel(championship);
+        return championship?.ToFormModel();
     }
 
     public async Task CreateChampionshipAsync(ChampionshipFormModel model)
@@ -64,15 +59,5 @@ public class ChampionshipService : IChampionshipService
     public async Task DeleteChampionshipAsync(Guid championshipId)
     {
         await _championshipRepository.DeleteAsync(championshipId);
-    }
-
-    private static ChampionshipFormModel ToFormModel(Championship championship)
-    {
-        return new ChampionshipFormModel
-        {
-            ChampionshipId = championship.ChampionshipId,
-            ChampionshipName = championship.ChampionshipName,
-            IsActive = championship.IsActive
-        };
     }
 }

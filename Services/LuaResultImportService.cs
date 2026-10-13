@@ -8,18 +8,18 @@ namespace MulticlassRace.Services;
 
 public class LuaResultImportService : ILuaResultImportService
 {
-    private readonly IRaceService _raceService;
+    private readonly IRaceResultService _raceResultService;
     private readonly IImportedLuaResultRepository _importedRepository;
     private readonly RaceSessionChangeNotifier _sessionChangeNotifier;
     private readonly ILogger<LuaResultImportService> Logger;
 
     public LuaResultImportService(
-        IRaceService raceService,
+        IRaceResultService raceResultService,
         IImportedLuaResultRepository importedRepository,
         RaceSessionChangeNotifier sessionChangeNotifier,
         ILogger<LuaResultImportService> logger)
     {
-        _raceService = raceService;
+        _raceResultService = raceResultService;
         _importedRepository = importedRepository;
         _sessionChangeNotifier = sessionChangeNotifier;
         Logger = logger;
@@ -33,7 +33,7 @@ public class LuaResultImportService : ILuaResultImportService
 
             if (result.SessionType == SessionType.Race)
             {
-                importResult = await _raceService.ImportRaceResultFromPathAsync(
+                importResult = await _raceResultService.ImportRaceResultFromPathAsync(
                     raceId,
                     result.FullPath,
                     result.FileName);
@@ -41,7 +41,7 @@ public class LuaResultImportService : ILuaResultImportService
             else
             {
                 await using var stream = File.OpenRead(result.FullPath);
-                importResult = await _raceService.ImportSessionResultAsync(
+                importResult = await _raceResultService.ImportSessionResultAsync(
                     raceId,
                     result.SessionType,
                     stream,

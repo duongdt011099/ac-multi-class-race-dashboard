@@ -6,7 +6,7 @@ using MulticlassRace.ViewModels;
 namespace MulticlassRace.Tests.Support;
 
 /// <summary>In-memory races and sessions, so race page tests do not need Assetto Corsa or Content Manager.</summary>
-public sealed class FakeRaceService : IRaceService
+public sealed class FakeRaceService : IRaceService, IRaceSessionLauncher, IRaceResultService, IGridPresetService
 {
     public Dictionary<Guid, List<RaceModel>> RacesBySeason { get; } = new();
 

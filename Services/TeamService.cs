@@ -1,3 +1,4 @@
+using MulticlassRace.Mapping;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
 using MulticlassRace.ViewModels;
@@ -23,7 +24,7 @@ public class TeamService : ITeamService
         var teams = await _teamRepository.GetActiveTeamsAsync();
 
         return teams
-            .Select(t => MapTeam(t, includeDrivers: false))
+            .Select(t => t.ToModel())
             .OrderBy(t => t.TeamName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -32,7 +33,7 @@ public class TeamService : ITeamService
     {
         var team = await _teamRepository.GetTeamDetailsAsync(teamId);
 
-        return team is null ? null : MapTeam(team, includeDrivers: true);
+        return team?.ToModel(includeDrivers: true);
     }
 
     public Task CreateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds)
@@ -43,49 +44,6 @@ public class TeamService : ITeamService
     public Task UpdateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds)
     {
         return _teamRepository.UpdateTeamAsync(ToTeam(team), team.ClassSettingItemIds, driverIds);
-    }
-
-    private static TeamModel MapTeam(Models.Team team, bool includeDrivers)
-    {
-        return new TeamModel
-        {
-            TeamId = team.TeamId,
-            TeamName = team.TeamName,
-            TeamLogo = team.TeamLogo,
-            ClassTags = team.ClassSettingItems
-                .OrderBy(i => i.ClassSetting.ClassSettingName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(i => i.Order)
-                .Select(i => new ClassTagModel
-                {
-                    ClassSettingItemId = i.ClassSettingItemId,
-                    ClassSettingId = i.ClassSettingId,
-                    ItemName = i.Name,
-                    SettingName = i.ClassSetting.ClassSettingName,
-                    Color = i.Color,
-                    Order = i.Order
-                })
-                .ToList(),
-            IsActive = team.IsActive,
-            Drivers = includeDrivers
-                ? team.Drivers.Select(MapDriver).ToList()
-                : new List<DriverModel>()
-        };
-    }
-
-    private static DriverModel MapDriver(Models.Driver driver)
-    {
-        return new DriverModel
-        {
-            DriverId = driver.DriverId,
-            DriverName = driver.DriverName,
-            CarDisplayName = driver.CarDisplayName,
-            Car = driver.Car,
-            Skin = driver.Skin,
-            Nationality = driver.Nationality,
-            TeamId = driver.Team?.TeamId,
-            TeamLogo = driver.Team?.TeamLogo,
-            IsActive = driver.IsActive
-        };
     }
 
     private static Models.Team ToTeam(TeamFormModel model)

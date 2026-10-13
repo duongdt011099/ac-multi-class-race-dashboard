@@ -13,6 +13,12 @@ public partial class RaceSessionsModal : IDisposable
 
     [Inject] private IRaceService RaceService { get; set; } = default!;
 
+    [Inject] private IRaceSessionLauncher SessionLauncher { get; set; } = default!;
+
+    [Inject] private IRaceResultService ResultService { get; set; } = default!;
+
+    [Inject] private IGridPresetService PresetService { get; set; } = default!;
+
     [Inject] private ITeamService TeamService { get; set; } = default!;
 
     [Inject] private ITrackService TrackService { get; set; } = default!;
@@ -105,7 +111,7 @@ public partial class RaceSessionsModal : IDisposable
 
             // Which of these controls can do anything depends on whether Content Manager is installed,
             // so the availability is read once per dialog rather than guessed per click.
-            availability = await RaceService.GetResultImportAvailabilityAsync();
+            availability = await ResultService.GetResultImportAvailabilityAsync();
 
             if (availability.CanImportResults)
             {
@@ -179,7 +185,7 @@ public partial class RaceSessionsModal : IDisposable
 
     private async Task LoadResultFilesAsync()
     {
-        raceResultFiles = (await RaceService.GetRaceResultFilesAsync()).ToList();
+        raceResultFiles = (await ResultService.GetRaceResultFilesAsync()).ToList();
         selectedRaceResultFile = raceResultFiles.FirstOrDefault()?.FullPath;
     }
 
@@ -286,7 +292,7 @@ public partial class RaceSessionsModal : IDisposable
         {
             var current = conditions.Get(selectedSessionType);
 
-            await RaceService.LaunchSessionAsync(
+            await SessionLauncher.LaunchSessionAsync(
                 Race.RaceId,
                 selectedSessionType,
                 current.Weather,
@@ -326,8 +332,8 @@ public partial class RaceSessionsModal : IDisposable
             // Files the Lua app produced live outside the Content Manager results folder,
             // so they are imported by full path instead of by file name.
             var result = selectedFile.IsLuaResult
-                ? await RaceService.ImportRaceResultFromPathAsync(Race.RaceId, selectedFile.FullPath, selectedFile.FileName)
-                : await RaceService.ImportRaceResultAsync(Race.RaceId, selectedFile.FileName);
+                ? await ResultService.ImportRaceResultFromPathAsync(Race.RaceId, selectedFile.FullPath, selectedFile.FileName)
+                : await ResultService.ImportRaceResultAsync(Race.RaceId, selectedFile.FileName);
 
             if (selectedFile.IsLuaResult)
             {
@@ -365,7 +371,7 @@ public partial class RaceSessionsModal : IDisposable
         try
         {
             await using var stream = e.File.OpenReadStream(MaxResultFileBytes);
-            var result = await RaceService.ImportSessionResultAsync(Race.RaceId, selectedSessionType, stream, e.File.Name);
+            var result = await ResultService.ImportSessionResultAsync(Race.RaceId, selectedSessionType, stream, e.File.Name);
 
             Toast.Show($"Imported {result.Imported} result(s) (skipped {result.Skipped}).", result.Skipped > 0);
 
@@ -392,7 +398,7 @@ public partial class RaceSessionsModal : IDisposable
             _ => SessionType.Race
         };
 
-        return await RaceService.ExportGridPresetAsync(
+        return await PresetService.ExportGridPresetAsync(
             Race.RaceId,
             sessionType,
             humanClassOnly,
@@ -404,7 +410,7 @@ public partial class RaceSessionsModal : IDisposable
     {
         RequireChampionshipAndSeason();
 
-        var result = await RaceService.ExportRaceGridPresetAsync(Race.RaceId, SeasonName!, ChampionshipName!);
+        var result = await PresetService.ExportRaceGridPresetAsync(Race.RaceId, SeasonName!, ChampionshipName!);
 
         Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
     }

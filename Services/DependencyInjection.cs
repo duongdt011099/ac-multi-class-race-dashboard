@@ -16,6 +16,9 @@ public static class DependencyInjection
         services.AddScoped<IChampionshipService, ChampionshipService>();
         services.AddScoped<ISeasonService, SeasonService>();
         services.AddScoped<IRaceService, RaceService>();
+        services.AddScoped<IRaceSessionLauncher, RaceSessionLauncher>();
+        services.AddScoped<IRaceResultService, RaceResultService>();
+        services.AddScoped<IGridPresetService, GridPresetService>();
         services.AddScoped<ITrackService, TrackService>();
         services.AddScoped<IAssettoCorsaGameConfigService, AssettoCorsaGameConfigService>();
         services.AddScoped<IAssettoCorsaContentService, AssettoCorsaContentService>();

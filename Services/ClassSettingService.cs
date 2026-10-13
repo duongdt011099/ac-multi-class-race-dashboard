@@ -1,3 +1,4 @@
+using MulticlassRace.Mapping;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -18,14 +19,14 @@ public class ClassSettingService : IClassSettingService
     {
         var settings = await _classSettingRepository.GetAllOrderedAsync();
 
-        return settings.Select(ToModel);
+        return settings.Select(s => s.ToModel());
     }
 
     public async Task<ClassSettingModel?> GetDefaultAsync()
     {
         var setting = await _classSettingRepository.GetDefaultAsync();
 
-        return setting is null ? null : ToModel(setting);
+        return setting?.ToModel();
     }
 
     public async Task CreateAsync(ClassSettingFormModel model)
@@ -187,25 +188,5 @@ public class ClassSettingService : IClassSettingService
     private static string NormalizeColor(string color)
     {
         return string.IsNullOrWhiteSpace(color) ? "#52525b" : color.Trim();
-    }
-
-    private static ClassSettingModel ToModel(ClassSetting setting)
-    {
-        return new ClassSettingModel
-        {
-            ClassSettingId = setting.ClassSettingId,
-            ClassSettingName = setting.ClassSettingName,
-            IsDefault = setting.IsDefault,
-            Items = setting.Items
-                .OrderBy(i => i.Order)
-                .Select(i => new ClassSettingItemModel
-                {
-                    ClassSettingItemId = i.ClassSettingItemId,
-                    Name = i.Name,
-                    Order = i.Order,
-                    Color = i.Color
-                })
-                .ToList()
-        };
     }
 }

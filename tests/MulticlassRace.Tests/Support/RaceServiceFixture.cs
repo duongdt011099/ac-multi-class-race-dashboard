@@ -73,13 +73,19 @@ public sealed class RaceServiceFixture : IDisposable
         Launcher = new FakeGameSessionLauncher();
         LaunchTracker = new SessionLaunchTracker();
 
-        Service = CreateService(
-            new RaceRepository(Context),
+        var raceRepository = new RaceRepository(Context);
+        var configRepository = new AssettoCorsaGameConfigRepository(Context);
+        var pointRepository = new PointSettingRepository(Context);
+
+        Race = new RaceService(
+            raceRepository,
             new SeasonRepository(Context),
-            new AssettoCorsaGameConfigRepository(Context),
-            new PointSettingRepository(Context),
+            pointRepository,
             new ClassSettingRepository(Context),
-            resolver);
+            Tracks);
+        SessionLauncher = new RaceSessionLauncher(raceRepository, Tracks, Launcher, LaunchTracker, resolver);
+        Results = new RaceResultService(raceRepository, configRepository, pointRepository);
+        Presets = new GridPresetService(raceRepository, configRepository);
     }
 
     public string Root { get; }
@@ -102,26 +108,13 @@ public sealed class RaceServiceFixture : IDisposable
 
     public SessionLaunchTracker LaunchTracker { get; }
 
-    private IRaceService Service { get; }
+    public IRaceService Race { get; }
 
-    public IRaceService Race => Service;
+    public IRaceSessionLauncher SessionLauncher { get; }
 
-    public IRaceService SessionLauncher => Service;
+    public IRaceResultService Results { get; }
 
-    public IRaceService Results => Service;
-
-    public IRaceService Presets => Service;
-
-    private IRaceService CreateService(
-        IRaceRepository races,
-        ISeasonRepository seasons,
-        IAssettoCorsaGameConfigRepository config,
-        IPointSettingRepository points,
-        IClassSettingRepository classes,
-        AssettoCorsaPathResolver resolver)
-    {
-        return new RaceService(races, seasons, config, points, classes, Tracks, Launcher, LaunchTracker, resolver);
-    }
+    public IGridPresetService Presets { get; }
 
     public Season AddSeason(string name = "Season 1")
     {

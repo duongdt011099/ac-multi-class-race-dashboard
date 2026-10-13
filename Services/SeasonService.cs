@@ -1,3 +1,4 @@
+using MulticlassRace.Mapping;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.Abstractions;
@@ -25,12 +26,7 @@ public class SeasonService : ISeasonService
     {
         var seasons = await _seasonRepository.GetSeasonsByChampionshipAsync(championshipId);
 
-        return seasons.Select(s => new SeasonModel
-        {
-            SeasonId = s.SeasonId,
-            SeasonName = s.SeasonName,
-            RaceCount = s.Races.Count
-        });
+        return seasons.Select(s => s.ToModel());
     }
 
     public async Task CreateSeasonAsync(Guid championshipId, string seasonName)
@@ -99,12 +95,7 @@ public class SeasonService : ISeasonService
 
         await _seasonRepository.AddAsync(clone);
 
-        return new SeasonModel
-        {
-            SeasonId = clone.SeasonId,
-            SeasonName = clone.SeasonName,
-            RaceCount = clone.Races.Count
-        };
+        return clone.ToModel();
     }
 
     public async Task DeleteSeasonAsync(Guid seasonId)
