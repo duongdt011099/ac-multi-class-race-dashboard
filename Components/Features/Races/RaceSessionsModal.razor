@@ -1,0 +1,105 @@
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+
+<Modal Title="@($"Sessions — {Race.RaceName}")" Size="ModalSize.Wider" OverlayClass="wec-modal-overlay--top"
+       ModalClass="@(isLoading ? "wec-modal--loading" : "")"
+       BodyClass="@("wec-modal__body--loading-host " + (isLoading ? "wec-modal__body--loading" : ""))"
+       OnClose="OnClose">
+    @{
+        var context = Context;
+    }
+
+    <div class="wec-tabs">
+        <button type="button"
+                class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "") @(context.HasSessionData ? "wec-tab--disabled" : "")"
+                disabled="@context.HasSessionData" @onclick="SetTeamsTab">Teams</button>
+        <button type="button"
+                class="wec-tab @(selectedTab == RacePopupTab.Practice ? "wec-tab--active" : "") @(context.CanOpenPractice ? "" : "wec-tab--disabled")"
+                disabled="@(!context.CanOpenPractice)"
+                @onclick="() => SetSessionTab(SessionType.Practice)">Practice</button>
+        <button type="button"
+                class="wec-tab @(selectedTab == RacePopupTab.Qualifying ? "wec-tab--active" : "") @(context.CanOpenQualifying ? "" : "wec-tab--disabled")"
+                disabled="@(!context.CanOpenQualifying)"
+                @onclick="() => SetSessionTab(SessionType.Qualifying)">Qualifying</button>
+        <button type="button"
+                class="wec-tab @(selectedTab == RacePopupTab.Race ? "wec-tab--active" : "") @(context.CanOpenRace ? "" : "wec-tab--disabled")"
+                disabled="@(!context.CanOpenRace)" @onclick="() => SetSessionTab(SessionType.Race)">Race</button>
+    </div>
+
+    @if (selectedTab is not RacePopupTab.Teams)
+    {
+        <SessionControls Conditions="conditions.Get(selectedSessionType)"
+                         IdSuffix="@(selectedTab == RacePopupTab.Race ? "-race" : "")"
+                         CanStart="context.CanStartSession" IsStarting="isStarting" StartTitle="@context.StartSessionTitle"
+                         OnWeatherChanged="weather => conditions.SetWeather(selectedSessionType, weather)"
+                         OnTimeOfDayChanged="label => conditions.SetTimeOfDay(selectedSessionType, label)"
+                         OnPenaltiesChanged="penalties => conditions.SetPenalties(selectedSessionType, penalties)"
+                         OnStart="StartSessionAsync">
+            @if (selectedTab == RacePopupTab.Race)
+            {
+                @if (availability.CanImportResults)
+                {
+                    <div class="wec-preset-export">
+                        <span class="wec-preset-export__label">Import Result</span>
+                        <AppSelect CssClass="wec-result-file-select" @bind-Value="selectedRaceResultFile"
+                                   Disabled="@(isImportingRaceResult || raceResultFiles is null)"
+                                   EmptyLabel="@(raceResultFiles is null ? "Loading files..." : raceResultFiles.Count == 0 ? "No result files found" : null)"
+                                   Options="@((raceResultFiles ?? new()).Select(f => new SelectOption(f.FullPath, $"{f.FileName} — {f.Track}{(f.IsLuaResult ? " (Lua)" : "")}")))" />
+                        <ToolbarButton Disabled="!CanImportRaceResult" OnClick="ImportRaceResultAsync">
+                            @(isImportingRaceResult ? "Importing..." : "Import")
+                        </ToolbarButton>
+                    </div>
+                }
+            }
+            else
+            {
+                @if (availability.CanExportPresets)
+                {
+                    <ContentManagerActions ExportGridHandler="@(async human => await ExportGridPresetAsync(human))"
+                                           ExportRaceHandler="@ExportRacePresetAsync"
+                                           ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
+                }
+
+                <div class="wec-preset-export">
+                    <label for="session-result-file"
+                           class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
+                        <i class="bi bi-upload"></i> @(isImportingSessionResult ? "Importing..." : "Import Result")
+                    </label>
+                    <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport" class="d-none" />
+                </div>
+            }
+        </SessionControls>
+    }
+
+    @if (selectedTab is not RacePopupTab.Teams && RaceClassSetting is not null && StandingClassNames.Any())
+    {
+        <div class="wec-session-toolbar">
+            <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
+            <AppSelect Id="standing-class-filter" CssClass="wec-result-file-select wec-session-toolbar__select"
+                       @bind-Value="standingClassFilter" EmptyLabel="All classes"
+                       Options="@(StandingClassNames.Select(c => new SelectOption(c, c)))" />
+        </div>
+    }
+
+    @if (selectedTab == RacePopupTab.Teams)
+    {
+        <RaceTeamsTab Teams="availableTeams" SelectedTeamIds="selectedTeamIds" Filter="TeamFilter"
+                      HasClassSetting="@(RaceClassSetting is not null)" @bind-ClassFilter="teamClassFilter"
+                      IsSaving="isSavingTeams" OnToggleTeam="ToggleTeamAsync" OnToggleAllVisible="ToggleAllVisibleAsync" />
+    }
+    else
+    {
+        <SessionResultsList Sessions="DisplaySessions" SessionType="selectedSessionType"
+                            ClassFilter="@standingClassFilter" Colors="Colors" />
+    }
+
+    @if (isLoading)
+    {
+        <div class="wec-loading-overlay" role="status" aria-live="polite">
+            <div class="wec-loading-overlay__content">
+                <div class="wec-spinner"></div>
+                <span class="wec-spinner__label">Loading race data...</span>
+            </div>
+        </div>
+    }
+</Modal>

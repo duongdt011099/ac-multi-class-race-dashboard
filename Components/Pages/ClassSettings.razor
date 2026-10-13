@@ -1,14 +1,9 @@
 @page "/class-settings"
 @rendermode InteractiveServer
 @using MulticlassRace.ViewModels
-@inject MulticlassRace.Services.Abstractions.IClassSettingService ClassSettingService
-@inject ToastService Toast
+@inherits PageBase
 
-<PageTitle>Class Settings</PageTitle>
-
-<h1 class="nav-title">Class Settings</h1>
-
-<ToastHost />
+<PageHeader Title="Class Settings" />
 
 @if (settings is null)
 {
@@ -17,365 +12,107 @@
 else
 {
     <div class="wec-toolbar">
-        <button type="button" class="wec-toolbar__btn" @onclick="OpenCreate">
-            <i class="bi bi-plus-lg"></i> New Class Setting
-        </button>
+        <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Class Setting</ToolbarButton>
     </div>
 
-    <div class="wec-table-wrapper">
-        <table class="wec-table">
-            <thead>
+    <DataTable IsEmpty="@(!settings.Any())" ColumnCount="4" EmptyText="No class settings configured.">
+        <Header>
+            <th>Name</th>
+            <th>Default</th>
+            <th>Classes</th>
+            <th class="wec-table__actions">Actions</th>
+        </Header>
+        <Body>
+            @foreach (var setting in settings)
+            {
                 <tr>
-                    <th>Name</th>
-                    <th>Default</th>
-                    <th>Classes</th>
-                    <th class="wec-table__actions">Actions</th>
+                    <td>@setting.ClassSettingName</td>
+                    <td>@(setting.IsDefault ? "Yes" : "No")</td>
+                    <td>
+                        <div class="wec-table__classes">
+                            @foreach (var item in setting.Items.OrderBy(i => i.Order))
+                            {
+                                <span class="wec-badge" style="background-color: @item.Color">@item.Name</span>
+                            }
+                        </div>
+                    </td>
+                    <td class="wec-table__actions">
+                        <IconButton Icon="bi-pencil" Title="@($"Edit {setting.ClassSettingName}")" OnClick="() => OpenEdit(setting)" />
+                        @if (!setting.IsDefault)
+                        {
+                            <IconButton Icon="bi-trash" Title="@($"Delete {setting.ClassSettingName}")" OnClick="() => confirmDelete = setting" />
+                        }
+                    </td>
                 </tr>
-            </thead>
-            <tbody>
-                @if (!settings.Any())
-                {
-                    <tr>
-                        <td colspan="4" class="wec-empty">No class settings configured.</td>
-                    </tr>
-                }
-                else
-                {
-                    @foreach (var setting in settings)
-                    {
-                        <tr>
-                            <td>@setting.ClassSettingName</td>
-                            <td>@(setting.IsDefault ? "Yes" : "No")</td>
-                            <td>
-                                <div class="wec-table__classes">
-                                    @foreach (var item in setting.Items.OrderBy(i => i.Order))
-                                    {
-                                        <span class="wec-badge" style="background-color: @item.Color">@item.Name</span>
-                                    }
-                                </div>
-                            </td>
-                            <td class="wec-table__actions">
-                                <button type="button" class="wec-btn" title="Edit @setting.ClassSettingName"
-                                        @onclick="() => OpenEdit(setting)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                @if (!setting.IsDefault)
-                                {
-                                    <button type="button" class="wec-btn" title="Delete @setting.ClassSettingName"
-                                            @onclick="() => confirmDelete = setting">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
+            }
+        </Body>
+    </DataTable>
 }
 
 @if (editing is not null)
 {
-    <div class="wec-modal-overlay">
-        <div class="wec-modal wec-modal--wide">
-            <div class="wec-modal__header">
-                <span>@(isCreating ? "New Class Setting" : "Edit Class Setting")</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="CancelEdit">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                <div class="wec-form-field">
-                    <label for="cs-name">Setting Name</label>
-                    <input id="cs-name" type="text" @bind="editing.Name" />
-                </div>
+    <Modal Title="@(isCreating ? "New Class Setting" : "Edit Class Setting")" Size="ModalSize.Wide" OnClose="CancelEdit">
+        <ChildContent>
+            <FormField For="cs-name" Label="Setting Name">
+                <input id="cs-name" type="text" @bind="editing.Name" />
+            </FormField>
 
-                <div class="wec-form-field">
-                    <label>Classes</label>
-                    <div class="wec-class-list">
-                        @for (var i = 0; i < editing.Items.Count; i++)
-                        {
-                            var index = i;
-                            var item = editing.Items[index];
-                            <div class="wec-class-list__row">
-                                <div class="wec-class-list__field">
-                                    <label>Name</label>
-                                    <input type="text" @bind="item.Name" />
-                                </div>
-                                <div class="wec-class-list__field wec-class-list__field--color">
-                                    <label>Color</label>
-                                    <input type="color" @bind="item.Color" />
-                                </div>
-                                <div class="wec-class-list__actions">
-                                    <button type="button" class="wec-btn wec-btn--icon" title="Move up" disabled="@(index == 0)"
-                                            @onclick="() => MoveUp(index)">
-                                        <i class="bi bi-caret-up-fill"></i>
-                                    </button>
-                                    <button type="button" class="wec-btn wec-btn--icon" title="Move down"
-                                            disabled="@(index == editing.Items.Count - 1)" @onclick="() => MoveDown(index)">
-                                        <i class="bi bi-caret-down-fill"></i>
-                                    </button>
-                                    <button type="button" class="wec-btn wec-btn--icon" title="Remove"
-                                            @onclick="() => RemoveItem(item)">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </div>
+            <div class="wec-form-field">
+                <label>Classes</label>
+                <div class="wec-class-list">
+                    @for (var i = 0; i < editing.Items.Count; i++)
+                    {
+                        var index = i;
+                        var item = editing.Items[index];
+                        <div class="wec-class-list__row">
+                            <div class="wec-class-list__field">
+                                <label>Name</label>
+                                <input type="text" @bind="item.Name" />
                             </div>
-                        }
-                        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="AddItem">
-                            <i class="bi bi-plus-lg"></i> Add Class
-                        </button>
-                    </div>
+                            <div class="wec-class-list__field wec-class-list__field--color">
+                                <label>Color</label>
+                                <input type="color" @bind="item.Color" />
+                            </div>
+                            <div class="wec-class-list__actions">
+                                <button type="button" class="wec-btn wec-btn--icon" title="Move up" disabled="@(index == 0)"
+                                        @onclick="() => editing!.MoveUp(index)">
+                                    <i class="bi bi-caret-up-fill"></i>
+                                </button>
+                                <button type="button" class="wec-btn wec-btn--icon" title="Move down"
+                                        disabled="@(index == editing.Items.Count - 1)" @onclick="() => editing!.MoveDown(index)">
+                                    <i class="bi bi-caret-down-fill"></i>
+                                </button>
+                                <button type="button" class="wec-btn wec-btn--icon" title="Remove"
+                                        @onclick="() => editing!.RemoveItem(item)">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="editing.AddItem">
+                        <i class="bi bi-plus-lg"></i> Add Class
+                    </button>
                 </div>
+            </div>
 
-                <div class="wec-form-field wec-form-field--checkbox">
-                    <input id="cs-default" type="checkbox" @bind="editing.IsDefault" disabled="@editingIsCurrentDefault" />
-                    <label for="cs-default">Set as default</label>
-                </div>
-                @if (editingIsCurrentDefault)
-                {
-                    <p class="wec-form-hint">This is the default class setting. Set another class setting as default to change this.</p>
-                }
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelEdit">Cancel</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveAsync"
-                        disabled="@isSaving">
-                    @(isSaving ? "Saving..." : isCreating ? "Create" : "Save")
-                </button>
-            </div>
-        </div>
-    </div>
+            <CheckboxField Id="cs-default" Label="Set as default" @bind-Value="editing.IsDefault"
+                           Disabled="editingIsCurrentDefault" />
+            @if (editingIsCurrentDefault)
+            {
+                <p class="wec-form-hint">This is the default class setting. Set another class setting as default to change this.</p>
+            }
+        </ChildContent>
+        <Footer>
+            <ModalActions ConfirmText="@(isCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="isSaving"
+                          OnCancel="CancelEdit" OnConfirm="SaveAsync" />
+        </Footer>
+    </Modal>
 }
 
 @if (confirmDelete is not null)
 {
-    <div class="wec-modal-overlay">
-        <div class="wec-modal wec-modal--small">
-            <div class="wec-modal__header">
-                <span>Delete Class Setting</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => confirmDelete = null">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                <p>Delete @confirmDelete.ClassSettingName? This action cannot be undone.</p>
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
-                        @onclick="() => confirmDelete = null">No</button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--danger" @onclick="DeleteAsync"
-                        disabled="@isDeleting">
-                    @(isDeleting ? "Deleting..." : "Yes")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-@code {
-    private List<ClassSettingModel>? settings;
-    private ClassSettingFormModel? editing;
-    private bool isCreating;
-    private bool isSaving;
-    private bool editingIsCurrentDefault;
-    private ClassSettingModel? confirmDelete;
-    private bool isDeleting;
-
-    private sealed class ItemEdit
-    {
-        public Guid ClassSettingItemId { get; set; }
-        public required string Name { get; set; }
-        public string Color { get; set; } = "#52525b";
-    }
-
-    private sealed class ClassSettingFormModel
-    {
-        public Guid ClassSettingId { get; set; }
-        public required string Name { get; set; }
-        public bool IsDefault { get; set; }
-        public List<ItemEdit> Items { get; set; } = new();
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync()
-    {
-        settings = (await ClassSettingService.GetAllAsync()).ToList();
-    }
-
-    private void OpenCreate()
-    {
-        isCreating = true;
-        editingIsCurrentDefault = settings is not null && settings.Count == 0;
-        editing = new ClassSettingFormModel
-        {
-            ClassSettingId = Guid.NewGuid(),
-            Name = string.Empty,
-            IsDefault = editingIsCurrentDefault
-        };
-        AddItem();
-        AddItem();
-    }
-
-    private void OpenEdit(ClassSettingModel setting)
-    {
-        isCreating = false;
-        editingIsCurrentDefault = setting.IsDefault;
-        editing = new ClassSettingFormModel
-        {
-            ClassSettingId = setting.ClassSettingId,
-            Name = setting.ClassSettingName,
-            IsDefault = setting.IsDefault,
-            Items = setting.Items.Select(i => new ItemEdit
-            {
-                ClassSettingItemId = i.ClassSettingItemId,
-                Name = i.Name,
-                Color = i.Color
-            }).ToList()
-        };
-    }
-
-    private void AddItem()
-    {
-        if (editing is null)
-        {
-            return;
-        }
-
-        editing.Items.Add(new ItemEdit { ClassSettingItemId = Guid.Empty, Name = string.Empty, Color = "#52525b" });
-    }
-
-    private void MoveUp(int index)
-    {
-        if (editing is null || index <= 0 || index >= editing.Items.Count)
-        {
-            return;
-        }
-
-        (editing.Items[index - 1], editing.Items[index]) = (editing.Items[index], editing.Items[index - 1]);
-    }
-
-    private void MoveDown(int index)
-    {
-        if (editing is null || index < 0 || index >= editing.Items.Count - 1)
-        {
-            return;
-        }
-
-        (editing.Items[index + 1], editing.Items[index]) = (editing.Items[index], editing.Items[index + 1]);
-    }
-
-    private void RemoveItem(ItemEdit item)
-    {
-        editing?.Items.Remove(item);
-    }
-
-    private void CancelEdit()
-    {
-        if (isSaving)
-        {
-            return;
-        }
-
-        editing = null;
-        isCreating = false;
-        editingIsCurrentDefault = false;
-    }
-
-    private async Task SaveAsync()
-    {
-        if (editing is null)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(editing.Name))
-        {
-            Toast.Show("Setting name is required.", isError: true);
-            return;
-        }
-
-        if (editing.Items.Count == 0)
-        {
-            Toast.Show("Add at least one class item.", isError: true);
-            return;
-        }
-
-        if (editing.Items.Any(i => string.IsNullOrWhiteSpace(i.Name)))
-        {
-            Toast.Show("All class names must be filled.", isError: true);
-            return;
-        }
-
-        isSaving = true;
-
-        try
-        {
-            var form = new MulticlassRace.ViewModels.ClassSettingFormModel
-            {
-                ClassSettingId = editing.ClassSettingId,
-                ClassSettingName = editing.Name.Trim(),
-                IsDefault = editing.IsDefault,
-                Items = editing.Items.Select((i, idx) => new MulticlassRace.ViewModels.ClassSettingItemFormModel
-                {
-                    ClassSettingItemId = i.ClassSettingItemId,
-                    Name = i.Name.Trim(),
-                    Color = i.Color,
-                    Order = idx + 1
-                }).ToList()
-            };
-
-            if (isCreating)
-            {
-                await ClassSettingService.CreateAsync(form);
-            }
-            else
-            {
-                await ClassSettingService.UpdateAsync(form);
-            }
-
-            await LoadAsync();
-            Toast.Show(isCreating ? "Class setting created." : "Class setting updated.");
-        }
-        catch (Exception ex)
-        {
-            Toast.Show($"Could not save class setting: {ex.Message}", isError: true);
-        }
-        finally
-        {
-            isSaving = false;
-            CancelEdit();
-        }
-    }
-
-    private async Task DeleteAsync()
-    {
-        if (confirmDelete is null)
-        {
-            return;
-        }
-
-        isDeleting = true;
-
-        try
-        {
-            await ClassSettingService.DeleteAsync(confirmDelete.ClassSettingId);
-            Toast.Show($"Class setting '{confirmDelete.ClassSettingName}' deleted.");
-            confirmDelete = null;
-            await LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            Toast.Show($"Could not delete class setting: {ex.Message}", isError: true);
-        }
-        finally
-        {
-            isDeleting = false;
-        }
-    }
+    <ConfirmDialog Title="Delete Class Setting" CancelText="No" ConfirmText="Yes" IsBusy="isDeleting"
+                   OnCancel="() => confirmDelete = null" OnConfirm="DeleteAsync">
+        Delete @confirmDelete.ClassSettingName? This action cannot be undone.
+    </ConfirmDialog>
 }

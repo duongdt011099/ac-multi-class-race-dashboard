@@ -1,0 +1,20 @@
+@if (TotalPages > 1)
+{
+    <div class="wec-pagination">
+        <button type="button" class="wec-pagination__btn" disabled="@(Page <= 1)" @onclick="() => PageChanged.InvokeAsync(Page - 1)">
+            <i class="bi bi-chevron-left"></i> Prev
+        </button>
+        <span class="wec-pagination__info">Page @Page of @TotalPages</span>
+        <button type="button" class="wec-pagination__btn" disabled="@(Page >= TotalPages)" @onclick="() => PageChanged.InvokeAsync(Page + 1)">
+            Next <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+}
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+
+    [Parameter] public int TotalPages { get; set; } = 1;
+
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+}

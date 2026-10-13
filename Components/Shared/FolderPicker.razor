@@ -1,3 +1,4 @@
+@using MulticlassRace.Services.Notifications
 @inject ToastService Toast
 
 @if (ShowBrowseButton)
@@ -16,15 +17,8 @@
 
 @if (isOpen)
 {
-    <div class="wec-modal-overlay">
-        <div class="wec-modal">
-            <div class="wec-modal__header">
-                <span>@Title</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="Close">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
+    <Modal Title="@Title" OnClose="Close">
+        <ChildContent>
                 <div class="wec-folder-picker__current">@CurrentPathLabel</div>
 
                 <div class="wec-folder-picker__list">
@@ -49,8 +43,8 @@
                         }
                     }
                 </div>
-            </div>
-            <div class="wec-modal__footer">
+        </ChildContent>
+        <Footer>
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoUp">Up</button>
                 <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoHome">My Computer</button>
                 <span class="wec-folder-picker__spacer"></span>
@@ -60,9 +54,8 @@
                         @onclick="SelectCurrent">
                     @(IncludeFiles ? "Select this file" : "Select this folder")
                 </button>
-            </div>
-        </div>
-    </div>
+        </Footer>
+    </Modal>
 }
 
 @code {

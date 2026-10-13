@@ -1,278 +1,73 @@
 @rendermode InteractiveServer
 @using System.Globalization
-@using multi_class_race_dashboard.Components.Shared
-@inject UpdateStateService StateService
-@inject AppVersionProvider VersionProvider
-@inject UpdateNotificationRequest UpdateRequest
-@inject MulticlassRace.Services.UpdateCheckWorker UpdateWorker
-@inject MulticlassRace.Services.Abstractions.IAppUpdatePreferenceService UpdatePreferences
 @implements IDisposable
 
 @if (isOpen && result is not null)
 {
-    <div class="wec-modal-overlay">
-        <div class="wec-modal">
-            <div class="wec-modal__header">
-                <span>@HeaderTitle</span>
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="DismissAsync">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="wec-modal__body">
-                @if (result.IsUpdateAvailable)
+    <Modal Title="@HeaderTitle" OnClose="DismissAsync">
+        <ChildContent>
+            @if (result.IsUpdateAvailable)
+            {
+                <p class="wec-update__summary">
+                    Version <strong>v@(result.LatestVersion)</strong> is available.
+                    You are running <strong>v@(result.CurrentVersion)</strong>.
+                </p>
+                @if (result.PublishedAt is { } publishedAt)
                 {
-                    <p class="wec-update__summary">
-                        Version <strong>v@(result.LatestVersion)</strong> is available.
-                        You are running <strong>v@(result.CurrentVersion)</strong>.
-                    </p>
-                    @if (result.PublishedAt is { } publishedAt)
-                    {
-                        <p class="wec-update__published">
-                            Published @publishedAt.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)
-                        </p>
-                    }
-                    @if (result.Installer is not null)
-                    {
-                        <p class="wec-update__asset">
-                            <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
-                            <span>@result.Installer.Name (@FormatSize(result.Installer.SizeInBytes))</span>
-                        </p>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(truncatedNotes))
-                    {
-                        <div class="wec-update__notes">@truncatedNotes</div>
-                    }
-                }
-                else if (result.HasError)
-                {
-                    <p class="wec-update__summary">Could not check for updates.</p>
-                    <p class="wec-update__error">@result.ErrorMessage</p>
                     <p class="wec-update__published">
-                        You are running <strong>v@(result.CurrentVersion)</strong>.
+                        Published @publishedAt.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)
                     </p>
                 }
-                else
+                @if (result.Installer is not null)
                 {
-                    <p class="wec-update__summary">
-                        You are running <strong>v@(result.CurrentVersion)</strong>, which is the latest version.
-                    </p>
-                    <p class="wec-update__published">
-                        Checked @result.CheckedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+                    <p class="wec-update__asset">
+                        <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
+                        <span>@result.Installer.Name (@FormatSize(result.Installer.SizeInBytes))</span>
                     </p>
                 }
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CheckForUpdateAsync" disabled="@isChecking">
-                    @(isChecking ? "Checking..." : "Check for update")
+                @if (!string.IsNullOrWhiteSpace(truncatedNotes))
+                {
+                    <div class="wec-update__notes">@truncatedNotes</div>
+                }
+            }
+            else if (result.HasError)
+            {
+                <p class="wec-update__summary">Could not check for updates.</p>
+                <p class="wec-update__error">@result.ErrorMessage</p>
+                <p class="wec-update__published">
+                    You are running <strong>v@(result.CurrentVersion)</strong>.
+                </p>
+            }
+            else
+            {
+                <p class="wec-update__summary">
+                    You are running <strong>v@(result.CurrentVersion)</strong>, which is the latest version.
+                </p>
+                <p class="wec-update__published">
+                    Checked @result.CheckedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+                </p>
+            }
+        </ChildContent>
+        <Footer>
+            <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CheckForUpdateAsync" disabled="@isChecking">
+                @(isChecking ? "Checking..." : "Check for update")
+            </button>
+            @if (result.IsUpdateAvailable)
+            {
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
+                    Later
                 </button>
-                @if (result.IsUpdateAvailable)
+                <a class="wec-modal__btn wec-modal__btn--secondary" href="@result.ReleaseUrl" target="_blank" rel="noopener">
+                    View Release
+                </a>
+                @if (result.Installer is not null)
                 {
-                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="DismissAsync" disabled="@isDismissing">
-                        Later
-                    </button>
-                    <a class="wec-modal__btn wec-modal__btn--secondary" href="@result.ReleaseUrl" target="_blank" rel="noopener">
-                        View Release
+                    <a class="wec-modal__btn wec-modal__btn--primary" href="@result.Installer.DownloadUrl" target="_blank" rel="noopener"
+                       @onclick="DismissAsync">
+                        Download Update
                     </a>
-                    @if (result.Installer is not null)
-                    {
-                        <a class="wec-modal__btn wec-modal__btn--primary" href="@result.Installer.DownloadUrl" target="_blank" rel="noopener"
-                           @onclick="DismissAsync">
-                            Download Update
-                        </a>
-                    }
                 }
-            </div>
-        </div>
-    </div>
-}
-
-@code {
-    private const int MaxNotesLength = 1500;
-
-    private UpdateCheckResult? result;
-    private string? truncatedNotes;
-    private string lastSeen = string.Empty;
-    private bool isOpen;
-    private bool isChecking;
-    private bool isDismissing;
-
-    private string HeaderTitle => result switch
-    {
-        { IsUpdateAvailable: true } => "Update Available",
-        { HasError: true } => "Update Status",
-        _ => "Up To Date"
-    };
-
-    protected override void OnInitialized()
-    {
-        ApplyResult(StateService.Current);
-        StateService.AvailabilityChanged += OnAvailabilityChanged;
-        UpdateRequest.Requested += OnOpenRequested;
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            lastSeen = await UpdatePreferences.GetLastSeenVersionAsync() ?? string.Empty;
-        }
-        catch
-        {
-            lastSeen = string.Empty;
-        }
-
-        if (ShouldAutoOpen())
-        {
-            isOpen = true;
-        }
-    }
-
-    private void OnAvailabilityChanged()
-    {
-        InvokeAsync(() =>
-        {
-            ApplyResult(StateService.Current);
-
-            if (ShouldAutoOpen())
-            {
-                isOpen = true;
             }
-
-            StateHasChanged();
-        });
-    }
-
-    private void OnOpenRequested()
-    {
-        InvokeAsync(async () =>
-        {
-            await EnsureResultAsync();
-            ApplyResult(StateService.Current);
-            isOpen = true;
-            StateHasChanged();
-        });
-    }
-
-    private async Task EnsureResultAsync()
-    {
-        if (StateService.Current is not null)
-        {
-            return;
-        }
-
-        try
-        {
-            await UpdateWorker.CheckNowAsync();
-        }
-        catch
-        {
-        }
-    }
-
-    private async Task CheckForUpdateAsync()
-    {
-        if (isChecking)
-        {
-            return;
-        }
-
-        isChecking = true;
-
-        try
-        {
-            await UpdateWorker.CheckNowAsync();
-            ApplyResult(StateService.Current);
-        }
-        catch
-        {
-        }
-        finally
-        {
-            isChecking = false;
-        }
-    }
-
-    private void ApplyResult(UpdateCheckResult? value)
-    {
-        result = value;
-        truncatedNotes = Truncate(value?.ReleaseNotes);
-        isDismissing = false;
-    }
-
-    private bool ShouldAutoOpen()
-    {
-        if (result is not { IsUpdateAvailable: true } available)
-        {
-            return false;
-        }
-
-        return !string.Equals(available.TagName, lastSeen, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task DismissAsync()
-    {
-        if (isDismissing || result is null)
-        {
-            return;
-        }
-
-        if (result.IsUpdateAvailable)
-        {
-            isDismissing = true;
-        }
-
-        isOpen = false;
-
-        if (result is { IsUpdateAvailable: true, TagName: not null } available)
-        {
-            try
-            {
-                await UpdatePreferences.MarkSeenAsync(available.TagName);
-                lastSeen = available.TagName;
-            }
-            catch
-            {
-            }
-        }
-
-        isDismissing = false;
-    }
-
-    private static string? Truncate(string? notes)
-    {
-        if (string.IsNullOrWhiteSpace(notes))
-        {
-            return null;
-        }
-
-        var trimmed = notes.Trim();
-
-        return trimmed.Length <= MaxNotesLength
-            ? trimmed
-            : string.Concat(trimmed.AsSpan(0, MaxNotesLength).TrimEnd(), "...");
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["KB", "MB", "GB"];
-
-        double size = bytes;
-        var unitIndex = -1;
-
-        while (size >= 1024 && unitIndex < units.Length - 1)
-        {
-            size /= 1024;
-            unitIndex++;
-        }
-
-        return unitIndex < 0
-            ? string.Create(CultureInfo.InvariantCulture, $"{bytes} B")
-            : string.Create(CultureInfo.InvariantCulture, $"{size:0.0} {units[unitIndex]}");
-    }
-
-    public void Dispose()
-    {
-        StateService.AvailabilityChanged -= OnAvailabilityChanged;
-        UpdateRequest.Requested -= OnOpenRequested;
-    }
+        </Footer>
+    </Modal>
 }

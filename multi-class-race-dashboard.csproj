@@ -32,13 +32,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MulticlassRace.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
   <Content Update="wwwroot\uploads\**">
     <CopyToPublishDirectory>Never</CopyToPublishDirectory>
   </Content>
 </ItemGroup>
 
   <PropertyGroup>
-    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- The .NET 10 framework-assets target only registers blazor.web.js and blazor.server.js when

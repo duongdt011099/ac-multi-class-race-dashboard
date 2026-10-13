@@ -1,0 +1,287 @@
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.Notifications
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@inject ITrackService TrackService
+@inject ToastService Toast
+
+<Modal Title="@(IsCreating ? "New Race" : "Edit Race")" Size="ModalSize.Wider" ModalClass="wec-modal--form"
+       BodyClass="wec-modal__body--two-col" OnClose="OnCancel">
+    <ChildContent>
+        <div class="wec-context">
+            @ChampionshipName › @SeasonName
+        </div>
+
+        <FormField For="race-name" Label="Race Name">
+            <input id="race-name" type="text" @bind="Race.RaceName" />
+        </FormField>
+
+        <FormField For="race-country" Label="Country">
+            <AppSelect Id="race-country" @bind-Value="Race.Country" Options="CountryOptions"
+                       EmptyLabel="Select country..." OrphanLabel="@Race.Country" />
+        </FormField>
+
+        <div class="wec-form-field">
+            <label for="race-track">Track <span class="wec-required" aria-hidden="true">*</span></label>
+            <AppSelect Id="race-track" Value="@Race.TrackName" ValueChanged="HandleTrackChangedAsync" required
+                       Options="TrackSelectOptions" EmptyLabel="Select track..."
+                       OrphanLabel="@($"{Race.TrackName} (not found on disk)")" />
+        </div>
+
+        <div class="wec-form-field">
+            <label for="race-track-layout">
+                Track Layout
+                @if (RequiresLayout)
+                {
+                    <span class="wec-required" aria-hidden="true">*</span>
+                }
+            </label>
+            <AppSelect Id="race-track-layout" Value="@Race.TrackLayout" ValueChanged="HandleLayoutChangedAsync"
+                       required="@RequiresLayout" Disabled="@(string.IsNullOrWhiteSpace(Race.TrackName))"
+                       Options="LayoutSelectOptions" EmptyLabel="@LayoutEmptyLabel" />
+        </div>
+
+        <div class="wec-form-field">
+            <label for="race-laps">Laps: <strong>@(Race.NumberOfLaps ?? 0)</strong></label>
+            <input id="race-laps" type="range" min="1" max="120" step="1"
+                   title="Number of laps (1–120). The label and estimated time update live as you drag."
+                   value="@(Race.NumberOfLaps ?? 10)" @oninput="HandleLapsChanged" />
+
+            <div class="wec-text-muted">
+                @if (EstimatedSeconds is { } seconds)
+                {
+                    <span>
+                        Estimated race time: @RaceFormat.FormatDuration(seconds)
+                    </span>
+                }
+                else
+                {
+                    <span>No lap data recorded for this track yet. Complete a lap in-game to enable the estimate.</span>
+                }
+            </div>
+        </div>
+
+        <div class="wec-form-field">
+            <label for="race-point-setting">Point Setting</label>
+            <AppSelect Id="race-point-setting" Value="@Race.PointSettingId.ToString()"
+                       ValueChanged="value => Race.PointSettingId = Guid.Parse(value)" Options="PointSettingOptions" />
+
+            <div class="wec-text-muted">
+                @if (SelectedPointSetting is { } pointSetting)
+                {
+                    <span>@PointSettingForms.FormatPreview(pointSetting.Config)</span>
+                }
+            </div>
+        </div>
+
+        <div class="wec-form-field">
+            <label for="race-class-setting">Class Setting</label>
+            <AppSelect Id="race-class-setting" Value="@Race.ClassSettingId.ToString()"
+                       ValueChanged="value => Race.ClassSettingId = Guid.Parse(value)" Options="ClassSettingOptions" />
+
+            <div class="wec-text-muted">
+                @if (SelectedClassSetting is { } classSetting)
+                {
+                    <span>@string.Join(" › ", classSetting.Items.OrderBy(i => i.Order).Select(i => i.Name))</span>
+                }
+            </div>
+        </div>
+
+        <div class="wec-form-field">
+            <label for="race-practice-minutes">Practice Time: <strong>@PracticeMinutesLabel</strong></label>
+            <input id="race-practice-minutes" type="range" min="0" max="90" step="1"
+                   title="Practice duration from 0 to 90 minutes. Set to 0 to skip practice."
+                   value="@PracticeMinutes" @oninput="HandlePracticeMinutesChanged" />
+        </div>
+        <div class="wec-form-field">
+            <label for="race-qualifying-minutes">Qualifying Time: <strong>@QualifyingMinutes min</strong></label>
+            <input id="race-qualifying-minutes" type="range" min="5" max="90" step="1"
+                   title="Qualifying duration from 5 to 90 minutes."
+                   value="@QualifyingMinutes" @oninput="HandleQualifyingMinutesChanged" />
+        </div>
+
+        @if (RaceFormRules.ShowTrackPreview(Race, layouts))
+        {
+            var layout = string.IsNullOrWhiteSpace(Race.TrackLayout) ? null : Race.TrackLayout;
+            <div class="wec-track-preview">
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "outline")" alt="Track map" />
+                    <span class="wec-track-preview__label">Map</span>
+                </div>
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "preview")" alt="Track preview" />
+                    <span class="wec-track-preview__label">Preview</span>
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <ModalActions ConfirmText="@(IsCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="IsSaving"
+                      Disabled="@(Race.PointSettingId == Guid.Empty || Race.ClassSettingId == Guid.Empty)"
+                      OnCancel="OnCancel" OnConfirm="HandleSaveAsync" />
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly IReadOnlyList<SelectOption> CountryOptions =
+        Countries.All.Select(c => new SelectOption(c, $"{Countries.GetFlag(c)} {c}")).ToList();
+
+    private List<TrackLayoutOptionModel> layouts = new();
+    private int? estimatedLapTimeMs;
+
+    [Parameter, EditorRequired] public RaceFormModel Race { get; set; } = default!;
+
+    [Parameter] public bool IsCreating { get; set; }
+
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public string? ChampionshipName { get; set; }
+
+    [Parameter] public string? SeasonName { get; set; }
+
+    [Parameter] public IReadOnlyList<TrackOptionModel> Tracks { get; set; } = Array.Empty<TrackOptionModel>();
+
+    [Parameter] public IReadOnlyList<PointSettingModel> PointSettings { get; set; } = Array.Empty<PointSettingModel>();
+
+    [Parameter] public IReadOnlyList<ClassSettingModel> ClassSettings { get; set; } = Array.Empty<ClassSettingModel>();
+
+    /// <summary>Layouts of the race's current track, loaded before the dialog opens so the layout is selected straight away.</summary>
+    [Parameter] public IReadOnlyList<TrackLayoutOptionModel> InitialLayouts { get; set; } = Array.Empty<TrackLayoutOptionModel>();
+
+    [Parameter] public int? InitialLapTimeMs { get; set; }
+
+    /// <summary>Raised when the form is valid; the race duration and session minutes are already filled in.</summary>
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool RequiresLayout => RaceFormRules.RequiresLayout(layouts);
+
+    private int PracticeMinutes => RaceFormRules.ClampPracticeMinutes(Race.PracticeSessionMinutes);
+
+    private int QualifyingMinutes => RaceFormRules.ClampQualifyingMinutes(Race.QualifyingSessionMinutes);
+
+    private string PracticeMinutesLabel => PracticeMinutes == 0 ? "Skip (0 min)" : $"{PracticeMinutes} min";
+
+    private int? EstimatedSeconds => RaceFormRules.EstimateDurationSeconds(Race.NumberOfLaps, estimatedLapTimeMs);
+
+    private PointSettingModel? SelectedPointSetting => Race.PointSettingId == Guid.Empty
+        ? null
+        : PointSettings.FirstOrDefault(p => p.SettingId == Race.PointSettingId);
+
+    private ClassSettingModel? SelectedClassSetting => Race.ClassSettingId == Guid.Empty
+        ? null
+        : ClassSettings.FirstOrDefault(c => c.ClassSettingId == Race.ClassSettingId);
+
+    private IEnumerable<SelectOption> TrackSelectOptions => Tracks.Select(t => new SelectOption(t.TrackId, t.DisplayName));
+
+    private IEnumerable<SelectOption> LayoutSelectOptions =>
+        string.IsNullOrWhiteSpace(Race.TrackName) || layouts.Count == 0
+            ? Array.Empty<SelectOption>()
+            : layouts.Select(l => new SelectOption(l.LayoutId, l.DisplayName));
+
+    private string? LayoutEmptyLabel
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Race.TrackName))
+            {
+                return "Select a track first...";
+            }
+
+            if (layouts.Count == 0)
+            {
+                return "(Default)";
+            }
+
+            return RaceFormRules.HasDefaultLayout(layouts) ? null : "Select layout...";
+        }
+    }
+
+    private IEnumerable<SelectOption> PointSettingOptions =>
+        new[] { new SelectOption(Guid.Empty.ToString(), "Select point setting...") }.Concat(
+            PointSettings
+                .OrderBy(s => s.SettingName, StringComparer.OrdinalIgnoreCase)
+                .Select(s => new SelectOption(s.SettingId.ToString(), s.SettingName + (s.IsDefault ? " (default)" : ""))));
+
+    private IEnumerable<SelectOption> ClassSettingOptions =>
+        new[] { new SelectOption(Guid.Empty.ToString(), "Select class setting...") }.Concat(
+            ClassSettings
+                .OrderBy(s => s.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+                .Select(s => new SelectOption(s.ClassSettingId.ToString(), s.ClassSettingName + (s.IsDefault ? " (default)" : ""))));
+
+    protected override void OnInitialized()
+    {
+        layouts = InitialLayouts.ToList();
+        estimatedLapTimeMs = InitialLapTimeMs;
+    }
+
+    private async Task HandleTrackChangedAsync(string track)
+    {
+        Race.TrackName = track;
+        Race.TrackLayout = null;
+
+        layouts = string.IsNullOrWhiteSpace(track)
+            ? new List<TrackLayoutOptionModel>()
+            : (await TrackService.GetTrackLayoutOptionsAsync(track)).ToList();
+
+        if (RaceFormRules.HasDefaultLayout(layouts))
+        {
+            Race.TrackLayout = string.Empty;
+        }
+
+        await RefreshEstimatedLapTimeAsync();
+    }
+
+    private async Task HandleLayoutChangedAsync(string layout)
+    {
+        Race.TrackLayout = layout;
+        await RefreshEstimatedLapTimeAsync();
+    }
+
+    private async Task RefreshEstimatedLapTimeAsync()
+    {
+        estimatedLapTimeMs = string.IsNullOrWhiteSpace(Race.TrackName)
+            ? null
+            : await TrackService.GetBestLapTimeAsync(
+                Race.TrackName,
+                string.IsNullOrWhiteSpace(Race.TrackLayout) ? null : Race.TrackLayout);
+    }
+
+    private void HandleLapsChanged(ChangeEventArgs e)
+    {
+        Race.NumberOfLaps = int.TryParse(e.Value?.ToString(), out var laps) ? laps : null;
+    }
+
+    private void HandlePracticeMinutesChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var parsed))
+        {
+            Race.PracticeSessionMinutes = Math.Clamp(parsed, 0, RaceFormRules.MaxPracticeMinutes);
+        }
+    }
+
+    private void HandleQualifyingMinutesChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var parsed))
+        {
+            Race.QualifyingSessionMinutes = Math.Clamp(parsed, RaceFormRules.MinQualifyingMinutes, RaceFormRules.MaxQualifyingMinutes);
+        }
+    }
+
+    private async Task HandleSaveAsync()
+    {
+        var error = RaceFormRules.Validate(Race, layouts);
+        if (error is not null)
+        {
+            Toast.Show(error, isError: true);
+            return;
+        }
+
+        Race.PracticeSessionMinutes = PracticeMinutes;
+        Race.QualifyingSessionMinutes = QualifyingMinutes;
+        Race.RaceDuration = EstimatedSeconds;
+
+        await OnSave.InvokeAsync();
+    }
+}

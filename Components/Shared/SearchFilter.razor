@@ -1,0 +1,17 @@
+<FilterItem For="@Id" Label="@Label">
+    <input id="@Id" type="text" placeholder="@Placeholder" value="@Value" @oninput="HandleInput" />
+</FilterItem>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+
+    [Parameter] public string Label { get; set; } = "Search";
+
+    [Parameter] public string? Placeholder { get; set; }
+
+    [Parameter] public string Value { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private Task HandleInput(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+}

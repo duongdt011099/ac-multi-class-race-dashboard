@@ -1,17 +1,9 @@
+@using MulticlassRace.Services.AssettoCorsa
 @page "/gameconfig"
 @rendermode InteractiveServer
-@using MulticlassRace.ViewModels
-@using multi_class_race_dashboard.Components.Shared
-@inject MulticlassRace.Services.Abstractions.IAssettoCorsaGameConfigService ConfigService
-@inject MulticlassRace.Services.AssettoCorsaPathResolver PathResolver
-@inject MulticlassRace.Services.GameConfigChangeNotifier ConfigNotifier
-@inject ToastService Toast
+@inherits PageBase
 
-<PageTitle>Game Config</PageTitle>
-
-<h1 class="nav-title">Game Config</h1>
-
-<ToastHost />
+<PageHeader Title="Game Config" />
 
 <div class="wec-config">
     <div class="wec-config__intro">
@@ -20,29 +12,15 @@
     </div>
 
     <div class="wec-config__actions">
-        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="Refresh">Refresh</button>
+        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="ReadLocationAsync">Refresh</button>
     </div>
 
     <div class="wec-race-teams">
         <div class="wec-config__hint">
-            <div class="wec-nav-human__row">
-                <div class="wec-nav-human__info">
-                    <span class="wec-nav-human__name">Assetto Corsa folder</span>
-                    <span class="wec-nav-human__team">@(gameFolder ?? "Not found")</span>
-                </div>
-            </div>
-            <div class="wec-nav-human__row">
-                <div class="wec-nav-human__info">
-                    <span class="wec-nav-human__name">Found by</span>
-                    <span class="wec-nav-human__team">@GameFolderSourceText</span>
-                </div>
-            </div>
-            <div class="wec-nav-human__row">
-                <div class="wec-nav-human__info">
-                    <span class="wec-nav-human__name">Content Manager</span>
-                    <span class="wec-nav-human__team">@(ContentManagerPaths.IsInstalled ? ContentManagerPaths.DataRoot : "Not installed")</span>
-                </div>
-            </div>
+            <InfoRow Label="Assetto Corsa folder" Value="@(gameFolder ?? "Not found")" />
+            <InfoRow Label="Found by" Value="@GameFolderSourceText" />
+            <InfoRow Label="Content Manager"
+                     Value="@(ContentManagerPaths.IsInstalled ? ContentManagerPaths.DataRoot : "Not installed")" />
         </div>
 
         @if (ContentManagerPaths.IsInstalled)
@@ -71,71 +49,3 @@
         </button>
     </div>
 </div>
-
-@code {
-    private AssettoCorsaGameConfigModel config = new();
-    private bool isSaving;
-    private string? gameFolder;
-    private AssettoCorsaPathSource source;
-
-    private static string DefaultLuaResultPath => LuaResultPaths.DefaultRoot;
-
-    private string GameFolderSourceText => source switch
-    {
-        AssettoCorsaPathSource.Installer => "The installer (install.json)",
-        AssettoCorsaPathSource.Saved => "A previously saved configuration",
-        AssettoCorsaPathSource.AutoDetected => "Automatic detection",
-        _ => "Not found. Reinstall the dashboard and point it at the game folder."
-    };
-
-    protected override async Task OnInitializedAsync()
-    {
-        var existing = await ConfigService.GetAsync();
-
-        if (existing is not null)
-        {
-            config = existing;
-        }
-
-        await ReadLocationAsync();
-    }
-
-    private async Task ReadLocationAsync()
-    {
-        var location = await PathResolver.GetAsync();
-        gameFolder = location.Path;
-        source = location.Source;
-    }
-
-    private async Task Refresh()
-    {
-        await ReadLocationAsync();
-    }
-
-    private Task SetLuaResultPath(string? value)
-    {
-        config.LuaResultPath = value ?? string.Empty;
-        return Task.CompletedTask;
-    }
-
-    private async Task SaveAsync()
-    {
-        if (isSaving)
-        {
-            return;
-        }
-
-        isSaving = true;
-
-        try
-        {
-            var created = await ConfigService.SaveAsync(config);
-            ConfigNotifier.NotifyChanged();
-            Toast.Show(created ? "Configuration created." : "Configuration saved.");
-        }
-        finally
-        {
-            isSaving = false;
-        }
-    }
-}

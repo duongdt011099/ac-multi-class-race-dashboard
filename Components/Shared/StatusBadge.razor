@@ -1,0 +1,7 @@
+<span class="wec-status @(IsActive ? "" : "wec-status--inactive")">
+    @(IsActive ? "Active" : "Inactive")
+</span>
+
+@code {
+    [Parameter] public bool IsActive { get; set; }
+}

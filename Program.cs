@@ -2,9 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MulticlassRace.Configuration;
 using MulticlassRace.Data;
+using MulticlassRace.Infrastructure;
 using MulticlassRace.Repositories;
 using MulticlassRace.Services;
-using MulticlassRace.Services.Abstractions;
+using MulticlassRace.Web;
 using multi_class_race_dashboard.Components;
 
 var builder = WebApplication.CreateBuilder(args);

@@ -1,0 +1,19 @@
+@using MulticlassRace.ViewModels
+
+<div class="wec-table__classes">
+    @if (Tags.Count == 0)
+    {
+        <span>—</span>
+    }
+    else
+    {
+        @foreach (var tag in Tags)
+        {
+            <span class="wec-badge" style="background-color: @tag.Color" title="@tag.SettingName">@tag.ItemName</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<ClassTagModel> Tags { get; set; } = Array.Empty<ClassTagModel>();
+}

@@ -1,23 +1,22 @@
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.Races
+@using MulticlassRace.Services.Results
 @rendermode InteractiveServer
 @using System.Globalization
 @using MulticlassRace.Models
 @using MulticlassRace.ViewModels
 @using multi_class_race_dashboard.Components.Shared
-@inject MulticlassRace.Services.LuaResultImportState State
-@inject MulticlassRace.Services.Abstractions.ILuaResultImportService ImportService
-@inject MulticlassRace.Services.Abstractions.IRaceService RaceService
-@inject MulticlassRace.Services.Abstractions.ITrackService TrackService
-@inject MulticlassRace.Services.ToastService Toast
+@inject MulticlassRace.Services.Results.LuaResultImportState State
+@inject MulticlassRace.Services.Results.ILuaResultImportService ImportService
+@inject MulticlassRace.Services.Races.IRaceService RaceService
+@inject MulticlassRace.Services.AssettoCorsa.ITrackService TrackService
+@inject MulticlassRace.Services.Notifications.ToastService Toast
 @implements IDisposable
 
 @if (current is not null)
 {
-    <div class="wec-modal-overlay wec-modal-overlay--import">
-        <div class="wec-modal wec-modal--small">
-            <div class="wec-modal__header">
-                <span>Session Result Ready</span>
-            </div>
-            <div class="wec-modal__body">
+    <Modal Title="Session Result Ready" Size="ModalSize.Small" OverlayClass="wec-modal-overlay--import">
+        <ChildContent>
                 <p class="wec-context">Session is finished, do you want to import the result?</p>
 
                 <div class="wec-update__summary">
@@ -51,14 +50,9 @@
                     }
                     else if (raceOptions.Count > 0)
                     {
-                        <select id="lua-result-race" class="wec-weather-select" @onchange="HandleRaceChanged">
-                            @foreach (var option in raceOptions)
-                            {
-                                <option value="@option.RaceId" selected="@(option.RaceId == selectedRaceId)">
-                                    @option.Label
-                                </option>
-                            }
-                        </select>
+                        <AppSelect Id="lua-result-race" CssClass="wec-weather-select" Value="@selectedRaceId?.ToString()"
+                                   ValueChanged="HandleRaceChanged"
+                                   Options="@(raceOptions.Select(o => new SelectOption(o.RaceId.ToString(), o.Label)))" />
                     }
                     else
                     {
@@ -67,19 +61,18 @@
                         </p>
                     }
                 </div>
-            </div>
-            <div class="wec-modal__footer">
-                <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
-                        @onclick="DeclineAsync" disabled="@isBusy">
-                    No
-                </button>
-                <button type="button" class="wec-modal__btn wec-modal__btn--primary"
-                        @onclick="ConfirmAsync" disabled="@(isBusy || isLoadingRaceOptions || selectedRaceId is null)">
-                    @(isBusy ? "Importing..." : "Yes")
-                </button>
-            </div>
-        </div>
-    </div>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="wec-modal__btn wec-modal__btn--secondary"
+                    @onclick="DeclineAsync" disabled="@isBusy">
+                No
+            </button>
+            <button type="button" class="wec-modal__btn wec-modal__btn--primary"
+                    @onclick="ConfirmAsync" disabled="@(isBusy || isLoadingRaceOptions || selectedRaceId is null)">
+                @(isBusy ? "Importing..." : "Yes")
+            </button>
+        </Footer>
+    </Modal>
 }
 else if (isScanning)
 {
@@ -210,9 +203,9 @@ else if (isScanning)
         return options;
     }
 
-    private void HandleRaceChanged(ChangeEventArgs e)
+    private void HandleRaceChanged(string value)
     {
-        if (Guid.TryParse(e.Value?.ToString(), out var raceId))
+        if (Guid.TryParse(value, out var raceId))
         {
             selectedRaceId = raceId;
         }

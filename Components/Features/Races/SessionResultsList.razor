@@ -1,0 +1,75 @@
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+
+@if (Sessions is null)
+{
+    <div class="wec-empty wec-empty--block">Sessions are unavailable for this race.</div>
+}
+else if (!Sessions.Any())
+{
+    <div class="wec-empty wec-empty--block">No @RaceFormat.SessionTypeLabel(SessionType) sessions for this race.
+    </div>
+}
+else
+{
+    @foreach (var session in Sessions)
+    {
+        <div class="wec-session-block">
+            <div class="wec-session-block__date">@session.SessionDate.ToString("ddd, dd MMM yyyy")</div>
+
+            @if (!session.DriverStandings.Any())
+            {
+                <div class="wec-empty">No driver standings recorded for this session.</div>
+            }
+            else
+            {
+                <div class="wec-table-scroll">
+                    <table class="wec-table">
+                        <thead>
+                            <tr>
+                                <th>Pos</th>
+                                <th>Driver</th>
+                                <th>Team</th>
+                                <th>Class</th>
+                                <th>Best Lap</th>
+                                @if (SessionType == SessionType.Race)
+                                {
+                                    <th>Laps</th>
+                                    <th>Points</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var standing in StandingsFilter.ByClass(session.DriverStandings, ClassFilter))
+                            {
+                                <tr>
+                                    <td class="wec-table__position">@standing.Position</td>
+                                    <td>@standing.DriverName</td>
+                                    <td>@standing.TeamName</td>
+                                    <td><span class="wec-badge" style="background-color: @Colors.ColorFor(standing.TeamClassName)">@standing.TeamClassName</span></td>
+                                    <td>@RaceFormat.FormatLap(standing.BestLapTimeMs)</td>
+                                    @if (SessionType == SessionType.Race)
+                                    {
+                                        <td class="wec-table__position">@standing.LapCount</td>
+                                        <td>@standing.Points</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    /// <summary>The sessions of the selected type; null when the race's sessions could not be loaded.</summary>
+    [Parameter] public IReadOnlyList<SessionModel>? Sessions { get; set; }
+
+    [Parameter] public SessionType SessionType { get; set; }
+
+    [Parameter] public string ClassFilter { get; set; } = "";
+
+    [Parameter] public ClassColorMap Colors { get; set; } = ClassColorMap.Empty;
+}

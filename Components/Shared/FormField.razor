@@ -1,0 +1,22 @@
+<div class="wec-form-field @CssClass">
+    <label for="@For">@Label</label>
+    @ChildContent
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <p class="wec-form-hint">@Hint</p>
+    }
+</div>
+
+@code {
+    /// <summary>Id of the control the label points at.</summary>
+    [Parameter, EditorRequired] public string For { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public string? Hint { get; set; }
+
+    /// <summary>Extra modifier classes such as wec-form-field--readonly.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

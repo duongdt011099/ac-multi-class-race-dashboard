@@ -1,0 +1,64 @@
+@using MulticlassRace.ViewModels
+
+<div class="wec-session-actions">
+    @ChildContent
+
+    <div class="wec-session-setting wec-weather-setting">
+        <AppSelect Id="@($"race-session-weather{IdSuffix}")" CssClass="wec-weather-select" aria-label="Weather"
+                   Value="@Conditions.Weather" ValueChanged="OnWeatherChanged"
+                   Options="SessionConditionOptions.Weather" />
+    </div>
+
+    <div class="wec-session-setting wec-penalties-setting">
+        <label class="wec-penalties-setting__label">
+            <input type="checkbox" checked="@Conditions.Penalties" @onchange="HandlePenaltiesChanged" />
+            <span>Penalties</span>
+        </label>
+    </div>
+
+    <div class="wec-session-setting wec-weather-setting">
+        <AppSelect Id="@($"race-session-time-of-day{IdSuffix}")" CssClass="wec-weather-select" aria-label="Time of day"
+                   title="Time of day, as AC takes it: a sun angle from -80 (08:00) to 80 (18:00)."
+                   Value="@SessionConditionOptions.LabelFor(Conditions.SunAngle)" ValueChanged="OnTimeOfDayChanged"
+                   Options="SessionConditionOptions.TimeOfDaySelectOptions" />
+    </div>
+
+    <span class="wec-btn-title" title="@StartTitle">
+        <ToolbarButton Icon="bi-play-fill" Disabled="@(IsStarting || !CanStart)" OnClick="() => OnStart.InvokeAsync()">
+            @(IsStarting ? "Starting..." : "Start Session")
+        </ToolbarButton>
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SessionConditions Conditions { get; set; } = default!;
+
+    /// <summary>Keeps element ids unique when two bars exist in the page at once.</summary>
+    [Parameter] public string IdSuffix { get; set; } = "";
+
+    [Parameter] public bool CanStart { get; set; }
+
+    [Parameter] public bool IsStarting { get; set; }
+
+    [Parameter] public string? StartTitle { get; set; }
+
+    [Parameter] public EventCallback<string> OnWeatherChanged { get; set; }
+
+    [Parameter] public EventCallback<string> OnTimeOfDayChanged { get; set; }
+
+    [Parameter] public EventCallback<bool> OnPenaltiesChanged { get; set; }
+
+    [Parameter] public EventCallback OnStart { get; set; }
+
+    /// <summary>Tab specific controls shown before the shared ones, such as result import.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task HandlePenaltiesChanged(ChangeEventArgs e)
+    {
+        var penalties = e.Value is bool value
+            ? value
+            : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+
+        return OnPenaltiesChanged.InvokeAsync(penalties);
+    }
+}
