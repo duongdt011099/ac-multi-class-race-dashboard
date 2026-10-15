@@ -1,5 +1,5 @@
 #define MyAppName "Endurance Race Dashboard"
-#define MyAppVersion "1.3.1.1"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "Endurance Race Dashboard"
 #define MyAppExeName "multi-class-race-dashboard.exe"
 #define MyLegacyServiceName "EnduranceRace"
@@ -8,9 +8,9 @@
 #define MyRegKey "Software\Endurance Race Dashboard"
 #define MyRegValue "GamePath"
 #define MyPublishDir "publish"
-; The CSP Lua app that the dashboard imports results from. Only these three files are shipped: the
-; dashboard never needs lib.lua, and the results and debug log the app keeps next to itself are the
-; user's, not ours.
+; The CSP Lua app that the dashboard imports results from. Only the entry script, manifest, icon and
+; the src folder of modules are shipped: the dashboard never needs lib.lua, and the results and debug
+; log the app keeps next to itself are the user's, not ours.
 #define MyLuaAppDir "assetto-corsa-app\Multi_Class"
 
 [Setup]
@@ -43,14 +43,21 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion; Excludes: "wwwroot\uploads,app.db*,logs"
 
 ; The CSP Lua app goes into the user's game folder rather than {app}, because Assetto Corsa only
-; loads apps\lua from there. Listing the three files individually rather than copying the folder
-; keeps the debug log and saved results the app keeps beside itself out of it. uninsneveruninstall:
+; loads apps\lua from there. Listing the top-level files individually and recursing only into src
+; keeps the debug log and saved results the app keeps beside itself out of it. The entry script
+; require()s its modules from src\, so the whole src tree must travel with it. uninsneveruninstall:
 ; the game folder belongs to the user and the dashboard has no business tidying it away. Copying
 ; through a [Files] entry rather than by hand also means a write failure is reported by Inno instead
 ; of being swallowed into a zero exit code.
 Source: "{#MyLuaAppDir}\Multi_Class.lua"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyLuaAppDir}\manifest.ini"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyLuaAppDir}\icon.png"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
+Source: "{#MyLuaAppDir}\src\*.lua"; DestDir: "{code:LuaAppDestDir}\src"; Flags: ignoreversion recursesubdirs uninsneveruninstall
+
+[InstallDelete]
+; Modules renamed or removed in a newer app version would otherwise stay behind in the game folder.
+; Only the src tree is cleared; the debug log and saved results beside the entry script are left alone.
+Type: filesandordirs; Name: "{code:LuaAppDestDir}\src"
 
 [UninstallDelete]
 ; Written from code below, so the uninstaller never learns about it and has to be told. The files this
@@ -331,7 +338,7 @@ begin
   Log('Wrote install.json with game path ' + AcFolder);
 end;
 
-{ Destination for the three Lua app files named in [Files]. Asked for while files are copied, which
+{ Destination for the Lua app files named in [Files]. Asked for while files are copied, which
   is after the wizard pages, so AcFolder is already the user's answer. }
 function LuaAppDestDir(Param: String): String;
 begin
@@ -343,7 +350,7 @@ var
   DestDir: String;
 begin
   DestDir := LuaAppDestDir('');
-  if FileExists(DestDir + '\Multi_Class.lua') then
+  if FileExists(DestDir + '\Multi_Class.lua') and FileExists(DestDir + '\src\state.lua') then
   begin
     Log('Multiple Class Race app installed into ' + DestDir);
     Exit;
@@ -354,8 +361,8 @@ begin
     does not show up in Assetto Corsa. }
   MsgBox('The dashboard was installed, but the Multiple Class Race app is not in "' +
     DestDir + '".' + #13#10 + #13#10 +
-    'Run the dashboard installer again to put it there, or copy Multi_Class.lua, manifest.ini ' +
-    'and icon.png from its assetto-corsa-app\Multi_Class folder into that folder by hand.',
+    'Run the dashboard installer again to put it there, or copy Multi_Class.lua, manifest.ini, ' +
+    'icon.png and the src folder from its assetto-corsa-app\Multi_Class folder into that folder by hand.',
     mbError, MB_OK);
 end;
 
