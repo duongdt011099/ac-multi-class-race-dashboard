@@ -1,0 +1,217 @@
+-- Leaderboard data: overall/class positions, gaps, lap info and best lap times.
+local C = require("src/constants")
+local S = require("src/state")
+local U = require("src/util")
+
+local M = {}
+
+local getCar = ac.getCar
+
+function M.LeaderboardProgress(carIndex)
+  local car = getCar(carIndex)
+  if not car then return 0 end
+  return (car.sessionLapCount or 0) + (car.splinePosition or 0)
+end
+
+function M.GetCarBestLapMs(idx)
+  local ok, car = pcall(getCar, idx)
+  if ok and car then
+    local okBt, bt = pcall(function() return car.bestLapTimeMs end)
+    if okBt and type(bt) == "number" and bt > 0 then return bt end
+  end
+  return nil
+end
+
+function M.GetCurrentLapInfo()
+  local sim = ac.getSim()
+  local playerCar = getCar(0)
+
+  local totalLaps = 0
+  local session = ac.getSession(sim.currentSessionIndex)
+  if session then
+    totalLaps = session.laps or 0
+  end
+  local lapRaw = 1
+  if playerCar then
+    lapRaw = playerCar.lapCount + 1
+  end
+  -- Display AC's natural lap count: the formation lap is lap 1 and the race begins on lap 2. The
+  -- rolling-start lap offset is applied only to the exported classification, never to the display.
+  local currentLap = totalLaps > 0 and math.min(totalLaps, lapRaw) or lapRaw
+
+  local speed = playerCar and (playerCar.speedKmh or 0) or 0
+  if S.playerStoppedState then
+    if speed > 8.0 then S.playerStoppedState = false end
+  else
+    if speed < 2.0 then S.playerStoppedState = true end
+  end
+
+  return currentLap, totalLaps, S.playerStoppedState
+end
+
+-- Builds the overall and same-class lists as { idx, [key] = valueFn(i) } entries.
+local function collectCars(key, valueFn)
+  local playerClass = S.displayClass[0]
+  local allCars, classCars = {}, {}
+  local totalCars, classTotal = 0, 0
+
+  for i = 0, S.driverCount - 1 do
+    local car = getCar(i)
+    if car then
+      local value = valueFn(i)
+      totalCars = totalCars + 1
+      allCars[#allCars + 1] = { idx = i, [key] = value }
+
+      -- playerClass can be nil when no class could be resolved; without this guard
+      -- 'nil == nil' would match every car and inflate classTotal up to totalCars.
+      if playerClass and S.displayClass[i] == playerClass then
+        classTotal = classTotal + 1
+        classCars[#classCars + 1] = { idx = i, [key] = value }
+      end
+    end
+  end
+  return allCars, classCars, totalCars, classTotal
+end
+
+-- progSorter tolerates a missing prog (nil) so a sort can never abort clLeaderboard.
+-- Mirrors bestSorter: cars with a value sort ahead of those without, ties broken by idx.
+local function progSorter(a, b)
+  if a.prog and b.prog then return a.prog > b.prog end
+  if a.prog then return true end
+  if b.prog then return false end
+  return a.idx < b.idx
+end
+
+local function bestSorter(a, b)
+  if a.best and b.best then return a.best < b.best end
+  if a.best then return true end
+  if b.best then return false end
+  return a.idx < b.idx
+end
+
+local function findPlayerRank(list)
+  for i, car in ipairs(list) do
+    if car.idx == 0 then return i end
+  end
+  return nil
+end
+
+local function classGaps(classCars, classPos)
+  local gapFront, gapBehind = nil, nil
+  if classPos > 1 then
+    local g = ac.getGapBetweenCars(0, classCars[classPos - 1].idx)
+    if U.IsFinite(g) then gapFront = g end
+  end
+  if classPos < #classCars then
+    local g = ac.getGapBetweenCars(0, classCars[classPos + 1].idx)
+    if U.IsFinite(g) then gapBehind = g end
+  end
+  return gapFront, gapBehind
+end
+
+-- CSP computes car.racePosition every frame; ac.getCarLeaderboardPosition() is the
+-- legacy Python leaderboard and returns a frozen classification, so it must not be used here.
+local function enginePosition(idx)
+  local frozenPosition = S.finishedRacePositions[idx]
+  if frozenPosition and frozenPosition > 0 then
+    return frozenPosition
+  end
+
+  local ok, p = pcall(function() return getCar(idx).racePosition end)
+  if ok and type(p) == "number" and p > 0 then
+    return p
+  end
+  return nil
+end
+
+local function debounceEnginePosition(enginePos)
+  local pendingPos = S.raceDisplayPending
+  if pendingPos and pendingPos.value == enginePos then
+    pendingPos.frames = pendingPos.frames + 1
+  else
+    pendingPos = { value = enginePos, frames = 1 }
+    S.raceDisplayPending = pendingPos
+  end
+
+  local stable = enginePos
+  if pendingPos.frames >= C.RACE_POS_STABLE_FRAMES then
+    S.raceDisplayStable = enginePos
+  elseif S.raceDisplayStable and S.raceDisplayStable > 0 then
+    stable = S.raceDisplayStable
+  end
+  return stable
+end
+
+local function engineClassPosition(classCars, stable)
+  local classPos = 1
+  for _, car in ipairs(classCars) do
+    if car.idx ~= 0 then
+      local rp = enginePosition(car.idx)
+      if rp and rp < stable then
+        classPos = classPos + 1
+      end
+    end
+  end
+  return classPos
+end
+
+-- Prefers the engine classification (debounced) over the progress-derived ranks.
+local function applyEnginePosition(classCars, overallPos, classPos)
+  local enginePos = enginePosition(0)
+  if enginePos then
+    local stable = debounceEnginePosition(enginePos)
+    return stable, engineClassPosition(classCars, stable)
+  end
+  if S.raceDisplayStable and S.raceDisplayStable > 0 then
+    -- Engine has no classification for this car (pre-start, pits, retired): keep showing
+    -- the last known good position instead of snapping back to a progress-derived guess.
+    overallPos = S.raceDisplayStable
+  end
+  return overallPos, classPos
+end
+
+function M.GetPlayerPositions()
+  local sim = ac.getSim()
+  local currentLap, totalLaps, stopped = M.GetCurrentLapInfo()
+
+  local allCars, classCars, totalCars, classTotal = collectCars("prog", M.LeaderboardProgress)
+  table.sort(allCars, progSorter)
+  table.sort(classCars, progSorter)
+
+  local overallPos = findPlayerRank(allCars) or 1
+  local classPos = 1
+  local gapFront, gapBehind = nil, nil
+  local classRank = findPlayerRank(classCars)
+  if classRank then
+    classPos = classRank
+    gapFront, gapBehind = classGaps(classCars, classRank)
+  end
+
+  if not sim.isSessionStarted or stopped then
+    gapFront, gapBehind = nil, nil
+  end
+
+  overallPos, classPos = applyEnginePosition(classCars, overallPos, classPos)
+  return overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped
+end
+
+function M.GetPlayerPositionsQuali()
+  local allCars, classCars, totalCars, classTotal = collectCars("best", M.GetCarBestLapMs)
+  table.sort(allCars, bestSorter)
+  table.sort(classCars, bestSorter)
+
+  local overallPos = findPlayerRank(allCars) or 1
+  local classPos = findPlayerRank(classCars) or 1
+
+  local classFastestMs = nil
+  for _, c in ipairs(classCars) do
+    if c.best then
+      classFastestMs = c.best
+      break
+    end
+  end
+
+  return overallPos, totalCars, classPos, classTotal, classFastestMs, M.GetCarBestLapMs(0)
+end
+
+return M
