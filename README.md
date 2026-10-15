@@ -25,7 +25,7 @@ The Multi-Class Race Dashboard helps you run and manage a multi-class racing cha
 2. Download the installer (`EnduranceRaceDashboardSetup.exe`).
 3. Run the installer. If Windows shows a security prompt, choose **More info → Run anyway**.
 4. Follow the on-screen steps and choose where to install it.
-5. When finished, open your browser and go to `http://127.0.0.1:5000` — bookmark it for easy access.
+5. When finished, open **Endurance Race Dashboard** from the Start menu or desktop shortcut. It opens in its own window; closing the window keeps it running in the tray, and **Exit** in the tray menu stops it. It cannot be opened from a web browser. It needs the Microsoft Edge WebView2 Runtime, which current versions of Windows already include.
 6. To update later, download the newest installer and run it again; your data is kept.
 
 ## Before you start

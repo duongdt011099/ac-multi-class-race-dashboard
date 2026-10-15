@@ -77,9 +77,10 @@ Type: files; Name: "{app}\result-scan.json"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Icons]
-; Every entry points at the executable rather than the URL. The app notices it is already running,
-; opens the dashboard in the browser and steps aside, so clicking a shortcut always lands on the
-; page - even after the app has been closed from the tray.
+; Every entry points at the executable. The app notices it is already running, asks that copy to
+; show its window and steps aside, so clicking a shortcut always lands on the dashboard - even after
+; the app has been closed from the tray. The dashboard has no address to bookmark: it only opens in
+; its own window and needs the Microsoft Edge WebView2 Runtime (included with current Windows).
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open-dashboard"
 Name: "{group}\Start Dashboard"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open-dashboard"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open-dashboard"; Tasks: desktopicon

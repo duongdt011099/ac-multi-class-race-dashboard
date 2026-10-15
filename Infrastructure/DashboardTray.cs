@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MulticlassRace.Web;
 
 namespace MulticlassRace.Infrastructure;
 
@@ -25,22 +26,30 @@ internal sealed class DashboardTray : IDisposable
     private readonly ILogger _logger;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly string _dashboardUrl;
+    private readonly AppAccessToken _token;
+    private readonly bool _showOnStart;
     private readonly ManualResetEventSlim _started = new(false);
 
     // Written by the tray thread before _started is set, read by Dispose afterwards.
     private ApplicationContext? _context;
+    private DashboardWindow? _window;
     private bool _startFailed;
 
-    private DashboardTray(ILogger logger, IHostApplicationLifetime lifetime, string dashboardUrl)
+    private DashboardTray(ILogger logger, IHostApplicationLifetime lifetime, string dashboardUrl, AppAccessToken token, bool showOnStart)
     {
         _logger = logger;
         _lifetime = lifetime;
         _dashboardUrl = dashboardUrl;
+        _token = token;
+        _showOnStart = showOnStart;
     }
 
-    public static DashboardTray? Start(ILogger logger, IHostApplicationLifetime lifetime, string dashboardUrl)
+    /// <summary>Brings the dashboard window to the front. Safe to call from any thread.</summary>
+    public void ShowDashboard() => _window?.ShowDashboard();
+
+    public static DashboardTray? Start(ILogger logger, IHostApplicationLifetime lifetime, string dashboardUrl, AppAccessToken token, bool showOnStart)
     {
-        var tray = new DashboardTray(logger, lifetime, dashboardUrl);
+        var tray = new DashboardTray(logger, lifetime, dashboardUrl, token, showOnStart);
 
         try
         {
@@ -78,7 +87,14 @@ internal sealed class DashboardTray : IDisposable
 
         try
         {
+            // Must run before the first window of the process is created to take effect.
+            Application.EnableVisualStyles();
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+
             image = LoadIcon();
+
+            _window = new DashboardWindow(new Uri(_dashboardUrl), _token, image, _logger);
+            _window.PrepareHandle();
 
             menu = BuildMenu();
 
@@ -89,7 +105,7 @@ internal sealed class DashboardTray : IDisposable
                 ContextMenuStrip = menu
             };
 
-            icon.DoubleClick += (_, _) => OpenUrl(_dashboardUrl);
+            icon.DoubleClick += (_, _) => _window.ShowDashboard();
             icon.Visible = true;
 
             // A bare context runs with no main form until ExitThread is called, which is what
@@ -99,6 +115,11 @@ internal sealed class DashboardTray : IDisposable
             _started.Set();
 
             _logger.LogInformation("Tray icon ready at {Url}.", _dashboardUrl);
+
+            if (_showOnStart)
+            {
+                _window.ShowDashboard();
+            }
 
             Application.Run(context);
         }
@@ -120,6 +141,7 @@ internal sealed class DashboardTray : IDisposable
                     icon.Dispose();
                 }
 
+                _window?.CloseForShutdown();
                 menu?.Dispose();
                 image?.Dispose();
             }
@@ -141,7 +163,7 @@ internal sealed class DashboardTray : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.Add(statusItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Open dashboard", null, (_, _) => OpenUrl(_dashboardUrl)));
+        menu.Items.Add(new ToolStripMenuItem("Open dashboard", null, (_, _) => _window?.ShowDashboard()));
         menu.Items.Add(new ToolStripMenuItem("Open logs folder", null, (_, _) => OpenFolder(AppPaths.LogFilePath)));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => Exit()));
@@ -190,17 +212,6 @@ internal sealed class DashboardTray : IDisposable
         }
 
         return null;
-    }
-
-    private static void OpenUrl(string url)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        }
-        catch
-        {
-        }
     }
 
     private static void OpenFolder(string filePath)
