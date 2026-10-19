@@ -2,6 +2,7 @@
 local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
+local Audio = require("src/audio")
 
 local sFormat = string.format
 local setAITopSpeed = physics.setAITopSpeed
@@ -52,6 +53,7 @@ function M.RestoreAIControl(carIndex, clearOffset)
 end
 
 function M.RestoreRollingStartControls()
+  Audio.Reset()
   -- The player car (index 0) is never held or autopiloted during the formation, so only the AI
   -- cars need their controls handed back.
   for carIndex in pairs(S.rollingStartCars) do

@@ -10,6 +10,7 @@ local RCtl = require("src/rolling/control")
 local PoleSide = require("src/rolling/pole_side")
 local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
+local Audio = require("src/audio")
 
 local Frame = {}
 
@@ -210,7 +211,8 @@ local function stopForInvalidSession(validationError)
   end
 end
 
-local function updateRolling(sim)
+local function updateRolling(sim, dt)
+  pcall(Audio.Update, dt)
   local rollingOk, rollingErr = pcall(RUpdate.UpdateRollingStart, sim)
   if not rollingOk then
     RCtl.MarkRollingStartUnavailable("Rolling start stopped safely: " .. tostring(rollingErr), false)
@@ -243,7 +245,7 @@ function Frame.Update(dt)
     S.leaderboardOpened = true
   end
 
-  updateRolling(sim)
+  updateRolling(sim, dt)
 end
 
 function Frame.OnSessionStart()

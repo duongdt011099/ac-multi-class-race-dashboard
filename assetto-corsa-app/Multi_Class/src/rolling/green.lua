@@ -2,6 +2,7 @@
 local S = require("src/state")
 local U = require("src/util")
 local RCtl = require("src/rolling/control")
+local Audio = require("src/audio")
 
 local sFormat = string.format
 
@@ -18,7 +19,8 @@ function M.GiveRollingGreen(carIndex, state, now)
   end
   U.Log(sFormat("ROLLING: car %d green at progress %.3f", carIndex, state.lastProgress or -1))
   if carIndex == 0 then
-    S.rollingStartStatus = "GREEN — GO"
+    Audio.FadeOut()
+    S.rollingStartStatus = "GREEN â€” GO"
     ui.toast(ui.Icons.Play, "Rolling start: green light")
   end
 end

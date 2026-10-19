@@ -49,6 +49,10 @@ C.ROLLING_START_PHASE1_FULL_GAP     = 80.0
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.
 C.ROLLING_START_CAR_SECONDS         = 0.7
 -- A car is only released once the car ahead of it has actually started moving.
+-- Rolling-start music: seconds before the end of the track that should line up with the green light
+-- (0 = the very end), and the largest playback-rate trim used to stay in sync.
+C.ROLLING_MUSIC_END_LEAD_SECONDS = 0.0
+C.ROLLING_MUSIC_RATE_RANGE       = 0.04
 C.ROLLING_START_RELEASE_MOVED_METERS     = 6
 C.ROLLING_START_RELEASE_MOVED_KMH        = 10
 C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 10.0

@@ -7,6 +7,8 @@ S.storedSettings = ac.storage({
   enduranceEnabled = true,
   resultExportEnabled = true,
   resultFolder = "",
+  rollingMusicEnabled = true,
+  rollingMusicVolume = 2.0,
 })
 
 -- Grid / session tracking
@@ -41,6 +43,8 @@ S.uiSourceCache     = {}
 S.enduranceEnabled   = true
 S.resultExportEnabled = true
 S.resultFolder       = ""
+S.rollingMusicEnabled = S.storedSettings.rollingMusicEnabled ~= false
+S.rollingMusicVolume  = tonumber(S.storedSettings.rollingMusicVolume) or 2.0
 
 -- Result export
 S.resultExportStatus         = ""

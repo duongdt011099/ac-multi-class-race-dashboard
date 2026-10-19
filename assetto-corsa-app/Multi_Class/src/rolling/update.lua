@@ -7,6 +7,7 @@ local RCtl = require("src/rolling/control")
 local Prepare = require("src/rolling/prepare")
 local Formation = require("src/rolling/formation")
 local Green = require("src/rolling/green")
+local Audio = require("src/audio")
 
 local getCar = ac.getCar
 
@@ -44,7 +45,7 @@ local function HandleStagedOrEnded(sim, now)
     end
 
     S.rollingStartState = "rolling"
-    S.rollingStartStatus = "SINGLE FILE — FORMATION"
+    S.rollingStartStatus = "SINGLE FILE â€” FORMATION"
     Prepare.BeginRollingStart(now)
     U.Log("ROLLING: race start detected; formation beginning.")
   elseif S.rollingStartState == "rolling" and sim.isSessionStarted ~= true then
@@ -133,8 +134,9 @@ local function CompleteRollingStart()
     state.currentSplineOffset = 0.0
   end
   RCtl.ReleaseRollingPitBlock()
+  Audio.FadeOut()
   S.rollingStartState = "complete"
-  S.rollingStartStatus = "GREEN — GO"
+  S.rollingStartStatus = "GREEN â€” GO"
   S.raceDisplayPending = nil
   S.raceDisplayStable = nil
   U.Log("ROLLING: every class received green.")
@@ -174,7 +176,7 @@ function M.UpdateRollingStart(sim)
 
   local playerState = S.rollingStartCars[0]
   if playerState and not playerState.green then
-    S.rollingStartStatus = playerState.enteredPhase2 and "DOUBLE FILE — FORMATION" or "SINGLE FILE — FORMATION"
+    S.rollingStartStatus = playerState.enteredPhase2 and "DOUBLE FILE â€” FORMATION" or "SINGLE FILE â€” FORMATION"
   end
 end
 

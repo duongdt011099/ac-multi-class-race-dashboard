@@ -6,6 +6,7 @@ local RCtl = require("src/rolling/control")
 local PoleSide = require("src/rolling/pole_side")
 local RGroups = require("src/rolling/groups")
 local Spacing = require("src/rolling/spacing")
+local Audio = require("src/audio")
 
 local sFormat = string.format
 local getCar = ac.getCar
@@ -62,6 +63,7 @@ end
 
 local function LockPhase2Position(state, group)
   state.enteredPhase2 = true
+  if state.carIndex == 0 then Audio.PlayRolling() end
   state.phase2At = S.rollingStartSessionTime
   local pos = state.classPosition
   if group then

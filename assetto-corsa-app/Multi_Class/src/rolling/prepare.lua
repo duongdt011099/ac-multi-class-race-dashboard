@@ -6,6 +6,7 @@ local Sess = require("src/session")
 local RCtl = require("src/rolling/control")
 local PoleSide = require("src/rolling/pole_side")
 local RGroups = require("src/rolling/groups")
+local Audio = require("src/audio")
 
 local sFormat = string.format
 local getCar = ac.getCar
@@ -172,6 +173,8 @@ end
 -- Formation begins when AC green-lights the race. Every AI car is held on the grid; the row-0
 -- leader of each class is released immediately (threshold 0) and the rest follow on the timer.
 function M.BeginRollingStart(now)
+  Audio.Reset()
+  Audio.Prepare()
   S.rollingStartRaceHasStarted = false
   S.rollingStartReleaseTimer = 0.0
   S.rollingStartSessionTime = 0.0

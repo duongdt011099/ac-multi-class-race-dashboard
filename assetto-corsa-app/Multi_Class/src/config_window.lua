@@ -5,6 +5,7 @@ local Sess = require("src/session")
 local Classes = require("src/classes/manager")
 local Writer = require("src/export/writer")
 local Exporter = require("src/export/exporter")
+local Audio = require("src/audio")
 
 local Config = {}
 
@@ -112,6 +113,23 @@ local function drawResultExportSection(w)
     ui.textColored("No session result saved yet.", MUTED)
   end
   ui.popFont()
+  ui.dummy(vec2(0, 8))
+end
+
+local function drawMusicSection(w)
+  if ui.checkbox("Play music when you enter double file (rolling start)", S.rollingMusicEnabled) then
+    S.rollingMusicEnabled = not S.rollingMusicEnabled
+    S.storedSettings.rollingMusicEnabled = S.rollingMusicEnabled
+    if not S.rollingMusicEnabled then Audio.Reset() end
+  end
+  ui.setCursor(vec2(COL_X, ui.getCursor().y + 2))
+  ui.pushItemWidth(w - 48)
+  local volume, changed = ui.slider("##rollingMusicVolume", S.rollingMusicVolume, 0, 4, "Music volume: %.2f")
+  ui.popItemWidth()
+  if changed then
+    S.rollingMusicVolume = volume
+    S.storedSettings.rollingMusicVolume = volume
+  end
   ui.dummy(vec2(0, 8))
 end
 
@@ -249,6 +267,7 @@ function Config.Draw()
 
   drawBackgroundAndTitle(w, h)
   drawResultExportSection(w)
+  drawMusicSection(w)
 
   if valid then
     if Sess.IsRaceMode(sim) then
