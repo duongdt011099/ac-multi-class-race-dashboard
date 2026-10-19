@@ -9,6 +9,7 @@ public interface IDriverService
     Task<DriverFormModel?> GetDriverByIdAsync(Guid driverId);
     Task CreateDriverAsync(DriverFormModel model);
     Task UpdateDriverAsync(DriverFormModel model);
+    Task BatchUpdateAiAsync(IReadOnlyCollection<Guid> driverIds, int? aggression, int? strength);
     Task DeleteDriverAsync(Guid driverId);
     Task<PresetImportResult> ImportAssettoCorsaPresetAsync(Stream presetStream, string presetName);
     Task<PresetImportResult> ImportAssettoCorsaPresetFileAsync(string presetFilePath);

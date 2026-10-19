@@ -49,6 +49,21 @@ public sealed class FakeDriverService : IDriverService
         return Store(model);
     }
 
+    public List<(IReadOnlyCollection<Guid> Ids, int? Aggression, int? Strength)> BatchUpdates { get; } = new();
+
+    public Task BatchUpdateAiAsync(IReadOnlyCollection<Guid> driverIds, int? aggression, int? strength)
+    {
+        BatchUpdates.Add((driverIds, aggression, strength));
+
+        foreach (var driver in Drivers.Where(d => driverIds.Contains(d.DriverId)))
+        {
+            driver.DriverAgression = aggression ?? driver.DriverAgression;
+            driver.DriverStrength = strength ?? driver.DriverStrength;
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task DeleteDriverAsync(Guid driverId)
     {
         Deleted.Add(driverId);

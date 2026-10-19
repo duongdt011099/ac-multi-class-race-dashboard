@@ -1,0 +1,35 @@
+<Modal Title="@($"Batch Edit ({Count} selected)")" Size="ModalSize.Wide" OnClose="OnCancel">
+    <ChildContent>
+        <p>Leave a field empty to keep each driver's current value.</p>
+
+        <div class="wec-form-row wec-form-row--compact">
+            <FormField For="batch-strength" Label="AI Strength" CssClass="wec-form-field--number wec-form-field--number--wide">
+                <input id="batch-strength" type="number" min="0" @bind="Strength" />
+            </FormField>
+
+            <FormField For="batch-agression" Label="AI Aggression" CssClass="wec-form-field--number wec-form-field--number--wide">
+                <input id="batch-agression" type="number" min="0" @bind="Aggression" />
+            </FormField>
+        </div>
+    </ChildContent>
+    <Footer>
+        <ModalActions ConfirmText="Save" BusyText="Saving..." IsBusy="IsSaving"
+                      OnCancel="OnCancel" OnConfirm="Confirm" />
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public int Count { get; set; }
+
+    [Parameter] public bool IsSaving { get; set; }
+
+    [Parameter] public EventCallback<(int? Aggression, int? Strength)> OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private int? Aggression { get; set; }
+
+    private int? Strength { get; set; }
+
+    private Task Confirm() => OnSave.InvokeAsync((Aggression, Strength));
+}

@@ -92,6 +92,28 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
         return toAdd.Count;
     }
 
+    public async Task UpdateAiAsync(IReadOnlyCollection<Guid> driverIds, int? aggression, int? strength)
+    {
+        var drivers = await _context.Driver
+            .Where(d => driverIds.Contains(d.DriverId))
+            .ToListAsync();
+
+        foreach (var driver in drivers)
+        {
+            if (aggression is not null)
+            {
+                driver.DriverAgression = aggression;
+            }
+
+            if (strength is not null)
+            {
+                driver.DriverStrength = strength;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
     public async Task UnsetHumanFlagAsync(Guid? exceptDriverId = null)
     {
         await _context.Driver

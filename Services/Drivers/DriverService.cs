@@ -103,6 +103,16 @@ public class DriverService : IDriverService
         await _driverRepository.UpdateAsync(driver);
     }
 
+    public async Task BatchUpdateAiAsync(IReadOnlyCollection<Guid> driverIds, int? aggression, int? strength)
+    {
+        if (driverIds.Count == 0 || (aggression is null && strength is null))
+        {
+            return;
+        }
+
+        await _driverRepository.UpdateAiAsync(driverIds, aggression, strength);
+    }
+
     public async Task DeleteDriverAsync(Guid driverId)
     {
         await _driverRepository.DeleteAsync(driverId);

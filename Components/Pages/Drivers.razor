@@ -19,6 +19,10 @@ else
         <ToolbarButton Icon="bi-upload" Disabled="isImporting" OnClick="OpenPresetPicker">
             @(isImporting ? "Importing..." : "Import Assetto Corsa Preset")
         </ToolbarButton>
+        <ToolbarButton Icon="@(isBatchMode ? (selectedIds.Count == 0 ? "bi-x-lg" : "bi-check-lg") : "bi-pencil-square")"
+                       OnClick="HandleBatchButton">
+            @(!isBatchMode ? "Batch Edit" : selectedIds.Count == 0 ? "Cancel Edit" : "Open Editor")
+        </ToolbarButton>
     </div>
 
     <FilterBar>
@@ -30,8 +34,15 @@ else
         </FilterItem>
     </FilterBar>
 
-    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="11" EmptyText="No drivers found">
+    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="@(isBatchMode ? 12 : 11)" EmptyText="No drivers found">
         <Header>
+            @if (isBatchMode)
+            {
+                <th class="wec-table__check">
+                    <input type="checkbox" title="Select all on page" checked="@AllPageSelected(paged)"
+                           @onchange="e => ToggleAll(paged, (bool)e.Value!)" />
+                </th>
+            }
             <th>#</th>
             <th>No.</th>
             <th>Car</th>
@@ -53,7 +64,16 @@ else
             @foreach (var driver in paged.Items)
             {
                 index++;
+                var current = driver;
                 <tr>
+                    @if (isBatchMode)
+                    {
+                        <td class="wec-table__check">
+                            <input type="checkbox" title="@($"Select {driver.DriverName}")"
+                                   checked="@selectedIds.Contains(driver.DriverId)"
+                                   @onchange="e => ToggleSelected(current.DriverId, (bool)e.Value!)" />
+                        </td>
+                    }
                     <td class="wec-table__position">@index</td>
                     <td>
                         @if (!string.IsNullOrEmpty(driver.LiveryImageUrl))
@@ -103,6 +123,12 @@ else
                      CarOptions="carOptions" IsLoadingCars="isLoadingCars" TeamOptions="teamOptions"
                      CanToggleHuman="CanToggleHuman" HumanDriverName="@HumanDriver?.DriverName"
                      OnSave="SaveDriverAsync" OnCancel="CancelEdit" OnDelete="RequestDeleteEditing" />
+}
+
+@if (showBatchModal)
+{
+    <DriverBatchEditModal Count="selectedIds.Count" IsSaving="isSaving"
+                          OnSave="SaveBatchAsync" OnCancel="() => showBatchModal = false" />
 }
 
 @if (confirmDeleteDriver is not null)

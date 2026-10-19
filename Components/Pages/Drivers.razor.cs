@@ -44,6 +44,10 @@ public partial class Drivers : IDisposable
     private string presetPath = "";
     private FolderPicker presetPicker = default!;
 
+    private bool isBatchMode;
+    private bool showBatchModal;
+    private readonly HashSet<Guid> selectedIds = new();
+
     private DriverModel? HumanDriver => drivers?.FirstOrDefault(d => d.IsHuman);
 
     private bool CanToggleHuman =>
@@ -137,6 +141,80 @@ public partial class Drivers : IDisposable
     {
         searchTerm = value;
         currentPage = 1;
+    }
+
+    private void HandleBatchButton()
+    {
+        if (!isBatchMode)
+        {
+            isBatchMode = true;
+        }
+        else if (selectedIds.Count == 0)
+        {
+            isBatchMode = false;
+        }
+        else
+        {
+            showBatchModal = true;
+        }
+    }
+
+    private void ToggleSelected(Guid id, bool selected)
+    {
+        if (selected)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
+    }
+
+    private bool AllPageSelected(PagedList<DriverModel> paged) =>
+        paged.Items.Any() && paged.Items.All(d => selectedIds.Contains(d.DriverId));
+
+    private void ToggleAll(PagedList<DriverModel> paged, bool selected)
+    {
+        foreach (var driver in paged.Items)
+        {
+            ToggleSelected(driver.DriverId, selected);
+        }
+    }
+
+    private async Task SaveBatchAsync((int? Aggression, int? Strength) values)
+    {
+        if (values.Aggression is null && values.Strength is null)
+        {
+            Toast.Show("Enter an AI strength or aggression to apply.", isError: true);
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var ids = selectedIds.ToList();
+
+            var saved = await TryAsync(async () =>
+            {
+                await DriverService.BatchUpdateAiAsync(ids, values.Aggression, values.Strength);
+                await LoadDriversAsync();
+            }, "Could not save drivers");
+
+            if (saved)
+            {
+                DriverNotifier.NotifyChanged();
+                Toast.Show($"Updated {ids.Count} driver(s).");
+                showBatchModal = false;
+                isBatchMode = false;
+                selectedIds.Clear();
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private void OpenCreate()
