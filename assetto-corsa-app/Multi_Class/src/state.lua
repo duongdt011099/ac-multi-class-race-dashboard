@@ -7,8 +7,6 @@ S.storedSettings = ac.storage({
   enduranceEnabled = true,
   resultExportEnabled = true,
   resultFolder = "",
-  blueFlagEnabled = true,
-  blueFlagYieldRight = true,
 })
 
 -- Grid / session tracking
@@ -98,10 +96,6 @@ S.rollingStartLaneDiagDone   = false
 -- physics.blockTeleportingToPits() disposable, held only while the formation is running.
 S.rollingPitBlock            = nil
 
--- Blue flag
-S.blueFlagEnabled    = S.storedSettings.blueFlagEnabled ~= false
-S.blueFlagYieldRight = S.storedSettings.blueFlagYieldRight ~= false
-S.blueFlagCars       = {}
 
 -- Debug log
 S.debugLogFile = nil

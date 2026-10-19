@@ -44,7 +44,7 @@ local function BuildPositionMaps()
     local map = {}
     for _, carIndex in ipairs(group.cars) do
       local state = S.rollingStartCars[carIndex]
-      if state then
+      if state and not state.dropped then
         local pos = state.lockedPhase2Position or state.classPosition
         if pos and not map[pos] then map[pos] = carIndex end
       end
@@ -110,16 +110,26 @@ end
 -- formation point; otherwise the class reaches the double-file zone strung out.
 local function SingleFileTargets(state, group, car, trackLength)
   local formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH
-  local aheadIndex = group and group.cars and group.cars[(state.classPosition or 1) - 1]
-  local aheadCar = aheadIndex and getCar(aheadIndex)
+  local aheadCar
+  if group and group.cars then
+    -- Follow the nearest car ahead that is actually driving; a stalled/pitted car is skipped.
+    for pos = (state.classPosition or 1) - 1, 1, -1 do
+      local aheadIndex = group.cars[pos]
+      local aheadState = aheadIndex and S.rollingStartCars[aheadIndex]
+      if aheadIndex and not (aheadState and aheadState.dropped) then
+        aheadCar = getCar(aheadIndex)
+        break
+      end
+    end
+  end
   if aheadCar and car then
-    local gap = (aheadCar.splinePosition - car.splinePosition) * trackLength
-    if gap < -(trackLength * 0.5) then gap = gap + trackLength end
+    local gap = Spacing.SignedGap(aheadCar, car, trackLength)
+    if gap < 0 then gap = 0 end
     formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
         Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
             C.ROLLING_START_PHASE1_CATCHUP)
   end
-  return formationSpeed, 0.0, 2.0, 1.0
+  return formationSpeed, 0.0, 1.0, 1.0
 end
 
 local function DoubleFileTargets(carIndex, state, group, trackLength)
@@ -129,12 +139,29 @@ local function DoubleFileTargets(carIndex, state, group, trackLength)
   return targetSpeed, targetOffset, cautionLevel, throttleLimit
 end
 
+-- 0..1 progress through the post-release launch ramp (1 once finished).
+local function LaunchProgress(state)
+  if not state.releasedAt or state.skipLaunchRamp then return 1.0 end
+  local t = (S.rollingStartSessionTime - state.releasedAt) / C.ROLLING_START_LAUNCH_RAMP_SECONDS
+  if t < 0 then return 0.0 elseif t > 1 then return 1.0 end
+  return t * t * (3 - 2 * t)
+end
+
 local function CommandFormationAI(carIndex, state, group, car, trackLength, maxLaneMove)
   local targetSpeed, targetOffset, cautionLevel, throttleLimit
   if state.enteredPhase2 then
     targetSpeed, targetOffset, cautionLevel, throttleLimit = DoubleFileTargets(carIndex, state, group, trackLength)
   else
     targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(state, group, car, trackLength)
+  end
+
+  local launch = LaunchProgress(state)
+  if launch < 1.0 then
+    local startThrottle = C.ROLLING_START_LAUNCH_THROTTLE_START
+    throttleLimit = math.min(throttleLimit, startThrottle + (1.0 - startThrottle) * launch)
+    local startSpeed = C.ROLLING_START_LAUNCH_SPEED_START_KMH
+    targetSpeed = math.min(targetSpeed, startSpeed + (targetSpeed - startSpeed) * launch)
+    maxLaneMove = maxLaneMove * (C.ROLLING_START_LAUNCH_LANE_SCALE + (1.0 - C.ROLLING_START_LAUNCH_LANE_SCALE) * launch)
   end
 
   local applied = state.currentSplineOffset or 0.0
@@ -153,6 +180,100 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   physics.setAIStopCounter(carIndex, 0.0)
 end
 
+local function Field(car, name)
+  local ok, v = pcall(function() return car[name] end)
+  if not ok or v == nil then return "n/a" end
+  if type(v) == "number" then return sFormat("%.2f", v) end
+  return tostring(v)
+end
+
+-- One-shot snapshot of a stalled car so the log shows why it is not moving.
+local function LogStalledCarState(carIndex, car, inPit)
+  U.Log(sFormat("ROLLING: car %d stalled diag v=%.1f pit=%s gas=%s brake=%s clutch=%s gear=%s rpm=%s " ..
+      "handbrake=%s engineStalled=%s collided=%s damage=%s",
+      carIndex, car.speedKmh or 0, tostring(inPit), Field(car, "gas"), Field(car, "brake"),
+      Field(car, "clutch"), Field(car, "gear"), Field(car, "rpm"), Field(car, "handbrake"),
+      Field(car, "isEngineStalled"), Field(car, "collidedWith"), Field(car, "engineLifeLeft")))
+  local nearest, nearestDist = nil, math.huge
+  local pos = car.position
+  if pos then
+    for other = 0, S.driverCount - 1 do
+      local oc = other ~= carIndex and getCar(other) or nil
+      if oc and oc.position then
+        local d = pos:distance(oc.position)
+        if d < nearestDist then nearest, nearestDist = other, d end
+      end
+    end
+  end
+  if nearest then
+    U.Log(sFormat("ROLLING: car %d nearest car %d at %.2f m", carIndex, nearest, nearestDist))
+  end
+end
+
+local function AwakeCar(carIndex)
+  if physics.awakeCar then pcall(physics.awakeCar, carIndex) end
+end
+
+local function NudgeCarForward(carIndex, car, speedMps)
+  AwakeCar(carIndex)
+  local look = car.look
+  if look and physics.setCarVelocity then
+    pcall(physics.setCarVelocity, carIndex, vec3(look.x * speedMps, 0, look.z * speedMps))
+  end
+end
+
+-- Last resort: move the car a little further along its own heading and give it forward speed.
+local function TeleportCarForward(carIndex, car, meters)
+  local look, pos = car.look, car.position
+  if not (look and pos and physics.setCarPosition) then return end
+  local target = vec3(pos.x + look.x * meters, pos.y, pos.z + look.z * meters)
+  pcall(physics.setCarPosition, carIndex, target, look)
+  NudgeCarForward(carIndex, car, 8.0)
+  U.Log(sFormat("ROLLING: car %d recovery stage 3: moved %.0f m forward", carIndex, meters))
+end
+
+-- A released AI car that sits still (or ends up in the pit lane) must not hold the rest of its
+-- class up: nudge it first, then drop it from the spacing chains until it moves again.
+local function WatchForStalledCar(carIndex, state, car, dt)
+  if carIndex == 0 or not car then return end
+  local inPit = car.isInPitlane == true or car.isInPit == true
+  local launched = state.releasedAt and (S.rollingStartSessionTime - state.releasedAt) > 2.5
+  local still = launched and (car.speedKmh or 0) < 3.0 and not state.enteredPhase2
+  if still or inPit then
+    state.stillTime = (state.stillTime or 0.0) + dt
+  else
+    state.stillTime = 0.0
+    state.recoveryTried = false
+    state.recoveryStage = 0
+    if state.dropped and (car.speedKmh or 0) > 10.0 then
+      state.dropped = false
+      U.Log(sFormat("ROLLING: car %d moving again; back in the formation", carIndex))
+    end
+    return
+  end
+
+  local stage = state.recoveryStage or 0
+  if state.stillTime > 0.5 and stage < 1 then
+    state.recoveryStage = 1
+    state.recoveryTried = true
+    state.skipLaunchRamp = true
+    LogStalledCarState(carIndex, car, inPit)
+    RCtl.RestoreAIControl(carIndex, false)
+    AwakeCar(carIndex)
+  elseif state.stillTime > 2.5 and stage < 2 then
+    state.recoveryStage = 2
+    NudgeCarForward(carIndex, car, 5.0)
+    U.Log(sFormat("ROLLING: car %d recovery stage 2: forward velocity nudge", carIndex))
+  elseif state.stillTime > 7.5 and stage < 3 then
+    state.recoveryStage = 3
+    TeleportCarForward(carIndex, car, 12.0)
+  end
+  if (state.stillTime > 17.5 or inPit) and not state.dropped then
+    state.dropped = true
+    U.Log(sFormat("ROLLING: car %d dropped from formation spacing (stalled/pit)", carIndex))
+  end
+end
+
 local function MaintainCar(carIndex, state, trackLength, moves)
   local car = getCar(carIndex)
   local isAI = (carIndex ~= 0)
@@ -163,11 +284,17 @@ local function MaintainCar(carIndex, state, trackLength, moves)
   end
 
   if not state.released then
+    if isAI and car and (car.isInPitlane == true or car.isInPit == true) and not state.pitLogged then
+      state.pitLogged = true
+      U.Log(sFormat("ROLLING: car %d ended up in the pit lane while still held (t=%.1fs)", carIndex,
+          S.rollingStartSessionTime))
+    end
     if isAI then HoldUnreleasedAI(carIndex) end
     return
   end
 
   TrackLineCrossing(state, car, group)
+  if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
   if state.green then
     EaseOutLaneOffset(carIndex, state, isAI, moves.greenLaneMove)
   elseif isAI then
@@ -260,6 +387,7 @@ function M.MaintainRollingFormation(dt, trackLength)
   AdvanceReleaseClock(dt)
 
   local moves = {
+    dt = dt,
     maxLaneMove = C.ROLLING_START_LANE_RAMP_MPS * dt,
     greenLaneMove = C.ROLLING_START_GREEN_OFFSET_RAMP_MPS * dt,
   }

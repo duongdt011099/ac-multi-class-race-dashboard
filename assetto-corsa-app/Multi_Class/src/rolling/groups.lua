@@ -132,14 +132,60 @@ end
 -- own slot within the class. The first car of the first class has threshold 0, so the overall
 -- leader always gets the field moving (which then starts the timer via the "field is moving"
 -- check). Cars leave one at a time in grid order, so the run-up is a true single file.
+-- Nearest car ahead in release order that is an AI car and still running (not dropped).
+local function releaseReferenceState(state)
+  for queueIndex = (state.queueIndex or 1) - 1, 1, -1 do
+    local carIndex = S.rollingStartQueue[queueIndex]
+    local other = carIndex and S.rollingStartCars[carIndex]
+    if other and carIndex ~= 0 and not other.dropped then return other, carIndex end
+  end
+  return nil
+end
+
+local function isNotStuck(other, otherIndex)
+  if not other.released then return false end
+  local car = getCar(otherIndex)
+  if not car then return true end
+  if S.rollingStartSessionTime - (other.releasedAt or 0) < C.ROLLING_START_RELEASE_GRACE_SECONDS then
+    return true
+  end
+  if (car.speedKmh or 0) >= C.ROLLING_START_RELEASE_MOVED_KMH then return true end
+  local sim = ac.getSim()
+  local trackLength = sim and sim.trackLengthM
+  if other.gridProgress and type(car.splinePosition) == "number" and U.IsFinite(trackLength) then
+    local d = car.splinePosition - other.gridProgress
+    if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+    return d * trackLength >= C.ROLLING_START_RELEASE_MOVED_METERS
+  end
+  return false
+end
+
+-- Time-based release; a car also waits while the car ahead of it is stuck (released, but not
+-- moving after a short grace), so a late starter is not overtaken. A healthy car ahead never
+-- delays the queue. The wait is capped so one stuck car cannot freeze the field.
 function M.IsRollingCarReleased(state)
   local group = S.rollingStartGroups[state.groupIndex]
   if not group then return true end
   local slot = (state.classPosition or 1) - 1
   local threshold = (group.classStartTime or 0.0) + slot * C.ROLLING_START_CAR_SECONDS
-  return S.rollingStartReleaseTimer >= threshold
-end
+  if S.rollingStartReleaseTimer < threshold then return false end
+  if S.rollingStartReleaseTimer >= C.ROLLING_START_RELEASE_MAX_SECONDS then return true end
 
+  local other, otherIndex = releaseReferenceState(state)
+  if not other or isNotStuck(other, otherIndex) then return true end
+
+  if not state.gateWaitStart then
+    state.gateWaitStart = S.rollingStartSessionTime
+    U.Log(sFormat("ROLLING: car %d waiting for stuck car %d", state.carIndex, otherIndex))
+  end
+  local refReleasedAt = other.releasedAt or S.rollingStartSessionTime
+  if S.rollingStartSessionTime - refReleasedAt >= C.ROLLING_START_RELEASE_WAIT_TIMEOUT then
+    U.Log(sFormat("ROLLING: car %d release gate timed out waiting for car %d; releasing anyway",
+        state.carIndex, otherIndex))
+    return true
+  end
+  return false
+end
 local function carStillAtGrid(car)
   if not car or (car.speedKmh or 0) > 3.0 or (car.sessionLapCount or car.lapCount or 0) > 0 then
     return false

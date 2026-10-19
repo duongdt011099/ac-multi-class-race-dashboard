@@ -5,7 +5,6 @@ local Sess = require("src/session")
 local Classes = require("src/classes/manager")
 local Writer = require("src/export/writer")
 local Exporter = require("src/export/exporter")
-local BlueFlag = require("src/blueflag")
 
 local Config = {}
 
@@ -113,20 +112,6 @@ local function drawResultExportSection(w)
     ui.textColored("No session result saved yet.", MUTED)
   end
   ui.popFont()
-  ui.dummy(vec2(0, 8))
-end
-
-local function drawBlueFlagSection(w)
-  if ui.checkbox("Blue flag: lapped AI cars yield to faster cars", S.blueFlagEnabled) then
-    S.blueFlagEnabled = not S.blueFlagEnabled
-    S.storedSettings.blueFlagEnabled = S.blueFlagEnabled
-    if not S.blueFlagEnabled then BlueFlag.ReleaseAllBlueFlag() end
-  end
-  ui.setCursor(vec2(COL_X, ui.getCursor().y + 2))
-  if ui.button(S.blueFlagYieldRight and "BLUE FLAG: YIELD TO RIGHT" or "BLUE FLAG: YIELD TO LEFT", vec2(w - 48, 28)) then
-    S.blueFlagYieldRight = not S.blueFlagYieldRight
-    S.storedSettings.blueFlagYieldRight = S.blueFlagYieldRight
-  end
   ui.dummy(vec2(0, 8))
 end
 
@@ -264,7 +249,6 @@ function Config.Draw()
 
   drawBackgroundAndTitle(w, h)
   drawResultExportSection(w)
-  drawBlueFlagSection(w)
 
   if valid then
     if Sess.IsRaceMode(sim) then

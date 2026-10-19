@@ -7,6 +7,15 @@ local M = {}
 
 local SPEED = C.ROLLING_START_SPEED_KMH
 
+-- Signed gap in metres from `car` to `other` along the track (positive = other is ahead), wrapped
+-- at the start/finish line so a car that just crossed is not mistaken for being a lap ahead.
+function M.SignedGap(other, car, trackLength)
+  local d = other.splinePosition - car.splinePosition
+  if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+  return d * trackLength
+end
+local gap = M.SignedGap
+
 -- Linear catch-up multiplier from the reference app: 1.0 at minDist, up to maxMult at maxDist.
 function M.GetLinearMultiplier(dist, minDist, maxDist, maxMult)
   maxMult = maxMult or C.ROLLING_START_CATCHUP_LIMIT
@@ -24,8 +33,8 @@ local function leaderSpeed(car, map, trackLength)
   local targetSpeed = SPEED
   local p2Index = map[2]
   local p2Car = p2Index and getCar(p2Index)
-  if p2Car and p2Car.splinePosition > car.splinePosition then
-    local longDist = (p2Car.splinePosition - car.splinePosition) * trackLength
+  local longDist = p2Car and gap(p2Car, car, trackLength)
+  if longDist and longDist > 0 then
     targetSpeed = SPEED * M.GetLinearMultiplier(longDist, 0.0, 10.0)
   end
   return targetSpeed, 1.0
@@ -37,8 +46,8 @@ local function secondSpeed(car, map, trackLength)
   local p1Car = p1Index and getCar(p1Index)
   if not p1Car then return targetSpeed, throttleLimit end
 
-  local longDist = (p1Car.splinePosition - car.splinePosition) * trackLength
-  if p1Car.splinePosition <= car.splinePosition then
+  local longDist = gap(p1Car, car, trackLength)
+  if longDist <= 0 then
     return easeOffForLead(math.abs(longDist))
   end
   if longDist > 1.0 then
@@ -54,13 +63,12 @@ local function columnTarget(car, map, startPos, trackLength)
   local aheadCar = aheadIndex and getCar(aheadIndex)
   if not aheadCar then return SPEED, 1.0, 0.0 end
 
-  if aheadCar.splinePosition <= car.splinePosition then
-    local leadError = (car.splinePosition - aheadCar.splinePosition) * trackLength
-    local speed, throttle = easeOffForLead(leadError)
+  local splineDist = gap(aheadCar, car, trackLength)
+  if splineDist <= 0 then
+    local speed, throttle = easeOffForLead(-splineDist)
     return speed, throttle, 0.0
   end
 
-  local splineDist = (aheadCar.splinePosition - car.splinePosition) * trackLength
   if splineDist > 8.0 then
     return SPEED * M.GetLinearMultiplier(splineDist - 8.0, 0.0, 14.0), 1.0, splineDist
   elseif splineDist > 1.5 then
@@ -72,8 +80,8 @@ end
 
 -- Even slots follow their odd partner ahead.
 local function evenRowTarget(car, partnerCar, trackLength)
-  local longDistRow = (partnerCar.splinePosition - car.splinePosition) * trackLength
-  if partnerCar.splinePosition <= car.splinePosition then
+  local longDistRow = gap(partnerCar, car, trackLength)
+  if longDistRow <= 0 then
     return easeOffForLead(math.abs(longDistRow))
   end
   if longDistRow > 1.0 then
@@ -85,8 +93,8 @@ end
 
 -- Odd slots wait for their even partner to catch up from behind.
 local function oddRowTarget(car, partnerCar, trackLength)
-  local longDistRow = (car.splinePosition - partnerCar.splinePosition) * trackLength
-  if car.splinePosition > partnerCar.splinePosition then
+  local longDistRow = -gap(partnerCar, car, trackLength)
+  if longDistRow > 0 then
     if longDistRow > 2.0 then
       return SPEED * 0.85, 0.70
     end

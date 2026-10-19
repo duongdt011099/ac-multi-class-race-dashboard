@@ -48,6 +48,20 @@ C.ROLLING_START_PHASE1_FULL_GAP     = 80.0
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.
 C.ROLLING_START_CAR_SECONDS         = 0.7
+-- A car is only released once the car ahead of it has actually started moving.
+C.ROLLING_START_RELEASE_MOVED_METERS     = 6
+C.ROLLING_START_RELEASE_MOVED_KMH        = 10
+C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 10.0
+-- A car just released is given this long to get going before it counts as stuck.
+C.ROLLING_START_RELEASE_GRACE_SECONDS    = 2.5
+-- After this long the gate is ignored entirely, so the back of the grid is never left standing
+-- long enough for AC to teleport it to the pits.
+C.ROLLING_START_RELEASE_MAX_SECONDS      = 45.0
+-- Launch ramp after release: throttle limit and top speed climb gradually so cold-tyre cars do not spin.
+C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 5.0
+C.ROLLING_START_LAUNCH_THROTTLE_START    = 0.25
+C.ROLLING_START_LAUNCH_SPEED_START_KMH   = 25
+C.ROLLING_START_LAUNCH_LANE_SCALE        = 0.5
 C.ROLLING_START_CLASS_GAP_SECONDS   = 3.0
 -- AC resets an AI to the pits once its internal "stopped for" timer (physics.setAIStopCounter)
 -- exceeds a few seconds. While a car is held on the grid we must keep that counter near zero, or
@@ -71,18 +85,5 @@ C.SESSION_TYPE_PRACTICE = (ac.SessionType and ac.SessionType.Practice) or 1
 C.SESSION_TYPE_QUALIFY  = (ac.SessionType and ac.SessionType.Qualify) or 2
 C.SESSION_TYPE_RACE     = (ac.SessionType and ac.SessionType.Race) or 3
 C.SESSION_TYPE_HOTLAP   = (ac.SessionType and ac.SessionType.Hotlap) or 4
-
--- Blue-flag yielding for lapped cars.
-C.BLUE_DETECT_M      = 150.0  -- faster car behind a lapped car within this distance = blue flag
-C.BLUE_CLEAR_M       = 200.0  -- ...and the flag only clears beyond this (hysteresis)
-C.BLUE_YIELD_M       = 100.0  -- start yielding once the faster car is this close
-C.BLUE_RELEASE_M     = 100.0  -- after being passed, resume once the faster car is this far ahead
-C.BLUE_THROTTLE      = 0.7
-C.BLUE_THROTTLE_RAMP = 0.5    -- throttle limit change per second
-C.BLUE_SPEED_FACTOR  = 0.85   -- top speed cap relative to the faster car's speed
-C.BLUE_MIN_SPEED_KMH = 60.0
-C.BLUE_STOPPED_KMH   = 20.0   -- slower than this the car is considered stopped / crashed
-C.BLUE_LANE_METERS   = 2.0
-C.BLUE_LANE_RAMP_MPS = 1.5
 
 return C

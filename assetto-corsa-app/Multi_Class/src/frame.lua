@@ -10,7 +10,6 @@ local RCtl = require("src/rolling/control")
 local PoleSide = require("src/rolling/pole_side")
 local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
-local BlueFlag = require("src/blueflag")
 
 local Frame = {}
 
@@ -204,7 +203,6 @@ local function prepareRollingIfNeeded(sim, valid)
 end
 
 local function stopForInvalidSession(validationError)
-  BlueFlag.ReleaseAllBlueFlag()
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then
     RCtl.MarkRollingStartUnavailable(
       "Rolling start stopped: " .. tostring(validationError or "this session is not supported."),
@@ -212,16 +210,10 @@ local function stopForInvalidSession(validationError)
   end
 end
 
-local function updateRollingAndBlueFlag(sim, dt)
+local function updateRolling(sim)
   local rollingOk, rollingErr = pcall(RUpdate.UpdateRollingStart, sim)
   if not rollingOk then
     RCtl.MarkRollingStartUnavailable("Rolling start stopped safely: " .. tostring(rollingErr), false)
-  end
-
-  local blueOk, blueErr = pcall(BlueFlag.UpdateBlueFlagYield, sim, dt)
-  if not blueOk then
-    BlueFlag.ReleaseAllBlueFlag()
-    U.Log("BLUE: update failed: " .. tostring(blueErr))
   end
 end
 
@@ -251,7 +243,7 @@ function Frame.Update(dt)
     S.leaderboardOpened = true
   end
 
-  updateRollingAndBlueFlag(sim, dt)
+  updateRolling(sim)
 end
 
 function Frame.OnSessionStart()

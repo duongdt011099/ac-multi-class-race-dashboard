@@ -111,6 +111,7 @@ local function AssignQueueIndices(queue)
     if state then
       state.queueIndex = queueIndex
       state.lastProgress = car and car.splinePosition or nil
+      state.gridProgress = state.lastProgress
     end
   end
 end

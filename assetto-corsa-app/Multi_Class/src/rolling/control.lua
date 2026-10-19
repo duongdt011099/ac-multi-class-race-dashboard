@@ -30,6 +30,7 @@ function M.AcquireRollingPitBlock()
     if ok and disposable ~= nil then
       S.rollingPitBlock = disposable
     end
+    U.Log(sFormat("ROLLING: pit teleport block acquired=%s", tostring(S.rollingPitBlock ~= nil)))
   end
 end
 
