@@ -117,18 +117,16 @@ C.YELLOW_RELEASE_MAX_KMH      = 400
 C.YELLOW_RELEASE_GRACE_SECONDS = 8.0
 -- setAITopSpeed only limits throttle (the AI does not brake down to it), so cars above the limit are
 -- slowed by easing their velocity down: DECEL_MPS2 plus DECEL_PER_KMH for each km/h over it, up to
--- DECEL_MAX_MPS2. The human car is eased down at PLAYER_DECEL_MPS2 once over it by PLAYER_OVER_KMH;
--- if setCarVelocity is unavailable, a brake assist is used instead (light braking from OVER_KMH over
--- the limit, MAX_BRAKE at FULL_OVER_KMH).
+-- DECEL_MAX_MPS2. The human car is only braked (the velocity is never rewritten, so steering stays
+-- free): light braking (MIN_BRAKE) from OVER_KMH over the limit, up to MAX_BRAKE at FULL_OVER_KMH.
 C.YELLOW_OVER_KMH             = 3.0
 C.YELLOW_DECEL_MPS2           = 7.0
 C.YELLOW_DECEL_PER_KMH        = 0.1
 C.YELLOW_DECEL_MAX_MPS2       = 15.0
-C.YELLOW_PLAYER_DECEL_MPS2    = 10.0
 C.YELLOW_PLAYER_OVER_KMH      = 1
-C.YELLOW_PLAYER_FULL_OVER_KMH = 40
-C.YELLOW_PLAYER_MIN_BRAKE     = 0.1
-C.YELLOW_PLAYER_MAX_BRAKE     = 0.8
+C.YELLOW_PLAYER_FULL_OVER_KMH = 25
+C.YELLOW_PLAYER_MIN_BRAKE     = 0.15
+C.YELLOW_PLAYER_MAX_BRAKE     = 1.0
 C.YELLOW_MIN_GAP_M            = 10
 C.YELLOW_FULL_GAP_M           = 40
 C.YELLOW_MIN_GAP_FACTOR       = 0.6

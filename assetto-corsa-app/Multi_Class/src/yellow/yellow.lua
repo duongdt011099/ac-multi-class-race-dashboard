@@ -362,34 +362,22 @@ local function updateCars(trackLength, dt)
   end
 end
 
--- Fallback when the velocity cannot be set: proportional brake assist.
-local function assistPlayerBrakes(player, limit)
+-- Speed limit for the human car: only the brakes are used (forceUserBrakesFor), proportional to how
+-- far over the limit the car is. The velocity is never rewritten, so steering, tyre grip and the
+-- force feedback stay natural, in corners too. Throttle and steering stay with the driver.
+local function limitPlayer(player, limit, dt)
   local over = (player.speedKmh or 0) - limit
   if over <= C.YELLOW_PLAYER_OVER_KMH then return end
   local t = (over - C.YELLOW_PLAYER_OVER_KMH) / (C.YELLOW_PLAYER_FULL_OVER_KMH - C.YELLOW_PLAYER_OVER_KMH)
   t = math.max(0.0, math.min(1.0, t))
   local brake = C.YELLOW_PLAYER_MIN_BRAKE + (C.YELLOW_PLAYER_MAX_BRAKE - C.YELLOW_PLAYER_MIN_BRAKE) * t
   pcall(physics.forceUserBrakesFor, 0.1, brake)
-end
-
--- Hard limit for the human car: the velocity is held at the limit (throttle and steering stay with
--- the driver, but the car cannot go faster).
-local function limitPlayer(player, limit, dt)
-  if (player.speedKmh or 0) <= limit + C.YELLOW_PLAYER_OVER_KMH then return end
-  if brakeCar(0, player, limit, dt, C.YELLOW_PLAYER_DECEL_MPS2) then
-    if not S.yellowPlayerLimited then
-      S.yellowPlayerLimited = true
-      U.Log(sFormat("YELLOW: t=%.1f player limited at %.0f km/h (limit %.0f)", S.yellowClock, player.speedKmh or 0, limit))
-    end
-  else
-    if not S.yellowPlayerLimitFailed then
-      S.yellowPlayerLimitFailed = true
-      U.Log("YELLOW: setCarVelocity unavailable for the player; using brake assist")
-    end
-    assistPlayerBrakes(player, limit)
+  if not S.yellowPlayerLimited then
+    S.yellowPlayerLimited = true
+    U.Log(sFormat("YELLOW: t=%.1f player braking at %.0f km/h (limit %.0f, brake %.2f)",
+        S.yellowClock, player.speedKmh or 0, limit, brake))
   end
 end
-
 local function updatePlayer(trackLength, dt)
   local player = getCar(0)
   local p = player and progress(player)
@@ -437,6 +425,18 @@ function M.Update(sim, dt)
 
   local trackLength = sim.trackLengthM
   if not U.IsFinite(trackLength) or trackLength <= C.ROLLING_START_MIN_TRACK_LENGTH_M then return end
+
+  if not S.yellowApiLogged then
+    S.yellowApiLogged = true
+    pcall(function()
+      local names = {}
+      for k, v in pairs(physics) do
+        if type(k) == "string" and type(v) == "function" then names[#names + 1] = k end
+      end
+      table.sort(names)
+      U.Log("YELLOW: physics API: " .. table.concat(names, ", "))
+    end)
+  end
 
   if not S.yellowPreloaded then
     S.yellowPreloaded = true
