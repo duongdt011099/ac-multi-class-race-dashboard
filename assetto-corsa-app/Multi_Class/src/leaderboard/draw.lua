@@ -1,4 +1,5 @@
 -- Leaderboard window drawing (lap / overall / class panels and the bottom status panel).
+local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
@@ -80,6 +81,13 @@ end
 
 function M.GetRollingStartDisplay(sim)
   local state = S.rollingStartState
+  if state ~= "staged" and state ~= "rolling" then
+    if S.yellowPlayerActive then
+      return "YELLOW", rgbm(1.0, 0.9, 0.1, 1)
+    elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
+      return "GREEN", rgbm(1, 1, 1, 1)
+    end
+  end
   if state == "staged" then
     return "ROLLING START READY", rgbm(1.0, 0.75, 0.25, 1)
   end
@@ -167,15 +175,42 @@ local function drawTopPanels(layout, data)
   end
 end
 
-local function drawBottomPanelBox(layout)
+local YELLOW_FLAG_FILL = rgbm(252 / 255, 221 / 255, 9 / 255, 1)
+local YELLOW_FLAG_BORDER = rgbm(1.0, 0.93, 0.45, 1)
+local YELLOW_FLAG_TEXT = rgbm(0, 0, 0, 1)
+local YELLOW_BLINK_HALF_SECONDS = 0.5
+
+-- The yellow panel blinks: solid yellow with black text, then dark with yellow text.
+local function yellowBlinkOn()
+  return math.floor((S.yellowClock or 0) / YELLOW_BLINK_HALF_SECONDS) % 2 == 0
+end
+local GREEN_FLAG_FILL = rgbm(7 / 255, 137 / 255, 48 / 255, 1)
+local GREEN_FLAG_BORDER = rgbm(0.30, 0.72, 0.42, 1)
+local GREEN_FLAG_TEXT = rgbm(1, 1, 1, 1)
+
+local function drawBottomPanelBox(layout, flag)
   local gapPanelRight = layout.w - layout.padX
-  ui.drawRectFilled(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), rgbm(0.08, 0.10, 0.15, 0.6), 8)
-  ui.drawRect(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), rgbm(0.3, 0.3, 0.36, 0.7), 8, nil, 1.5)
+  local fill = rgbm(0.08, 0.10, 0.15, 0.6)
+  local border = rgbm(0.3, 0.3, 0.36, 0.7)
+  if flag == "yellow" then
+    if yellowBlinkOn() then
+      fill, border = YELLOW_FLAG_FILL, YELLOW_FLAG_BORDER
+    else
+      border = YELLOW_FLAG_FILL
+    end
+  elseif flag == "green" then
+    fill, border = GREEN_FLAG_FILL, GREEN_FLAG_BORDER
+  end
+  ui.drawRectFilled(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), fill, 8)
+  ui.drawRect(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), border, 8, nil, 1.5)
 end
 
-local function drawRollingText(layout, text, color)
+local function drawRollingText(layout, text, color, flag)
   local w, padX = layout.w, layout.padX
-  drawBottomPanelBox(layout)
+  drawBottomPanelBox(layout, flag)
+  if flag == "yellow" then
+    color = yellowBlinkOn() and YELLOW_FLAG_TEXT or YELLOW_FLAG_FILL
+  elseif flag == "green" then color = GREEN_FLAG_TEXT end
   local size = MeasureBoldText(text, 17)
   local fontSize = size.x > (w - 2 * padX - 24)
       and math.max(12, math.floor(17 * (w - 2 * padX - 24) / size.x))
@@ -265,7 +300,15 @@ function M.Leaderboard(dt)
   drawTopPanels(layout, data)
 
   if rollingText then
-    drawRollingText(layout, rollingText, rollingColor)
+    local flag = nil
+    if not rollingActive then
+      if S.yellowPlayerActive == true then
+        flag = "yellow"
+      elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
+        flag = "green"
+      end
+    end
+    drawRollingText(layout, rollingText, rollingColor, flag)
   elseif qualiMode then
     drawQualiBest(layout, data)
   elseif data.classTotal > 1 then

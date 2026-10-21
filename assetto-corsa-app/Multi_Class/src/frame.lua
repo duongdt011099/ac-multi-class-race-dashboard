@@ -11,6 +11,7 @@ local PoleSide = require("src/rolling/pole_side")
 local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
+local Yellow = require("src/yellow/yellow")
 
 local Frame = {}
 
@@ -217,6 +218,11 @@ local function updateRolling(sim, dt)
   if not rollingOk then
     RCtl.MarkRollingStartUnavailable("Rolling start stopped safely: " .. tostring(rollingErr), false)
   end
+  local yellowOk, yellowErr = pcall(Yellow.Update, sim, dt)
+  if not yellowOk then
+    U.Log("YELLOW: update failed: " .. tostring(yellowErr))
+    pcall(Yellow.Reset)
+  end
 end
 
 function Frame.Update(dt)
@@ -252,6 +258,7 @@ function Frame.OnSessionStart()
   -- A new session always drops any field left over from the previous one, whatever state it was
   -- in (a restart can catch us mid staged/rolling).
   RCtl.RestoreRollingStartControls(false)
+  pcall(Yellow.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
 

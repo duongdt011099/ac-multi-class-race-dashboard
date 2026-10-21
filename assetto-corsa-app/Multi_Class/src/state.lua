@@ -9,6 +9,9 @@ S.storedSettings = ac.storage({
   resultFolder = "",
   rollingMusicEnabled = true,
   rollingMusicVolume = 2.0,
+  flagSoundEnabled = true,
+  flagSoundVolume = 2.0,
+  yellowFlagEnabled = true,
 })
 
 -- Grid / session tracking
@@ -45,6 +48,24 @@ S.resultExportEnabled = true
 S.resultFolder       = ""
 S.rollingMusicEnabled = S.storedSettings.rollingMusicEnabled ~= false
 S.rollingMusicVolume  = tonumber(S.storedSettings.rollingMusicVolume) or 2.0
+S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
+S.flagSoundVolume     = tonumber(S.storedSettings.flagSoundVolume) or 2.0
+S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
+
+-- Full course yellow: "green" -> "yellow_pending" (countdown clip) -> "yellow" -> "green_pending"
+-- (green clip) -> "green". yellowPlayerActive is true while the yellow panel shows.
+S.fcy                 = "green"
+S.fcyAt               = 0.0
+S.yellowHazards       = {}
+S.yellowCars          = {}
+S.yellowArmed         = false
+S.yellowLeaderDist    = 0.0
+S.yellowGuardUntil    = 0.0
+S.yellowSlowCooldownUntil = 0.0
+S.yellowPlayerActive  = false
+S.yellowClock         = 0.0
+S.yellowSlowKmh       = nil
+S.yellowGreenUntil    = 0.0
 
 -- Result export
 S.resultExportStatus         = ""

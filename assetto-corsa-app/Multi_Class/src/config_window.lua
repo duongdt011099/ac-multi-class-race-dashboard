@@ -133,6 +133,27 @@ local function drawMusicSection(w)
   ui.dummy(vec2(0, 8))
 end
 
+local function drawYellowFlagSection(w)
+  if ui.checkbox("Full course yellow when a car stops on track", S.yellowFlagEnabled) then
+    S.yellowFlagEnabled = not S.yellowFlagEnabled
+    S.storedSettings.yellowFlagEnabled = S.yellowFlagEnabled
+  end
+  if ui.checkbox("Play yellow / green flag sounds", S.flagSoundEnabled) then
+    S.flagSoundEnabled = not S.flagSoundEnabled
+    S.storedSettings.flagSoundEnabled = S.flagSoundEnabled
+    if not S.flagSoundEnabled then Audio.ResetFlags() end
+  end
+  ui.setCursor(vec2(COL_X, ui.getCursor().y + 2))
+  ui.pushItemWidth(w - 48)
+  local volume, changed = ui.slider("##flagSoundVolume", S.flagSoundVolume, 0, 4, "Flag sound volume: %.2f")
+  ui.popItemWidth()
+  if changed then
+    S.flagSoundVolume = volume
+    S.storedSettings.flagSoundVolume = volume
+  end
+  ui.dummy(vec2(0, 8))
+end
+
 local function drawPoleSideSection(w)
   ui.setCursor(vec2(COL_X, ui.getCursor().y))
   ui.text("Rolling Start - lane for pole position (P1, P3, ...):")
@@ -268,6 +289,7 @@ function Config.Draw()
   drawBackgroundAndTitle(w, h)
   drawResultExportSection(w)
   drawMusicSection(w)
+  drawYellowFlagSection(w)
 
   if valid then
     if Sess.IsRaceMode(sim) then
