@@ -70,6 +70,14 @@ public sealed class RaceIniBuilder
         builder.Append("DRIVER_NAME=").AppendLine(human?.DriverName ?? string.Empty);
         builder.Append("NATIONALITY=").AppendLine(human?.Nationality ?? string.Empty);
         builder.Append("NATION_CODE=").AppendLine(Countries.GetNationCode(human?.Nationality));
+        if (human?.DriverStrength is int hs)
+        {
+            builder.Append("AI_LEVEL=").AppendLine(hs.ToString(CultureInfo.InvariantCulture));
+        }
+        if (human?.DriverAgression is int ha)
+        {
+            builder.Append("AI_AGGRESSION=").AppendLine(ha.ToString(CultureInfo.InvariantCulture));
+        }
         builder.Append("\r\n");
 
         for (var i = 0; i < opponents.Count; i++)
@@ -83,6 +91,14 @@ public sealed class RaceIniBuilder
             builder.Append("DRIVER_NAME=").AppendLine(driver.DriverName?.Trim());
             builder.Append("NATIONALITY=").AppendLine(driver.Nationality?.Trim() ?? string.Empty);
             builder.Append("NATION_CODE=").AppendLine(Countries.GetNationCode(driver.Nationality));
+            if (driver.DriverStrength is int ds)
+            {
+                builder.Append("AI_LEVEL=").AppendLine(ds.ToString(CultureInfo.InvariantCulture));
+            }
+            if (driver.DriverAgression is int da)
+            {
+                builder.Append("AI_AGGRESSION=").AppendLine(da.ToString(CultureInfo.InvariantCulture));
+            }
             builder.Append("\r\n");
         }
 
