@@ -160,9 +160,10 @@ local function isNotStuck(other, otherIndex)
   return false
 end
 
--- Time-based release; a car also waits while the car ahead of it is stuck (released, but not
--- moving after a short grace), so a late starter is not overtaken. A healthy car ahead never
--- delays the queue. The wait is capped so one stuck car cannot freeze the field.
+-- Time-based release; a car also waits while the car ahead of it is still getting rolling
+-- (released, but not yet up to MOVED_KMH / MOVED_METERS), so a late starter is not let out on
+-- top of a car that has not launched yet. A healthy car ahead never delays the queue for long.
+-- The wait is capped so one stuck car cannot freeze the field.
 function M.IsRollingCarReleased(state)
   local group = S.rollingStartGroups[state.groupIndex]
   if not group then return true end
@@ -176,7 +177,7 @@ function M.IsRollingCarReleased(state)
 
   if not state.gateWaitStart then
     state.gateWaitStart = S.rollingStartSessionTime
-    U.Log(sFormat("ROLLING: car %d waiting for stuck car %d", state.carIndex, otherIndex))
+    U.Log(sFormat("ROLLING: car %d waiting for car %d to get rolling", state.carIndex, otherIndex))
   end
   local refReleasedAt = other.releasedAt or S.rollingStartSessionTime
   if S.rollingStartSessionTime - refReleasedAt >= C.ROLLING_START_RELEASE_WAIT_TIMEOUT then

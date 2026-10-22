@@ -92,6 +92,29 @@ function M.HoldRollingCar(carIndex)
   M.SetRollingLaneOffset(carIndex, 0.0)
 end
 
+-- Short description of the car ahead in the class order: its speed and how far in front it is.
+-- Added to the release log so the run-up spacing can be checked in the log.
+local function AheadInfo(state)
+  local group = S.rollingStartGroups and S.rollingStartGroups[state.groupIndex]
+  if not (group and group.cars and state.classPosition) then return "" end
+  local aheadIndex = group.cars[state.classPosition - 1]
+  local aheadCar = aheadIndex and ac.getCar(aheadIndex)
+  if not aheadCar then return "" end
+
+  local gapText = ""
+  local sim = ac.getSim()
+  local trackLength = sim and sim.trackLengthM
+  local car = ac.getCar(state.carIndex)
+  if type(trackLength) == "number" and trackLength > 0
+      and type(aheadCar.splinePosition) == "number" and car
+      and type(car.splinePosition) == "number" then
+    local d = aheadCar.splinePosition - car.splinePosition
+    if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+    gapText = sFormat(", %.0f m ahead", d * trackLength)
+  end
+  return sFormat(" | ahead car %d at %.0f km/h%s", aheadIndex, aheadCar.speedKmh or 0, gapText)
+end
+
 function M.ReleaseRollingCar(carIndex)
   local state = S.rollingStartCars[carIndex]
   if not state or state.released then return end
@@ -101,7 +124,7 @@ function M.ReleaseRollingCar(carIndex)
   if carIndex == 0 then return end
 
   physics.setAIStopCounter(carIndex, 0.0)
-  U.Log(sFormat("ROLLING: released car %d (queue %d)", carIndex, state.queueIndex or -1))
+  U.Log(sFormat("ROLLING: released car %d (queue %d)%s", carIndex, state.queueIndex or -1, AheadInfo(state)))
 end
 
 return M

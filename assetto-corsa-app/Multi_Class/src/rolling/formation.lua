@@ -127,9 +127,17 @@ local function SingleFileTargets(state, group, car, trackLength)
   if aheadCar and car then
     local gap = Spacing.SignedGap(aheadCar, car, trackLength)
     if gap < 0 then gap = 0 end
-    formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
-        Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
-            C.ROLLING_START_PHASE1_CATCHUP)
+    if gap < C.ROLLING_START_PHASE1_MIN_GAP then
+      -- Too close to the car ahead: match its speed instead of charging into it. This keeps the
+      -- column intact when the car ahead is crawling, and stops the follower from driving
+      -- through (and past) a car that has not launched yet.
+      formationSpeed = math.min(formationSpeed,
+          (aheadCar.speedKmh or 0) + C.ROLLING_START_PHASE1_FOLLOW_KMH)
+    else
+      formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
+          Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
+              C.ROLLING_START_PHASE1_CATCHUP)
+    end
   end
   return formationSpeed, 0.0, 1.0, 1.0
 end
@@ -239,8 +247,9 @@ end
 local function WatchForStalledCar(carIndex, state, car, dt)
   if carIndex == 0 or not car then return end
   local inPit = car.isInPitlane == true or car.isInPit == true
-  local launched = state.releasedAt and (S.rollingStartSessionTime - state.releasedAt) > 2.5
-  local still = launched and (car.speedKmh or 0) < 3.0 and not state.enteredPhase2
+  local launched = state.releasedAt and
+      (S.rollingStartSessionTime - state.releasedAt) > C.ROLLING_START_STALL_GRACE_SECONDS
+  local still = launched and (car.speedKmh or 0) < C.ROLLING_START_STALL_SPEED_KMH and not state.enteredPhase2
   if still or inPit then
     state.stillTime = (state.stillTime or 0.0) + dt
   else
@@ -255,16 +264,16 @@ local function WatchForStalledCar(carIndex, state, car, dt)
   end
 
   local stage = state.recoveryStage or 0
-  if state.stillTime > 0.5 and stage < 1 then
+  if state.stillTime > C.ROLLING_START_STALL_STAGE1_SECONDS and stage < 1 then
     state.recoveryStage = 1
     state.recoveryTried = true
     state.skipLaunchRamp = true
     LogStalledCarState(carIndex, car, inPit)
     RCtl.RestoreAIControl(carIndex, false)
     AwakeCar(carIndex)
-  elseif state.stillTime > 2.5 and stage < 2 then
+  elseif state.stillTime > C.ROLLING_START_STALL_STAGE2_SECONDS and stage < 2 then
     state.recoveryStage = 2
-    NudgeCarForward(carIndex, car, 5.0)
+    NudgeCarForward(carIndex, car, C.ROLLING_START_STALL_NUDGE_MPS)
     U.Log(sFormat("ROLLING: car %d recovery stage 2: forward velocity nudge", carIndex))
   elseif state.stillTime > 7.5 and stage < 3 then
     state.recoveryStage = 3

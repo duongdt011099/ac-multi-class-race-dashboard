@@ -44,6 +44,10 @@ C.ROLLING_START_CATCHUP_LIMIT       = 1.5
 C.ROLLING_START_PHASE1_CATCHUP      = 1.15
 C.ROLLING_START_PHASE1_MIN_GAP      = 10.0
 C.ROLLING_START_PHASE1_FULL_GAP     = 80.0
+-- When the car ahead is closer than PHASE1_MIN_GAP, the follower does not charge it: it aims at
+-- the car ahead's speed plus this margin, so a slow car in front is never run into (and never
+-- overtaken) during the single-file run-up.
+C.ROLLING_START_PHASE1_FOLLOW_KMH   = 5.0
 -- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.
@@ -53,20 +57,34 @@ C.ROLLING_START_CAR_SECONDS         = 0.7
 -- (0 = the very end), and the largest playback-rate trim used to stay in sync.
 C.ROLLING_MUSIC_END_LEAD_SECONDS = 0.0
 C.ROLLING_MUSIC_RATE_RANGE       = 0.04
-C.ROLLING_START_RELEASE_MOVED_METERS     = 6
-C.ROLLING_START_RELEASE_MOVED_KMH        = 10
+C.ROLLING_START_RELEASE_MOVED_METERS     = 20
+C.ROLLING_START_RELEASE_MOVED_KMH        = 30
 C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 10.0
--- A car just released is given this long to get going before it counts as stuck.
-C.ROLLING_START_RELEASE_GRACE_SECONDS    = 2.5
+-- A car just released is given this long to get going before it counts as stuck. It has to be
+-- shorter than the release cadence, otherwise the gate never applies and every car is let out
+-- while the one in front is still crawling.
+C.ROLLING_START_RELEASE_GRACE_SECONDS    = 0.3
 -- After this long the gate is ignored entirely, so the back of the grid is never left standing
 -- long enough for AC to teleport it to the pits.
-C.ROLLING_START_RELEASE_MAX_SECONDS      = 45.0
+C.ROLLING_START_RELEASE_MAX_SECONDS      = 150.0
 -- Launch ramp after release: throttle limit and top speed climb gradually so cold-tyre cars do not spin.
-C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 5.0
-C.ROLLING_START_LAUNCH_THROTTLE_START    = 0.25
-C.ROLLING_START_LAUNCH_SPEED_START_KMH   = 25
+-- The start values are deliberately high: a car launched at 25 km/h with a quarter throttle creeps
+-- along at 5-15 km/h, and the next car (released 0.7 s later) is then let out on top of it, which
+-- makes its AI refuse to accelerate. That is how a single bad launch turns into a chain of stopped
+-- cars. Starting at 45 km/h and half throttle gets every car properly rolling within a second.
+C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 4.0
+C.ROLLING_START_LAUNCH_THROTTLE_START    = 0.45
+C.ROLLING_START_LAUNCH_SPEED_START_KMH   = 45
 C.ROLLING_START_LAUNCH_LANE_SCALE        = 0.5
 C.ROLLING_START_CLASS_GAP_SECONDS   = 3.0
+-- A released car that is still crawling STALL_GRACE_SECONDS after its release has not launched.
+-- Stage 1 hands it back full throttle (and skips the launch ramp), stage 2 gives it a small
+-- velocity nudge. Without this the car sits on the grid and the cars behind drive past it.
+C.ROLLING_START_STALL_SPEED_KMH          = 8.0
+C.ROLLING_START_STALL_GRACE_SECONDS      = 1.2
+C.ROLLING_START_STALL_STAGE1_SECONDS     = 0.4
+C.ROLLING_START_STALL_STAGE2_SECONDS     = 1.5
+C.ROLLING_START_STALL_NUDGE_MPS          = 5.0
 -- AC resets an AI to the pits once its internal "stopped for" timer (physics.setAIStopCounter)
 -- exceeds a few seconds. While a car is held on the grid we must keep that counter near zero, or
 -- the longest-held cars at the back get teleported to the pits. This small value matches the
@@ -115,14 +133,30 @@ C.YELLOW_PLAYER_HAZARD_MAX_S  = 90.0
 C.YELLOW_RELEASE_KMH_PER_S    = 40
 C.YELLOW_RELEASE_MAX_KMH      = 400
 C.YELLOW_RELEASE_GRACE_SECONDS = 8.0
--- setAITopSpeed only limits throttle (the AI does not brake down to it), so cars above the limit are
--- slowed by easing their velocity down: DECEL_MPS2 plus DECEL_PER_KMH for each km/h over it, up to
--- DECEL_MAX_MPS2. The human car is only braked (the velocity is never rewritten, so steering stays
--- free): light braking (MIN_BRAKE) from OVER_KMH over the limit, up to MAX_BRAKE at FULL_OVER_KMH.
+-- The limit never snaps to YELLOW_SPEED_KMH: every car gets its own limit that starts at the speed
+-- it had when the yellow started and walks down to the target at RAMP_DOWN_MPS2 (a realistic GT
+-- braking rate), so the field slows down gradually. The old code rewrote the whole velocity vector
+-- at up to 15 m/s^2 without any tyre force: the cars kept their old yaw rate while losing speed,
+-- turned tighter than their path and spun.
 C.YELLOW_OVER_KMH             = 3.0
-C.YELLOW_DECEL_MPS2           = 7.0
-C.YELLOW_DECEL_PER_KMH        = 0.1
-C.YELLOW_DECEL_MAX_MPS2       = 15.0
+C.YELLOW_RAMP_DOWN_MPS2       = 6.0
+-- The AI brakes with its own tyres: STOP_COUNTER is CSP's "AI brakes" timer (the same one the
+-- rolling start uses to hold cars on the grid) and is refreshed every frame, BRAKE_HINT_SCALE caps
+-- the brake pressure the AI may build up (BRAKE_HINT is the pedal-to-pressure scale in ai.ini, the
+-- original value is read once per car and restored when the yellow ends). The velocity is only
+-- eased down as a last resort, when the AI did not slow down in time (see NUDGE_*).
+C.YELLOW_AI_STOP_COUNTER      = 0.2
+-- The brake hint is the pedal-to-pressure scale, so this caps how much brake pressure the AI may
+-- build up: enough to track RAMP_DOWN_MPS2 (a GT car brakes at roughly 10 m/s^2, so 0.7 leaves
+-- headroom) but never a panic stop that would lock the wheels in a corner.
+C.YELLOW_BRAKE_HINT_SCALE     = 0.7
+C.YELLOW_NUDGE_GRACE_SECONDS  = 1.5
+C.YELLOW_NUDGE_DECEL_MPS2     = 4.0
+-- The gap factor (a car right behind another one gets a lower limit) is smoothed, so the target
+-- limit never jumps when a car ahead comes closer.
+C.YELLOW_GAP_SMOOTH_SECONDS   = 2.0
+-- The human car is only braked (the velocity is never rewritten, so steering stays free): light
+-- braking (MIN_BRAKE) from OVER_KMH over the limit, up to MAX_BRAKE at FULL_OVER_KMH.
 C.YELLOW_PLAYER_OVER_KMH      = 1
 C.YELLOW_PLAYER_FULL_OVER_KMH = 25
 C.YELLOW_PLAYER_MIN_BRAKE     = 0.15

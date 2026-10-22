@@ -19,7 +19,15 @@ local LOOKAHEAD_M = C.YELLOW_FULL_GAP_M + 20
 local function carState(i)
   local st = S.yellowCars[i]
   if not st then
-    st = { slow = 0.0, ok = 0.0, moved = false, hazard = false, limited = false }
+    st = {
+      slow = 0.0, ok = 0.0, moved = false, hazard = false, limited = false,
+      rampCap = nil,      -- the car's own limit, walking down to the target
+      releaseCap = nil,   -- the limit walking back up after a green
+      gapF = nil,         -- smoothed gap factor
+      nudgeT = 0.0,       -- how long the AI was told to brake without slowing down
+      brakeHintOrig = nil,
+      brakeHintApplied = nil,
+    }
     S.yellowCars[i] = st
   end
   return st
@@ -264,7 +272,7 @@ local function fcyLimit(i, p, trackLength)
   return nil
 end
 
-local function gapFactor(i, car, p, trackLength)
+local function gapFactor(i, car, p, trackLength, dt)
   local factor = 1.0
   for j = 0, S.driverCount - 1 do
     local other = j ~= i and getCar(j) or nil
@@ -281,41 +289,122 @@ local function gapFactor(i, car, p, trackLength)
       end
     end
   end
-  return factor
+  -- Smooth the factor, so the target limit walks down instead of jumping when a car ahead gets
+  -- closer: the limit itself is already ramped, a step here would defeat that.
+  local st = carState(i)
+  local smoothed = st.gapF or factor
+  if dt and dt > 0 then
+    smoothed = smoothed + (factor - smoothed) * math.min(1.0, dt / C.YELLOW_GAP_SMOOTH_SECONDS)
+  else
+    smoothed = factor
+  end
+  st.gapF = smoothed
+  return smoothed
+end
+
+-- One-off log of the CSP functions the AI braking relies on.
+local probed = false
+local function probeAIApi()
+  if probed then return end
+  probed = true
+  U.Log(sFormat("YELLOW: AI brake API: setAIStopCounter=%s setAIBrakeHint=%s setAITopSpeed=%s",
+      tostring(physics.setAIStopCounter ~= nil),
+      tostring(physics.setAIBrakeHint ~= nil),
+      tostring(physics.setAITopSpeed ~= nil)))
+end
+
+-- The AI's brake hint (ai.ini [PEDALS] BRAKE_HINT) is the scale between brake pedal and brake
+-- pressure, so lowering it caps how hard the AI can brake. The original value is read once per
+-- car and restored when the yellow ends.
+local function originalBrakeHint(i)
+  local st = carState(i)
+  if st.brakeHintOrig == nil then
+    local value = 1.0
+    local cfg
+    if ac.INIConfig and ac.INIConfig.carData then
+      local ok, res = pcall(ac.INIConfig.carData, i, "ai.ini")
+      if ok then cfg = res end
+    end
+    if cfg and cfg.get then
+      local ok2, v = pcall(cfg.get, cfg, "PEDALS", "BRAKE_HINT", 1.0)
+      if ok2 and type(v) == "number" then value = v end
+    end
+    st.brakeHintOrig = value
+  end
+  return st.brakeHintOrig
+end
+
+-- Scale the AI's brake pressure. scale 1.0 is the car's own setting.
+local function setBrakeHint(i, scale)
+  local st = carState(i)
+  local orig = originalBrakeHint(i)
+  local value = orig * scale
+  if st.brakeHintApplied == value then return end
+  st.brakeHintApplied = value
+  pcall(physics.setAIBrakeHint, i, value)
+  if scale ~= 1.0 then
+    U.Log(sFormat("YELLOW: car %d brake hint %.2f -> %.2f", i, orig, value))
+  end
 end
 
 -- Ease the car's velocity toward targetKmh at no more than `decel` m/s^2. Returns true when applied.
+-- Only used as a safety net, when the AI did not slow down after being told to brake: the whole
+-- velocity vector is scaled, so the slip angle stays the same.
 local function brakeCar(i, car, targetKmh, dt, decel)
   local vel = car.velocity
   if not (vel and physics.setCarVelocity) then return false end
   local speed = vel:length()
   if speed < 1.0 then return false end
-  local newSpeed = math.max(targetKmh / 3.6, speed - (decel or C.YELLOW_DECEL_MPS2) * math.min(dt, 0.1))
+  local newSpeed = math.max(targetKmh / 3.6, speed - (decel or C.YELLOW_NUDGE_DECEL_MPS2) * math.min(dt, 0.1))
   local ok = pcall(physics.setCarVelocity, i, vel * (newSpeed / speed))
   return ok
 end
 
+-- Holds one AI car to the yellow limit. The limit walks down from the speed the car had when the
+-- yellow started, and the car brakes with its own tyres, so it slows down gradually and keeps
+-- following the racing line instead of being teleported to the limit.
 local function limitAI(i, car, p, trackLength, limit, dt)
   local st = carState(i)
+  probeAIApi()
+  local current = car.speedKmh or 0
+  local target = limit * gapFactor(i, car, p, trackLength, dt)
+
   if not st.limited then
-    U.Log(sFormat("YELLOW: car %d limited at %.0f km/h (limit %.0f)", i, car.speedKmh or 0, limit))
+    st.rampCap = math.max(current, target)
+    U.Log(sFormat("YELLOW: car %d limited at %.0f km/h (limit %.0f, ramping down at %.0f km/h/s)",
+        i, current, limit, C.YELLOW_RAMP_DOWN_MPS2 * 3.6))
   end
   st.limited = true
-  local speed = limit * gapFactor(i, car, p, trackLength)
-  local current = car.speedKmh or 0
-  local over = current - speed
-  pcall(physics.setAITopSpeed, i, speed)
+  st.rampCap = math.max(target, (st.rampCap or current) - C.YELLOW_RAMP_DOWN_MPS2 * 3.6 * dt)
+
+  local over = current - st.rampCap
+  pcall(physics.setAITopSpeed, i, st.rampCap)
   pcall(physics.setAICaution, i, C.YELLOW_CAUTION)
   pcall(physics.setAIThrottleLimit, i, over > C.YELLOW_OVER_KMH and 0.0 or 1.0)
+
   if over > C.YELLOW_OVER_KMH then
-    local decel = math.min(C.YELLOW_DECEL_MAX_MPS2, C.YELLOW_DECEL_MPS2 + over * C.YELLOW_DECEL_PER_KMH)
-    brakeCar(i, car, speed, dt, decel)
+    -- Let the AI brake with its own tyres: CSP brakes the AI while the stop counter runs, and the
+    -- brake hint keeps the pressure low so the car slows down gently instead of locking up.
+    pcall(physics.setAIStopCounter, i, C.YELLOW_AI_STOP_COUNTER)
+    setBrakeHint(i, C.YELLOW_BRAKE_HINT_SCALE)
+    -- Safety net: if the AI did not slow down in time, ease the velocity down gently.
+    st.nudgeT = (st.nudgeT or 0.0) + dt
+    if st.nudgeT >= C.YELLOW_NUDGE_GRACE_SECONDS then
+      brakeCar(i, car, st.rampCap, dt, C.YELLOW_NUDGE_DECEL_MPS2)
+    end
+  else
+    pcall(physics.setAIStopCounter, i, 0.0)
+    setBrakeHint(i, 1.0)
+    st.nudgeT = 0.0
   end
 
   st.logT = (st.logT or 0.0) + dt
   if st.logT >= C.YELLOW_LOG_SECONDS then
     st.logT = 0.0
-    U.Log(sFormat("YELLOW: car %d v=%.0f cap=%.0f", i, current, speed))
+    local acc = car.acceleration
+    U.Log(sFormat("YELLOW: car %d v=%.0f cap=%.0f ramp=%.0f brake=%.2f gas=%.2f gz=%.1f",
+        i, current, target, st.rampCap, car.brake or 0.0, car.gas or 0.0,
+        (acc and acc.z) or 0.0))
   end
 end
 
@@ -325,21 +414,25 @@ local function releaseAI(i, car, dt, immediate)
   if not st then return end
   if st.limited then
     st.limited = false
+    st.rampCap = nil
+    st.nudgeT = 0.0
+    pcall(physics.setAIStopCounter, i, 0.0)
+    setBrakeHint(i, 1.0)
     if immediate then
       RCtl.RestoreAIControl(i, false)
     else
       st.releasing = true
-      st.rampCap = math.max(car.speedKmh or 0, C.YELLOW_SPEED_KMH)
+      st.releaseCap = math.max(car.speedKmh or 0, C.YELLOW_SPEED_KMH)
     end
     U.Log(sFormat("YELLOW: car %d released%s", i, immediate and "" or " (ramping up)"))
   end
   if st.releasing then
-    st.rampCap = (st.rampCap or 0) + C.YELLOW_RELEASE_KMH_PER_S * dt
-    if st.rampCap >= C.YELLOW_RELEASE_MAX_KMH then
+    st.releaseCap = (st.releaseCap or 0) + C.YELLOW_RELEASE_KMH_PER_S * dt
+    if st.releaseCap >= C.YELLOW_RELEASE_MAX_KMH then
       st.releasing = false
       RCtl.RestoreAIControl(i, false)
     else
-      pcall(physics.setAITopSpeed, i, st.rampCap)
+      pcall(physics.setAITopSpeed, i, st.releaseCap)
       pcall(physics.setAIThrottleLimit, i, 1.0)
     end
   end
@@ -366,7 +459,14 @@ end
 -- far over the limit the car is. The velocity is never rewritten, so steering, tyre grip and the
 -- force feedback stay natural, in corners too. Throttle and steering stay with the driver.
 local function limitPlayer(player, limit, dt)
-  local over = (player.speedKmh or 0) - limit
+  local st = carState(0)
+  local current = player.speedKmh or 0
+  -- The limit walks down from the speed the car had when the yellow started, so the braking builds
+  -- up gradually instead of jumping to full brake in a single frame.
+  if not st.rampCap then st.rampCap = math.max(current, limit) end
+  st.rampCap = math.max(limit, st.rampCap - C.YELLOW_RAMP_DOWN_MPS2 * 3.6 * dt)
+
+  local over = current - st.rampCap
   if over <= C.YELLOW_PLAYER_OVER_KMH then return end
   local t = (over - C.YELLOW_PLAYER_OVER_KMH) / (C.YELLOW_PLAYER_FULL_OVER_KMH - C.YELLOW_PLAYER_OVER_KMH)
   t = math.max(0.0, math.min(1.0, t))
@@ -374,8 +474,8 @@ local function limitPlayer(player, limit, dt)
   pcall(physics.forceUserBrakesFor, 0.1, brake)
   if not S.yellowPlayerLimited then
     S.yellowPlayerLimited = true
-    U.Log(sFormat("YELLOW: t=%.1f player braking at %.0f km/h (limit %.0f, brake %.2f)",
-        S.yellowClock, player.speedKmh or 0, limit, brake))
+    U.Log(sFormat("YELLOW: t=%.1f player braking at %.0f km/h (limit %.0f, ramping to %.0f, brake %.2f)",
+        S.yellowClock, current, limit, st.rampCap, brake))
   end
 end
 local function updatePlayer(trackLength, dt)
@@ -389,6 +489,7 @@ local function updatePlayer(trackLength, dt)
     limitPlayer(player, limit, dt)
   else
     S.yellowPlayerLimited = false
+    st.rampCap = nil
   end
 end
 
@@ -396,6 +497,10 @@ end
 function M.Reset()
   for i, st in pairs(S.yellowCars) do
     if (st.limited or st.releasing) and i ~= 0 then RCtl.RestoreAIControl(i, false) end
+    if i ~= 0 and st.brakeHintApplied ~= nil then
+      pcall(physics.setAIStopCounter, i, 0.0)
+      setBrakeHint(i, 1.0)
+    end
   end
   S.yellowCars = {}
   S.yellowHazards = {}
