@@ -166,7 +166,10 @@ local function drawTopPanels(layout, data)
   local lapTotalText = (data.totalLaps or 0) > 0 and sFormat("%d", data.totalLaps) or nil
   local overallText = data.overallPos and sFormat("%d", data.overallPos) or "-"
   local classText = data.classPos and sFormat("%d", data.classPos) or "-"
-  drawPanel(layout, padX, "LAP", sFormat("%d", math.max(1, data.currentLap)), lapTotalText, rgbm(0.95, 0.95, 1, 1))
+  -- The formation lap is not counted: the panel reads "-" until the player crosses the line for
+  -- the first time, and the racing laps then start at 1.
+  local lapText = data.formationLap and "-" or sFormat("%d", math.max(1, data.currentLap))
+  drawPanel(layout, padX, "LAP", lapText, lapTotalText, rgbm(0.95, 0.95, 1, 1))
   drawPanel(layout, padX + panelW + gap, "OVERALL", overallText, sFormat("%d", data.totalCars), rgbm(0.95, 0.95, 1, 1))
   if data.classTotal > 0 then
     drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", classText, sFormat("%d", data.classTotal), rgbm(0.35, 0.95, 0.45, 1))
@@ -274,10 +277,10 @@ local function collectData(qualiMode)
   local data = {}
   if qualiMode then
     data.overallPos, data.totalCars, data.classPos, data.classTotal, data.classFastestMs, data.playerBestMs = Positions.GetPlayerPositionsQuali()
-    data.currentLap, data.totalLaps, data.stopped = Positions.GetCurrentLapInfo()
+    data.currentLap, data.totalLaps, data.stopped, data.formationLap = Positions.GetCurrentLapInfo()
   else
     data.overallPos, data.totalCars, data.classPos, data.classTotal, data.gapFront, data.gapBehind,
-      data.currentLap, data.totalLaps, data.stopped = Positions.GetPlayerPositions()
+      data.currentLap, data.totalLaps, data.stopped, data.formationLap = Positions.GetPlayerPositions()
   end
   return data
 end

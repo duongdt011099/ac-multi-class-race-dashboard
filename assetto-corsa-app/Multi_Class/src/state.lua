@@ -116,6 +116,14 @@ S.rollingStartPoleOnRight    = false
 -- Set once per session by DetectRollingStartPoleSide: "auto" when measured from the grid,
 -- "manual" when the player toggled it afterwards.
 S.rollingStartPoleSideSource = "auto"
+-- The starting grid and the pole side are captured once per session. AC's in-place restart reuses
+-- the same grid, but the cars are not back on it when the restart is detected: capturing again
+-- there would record the live race classification instead of the grid slots, and the pole side
+-- would be measured from the aborted attempt's formation and mirror the whole field.
+S.rollingStartGridCaptured  = false
+-- Which side of its two-wide grid row each car starts on (+1 = right of its row partner,
+-- -1 = left). Measured once per session, for the same reason as the capture above.
+S.rollingStartStartSides    = {}
 -- One-shot guard for the lane-placement diagnostic (see MaintainRollingFormation).
 S.rollingStartLaneDiagDone   = false
 -- physics.blockTeleportingToPits() disposable, held only while the formation is running.

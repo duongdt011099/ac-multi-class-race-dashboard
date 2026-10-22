@@ -1,4 +1,5 @@
 -- Rolling start: detect which grid side the pole car occupies and measure per-car sides.
+local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 
@@ -6,6 +7,14 @@ local sFormat = string.format
 local getCar = ac.getCar
 
 local M = {}
+
+-- A grid measurement is only meaningful while the cars are standing on their grid slots. AC resets
+-- an in-place restart asynchronously, so the cars can still be in the aborted attempt's formation
+-- when the measurement is taken, and the very same geometry there would mirror the whole field.
+local function standingOnGrid(car)
+  if not car then return false end
+  return (car.speedKmh or 0) <= C.ROLLING_START_GRID_MAX_SPEED_KMH
+end
 
 -- Returns the car's left-hand axis (x, y, z), or nil when the state does not expose one. In AC/CSP
 -- `car.side` is the LEFT axis; the `look x up` fallback yields the same handedness in AC's basis.
@@ -36,12 +45,18 @@ local function resolvePlayerSlot(player)
 end
 
 -- The car sharing the player's two-wide row: slot+1 on an odd slot, slot-1 on an even one.
--- Their midpoint approximates the racing line, so the vector between them is purely lateral.
+-- Their midpoint approximates the racing line, so the vector between them is purely lateral. The
+-- captured grid slots are used and not the live race classification: once the session runs the
+-- classification no longer matches the grid the field started from.
 local function findRowPartner(partnerPos)
   for i = 0, S.driverCount - 1 do
-    local car = getCar(i)
-    if car and car.racePosition == partnerPos then
-      return car
+    local slot = S.rollingStartGridPositions[i]
+    if type(slot) ~= "number" or slot <= 0 then
+      local car = getCar(i)
+      slot = car and car.racePosition or nil
+    end
+    if slot == partnerPos then
+      return getCar(i)
     end
   end
   return nil
@@ -72,6 +87,12 @@ local function measurePlayerRow(player)
     return nil
   end
 
+  -- The row is only readable while both cars still stand on the grid.
+  if not (standingOnGrid(player) and standingOnGrid(partner)) then
+    U.Log(sFormat("ROLLING: pole-side detect skipped (cars not standing on the grid, slot=%d); default LEFT", pos))
+    return nil
+  end
+
   -- Player's own left-hand axis (see GetCarLeftAxis). A positive dot of (player - partner) with the
   -- left axis therefore means the player sits on the LEFT of the row.
   local sx, sy, sz = M.GetCarLeftAxis(player)
@@ -88,6 +109,13 @@ end
 -- and can read the world position relative to the car sharing the row. If the geometry is
 -- unavailable we keep the reference default (odd positions on the left).
 function M.DetectRollingStartPoleSide()
+  -- A lane the player picked in the config window wins over the measurement and survives the
+  -- re-staging of the field after an in-place restart.
+  if S.rollingStartPoleSideSource == "manual" then
+    U.Log("ROLLING: pole-side detect skipped (manual lane override kept)")
+    return
+  end
+
   S.rollingStartPoleOnRight = false
   S.rollingStartPoleSideSource = "auto"
 
@@ -123,6 +151,8 @@ end
 function M.MeasureRollingStartSide(car, partner)
   if not (car and partner) then return nil end
   if not (car.position and partner.position) then return nil end
+  -- Only a standing grid pair tells us which side of the row a car starts on.
+  if not (standingOnGrid(car) and standingOnGrid(partner)) then return nil end
 
   local sx, sy, sz = M.GetCarLeftAxis(car)
   if not sx then return nil end

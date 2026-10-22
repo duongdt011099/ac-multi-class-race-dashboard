@@ -66,9 +66,16 @@ local function NewCarState(group, groupIndex, classPosition, carIndex, carByGrid
   local gridPosition = S.rollingStartGridPositions[carIndex] or (carIndex + 1)
   local partnerGrid = (gridPosition % 2 == 1) and (gridPosition + 1) or (gridPosition - 1)
   local partnerIndex = carByGridPosition[partnerGrid]
-  local startSide = PoleSide.MeasureRollingStartSide(getCar(carIndex), partnerIndex and getCar(partnerIndex))
+  -- The side a car starts on is measured once per session, from the grid. An in-place restart
+  -- re-stages the field while the cars are still in the aborted attempt's formation, so measuring
+  -- again there would read the formation and mirror the columns.
+  local startSide = S.rollingStartStartSides[carIndex]
   if not startSide then
-    startSide = RGroups.GetRollingLaneOffset(gridPosition) < 0 and -1 or 1
+    startSide = PoleSide.MeasureRollingStartSide(getCar(carIndex), partnerIndex and getCar(partnerIndex))
+    if not startSide then
+      startSide = RGroups.GetRollingLaneOffset(gridPosition) < 0 and -1 or 1
+    end
+    S.rollingStartStartSides[carIndex] = startSide
   end
   return {
     carIndex = carIndex,

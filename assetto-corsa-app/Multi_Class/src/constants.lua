@@ -92,6 +92,11 @@ C.ROLLING_START_STALL_NUDGE_MPS          = 5.0
 C.ROLLING_START_STOP_COUNTER_HELD   = 0.5
 -- Minimum track length required before the procedure is allowed to run.
 C.ROLLING_START_MIN_TRACK_LENGTH_M  = 500
+-- A starting-grid measurement (which side of its row a car sits on) is only trusted while the cars
+-- are standing still on the grid. AC resets an in-place restart asynchronously, so the cars can
+-- still be in the aborted attempt's formation when the measurement is taken, and the very same
+-- geometry there would mirror every column of the field.
+C.ROLLING_START_GRID_MAX_SPEED_KMH = 5.0
 
 -- Full course yellow. A hazard (a car that was racing and then stops, crashes or crawls) puts the
 -- whole track under yellow: a countdown clip plays, then every car is held to YELLOW_SPEED_KMH with

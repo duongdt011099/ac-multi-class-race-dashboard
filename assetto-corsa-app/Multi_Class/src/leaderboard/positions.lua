@@ -2,6 +2,7 @@
 local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
+local Sess = require("src/session")
 
 local M = {}
 
@@ -22,6 +23,16 @@ function M.GetCarBestLapMs(idx)
   return nil
 end
 
+-- The app runs a rolling start in every race session, so AC counts the formation lap as lap 1
+-- and the racing laps are AC's laps 2..N+1. The formation lap is ignored for the display: it is
+-- not counted at all (the LAP panel reads "-" until the player crosses the line for the first
+-- time) and the racing laps are numbered from 1.
+local function RollingStartFormationLap()
+  if not Sess.IsRaceMode() then return false end
+  local state = S.rollingStartState
+  return state == "staged" or state == "rolling" or state == "complete"
+end
+
 function M.GetCurrentLapInfo()
   local sim = ac.getSim()
   local playerCar = getCar(0)
@@ -31,12 +42,26 @@ function M.GetCurrentLapInfo()
   if session then
     totalLaps = session.laps or 0
   end
-  local lapRaw = 1
-  if playerCar then
-    lapRaw = playerCar.lapCount + 1
+
+  -- lapOffset is how many laps AC counts before the racing laps begin: the formation lap when
+  -- the app runs a rolling start, none otherwise. It is applied to the lap number and to the
+  -- total, so the panel counts racing laps only.
+  local lapOffset = 0
+  if RollingStartFormationLap() then
+    lapOffset = 1
+    if totalLaps > 0 then totalLaps = totalLaps - 1 end
   end
-  -- Display AC's natural lap count: the formation lap is lap 1 and the race begins on lap 2. The
-  -- rolling-start lap offset is applied only to the exported classification, never to the display.
+
+  local playerLapCount = 0
+  if playerCar then
+    playerLapCount = playerCar.lapCount or 0
+  end
+  -- AC's lap count plus one is the lap being driven; the formation lap is taken off it, so the
+  -- first racing lap is 1. The rolling-start lap offset is applied only to the exported
+  -- classification, never to the display.
+  local lapRaw = playerLapCount + 1 - lapOffset
+  -- The formation lap is not a racing lap, so it is never shown.
+  local formationLap = lapRaw < 1
   local currentLap = totalLaps > 0 and math.min(totalLaps, lapRaw) or lapRaw
 
   local speed = playerCar and (playerCar.speedKmh or 0) or 0
@@ -46,7 +71,7 @@ function M.GetCurrentLapInfo()
     if speed < 2.0 then S.playerStoppedState = true end
   end
 
-  return currentLap, totalLaps, S.playerStoppedState
+  return currentLap, totalLaps, S.playerStoppedState, formationLap
 end
 
 -- Builds the overall and same-class lists as { idx, [key] = valueFn(i) } entries.
@@ -172,7 +197,7 @@ end
 
 function M.GetPlayerPositions()
   local sim = ac.getSim()
-  local currentLap, totalLaps, stopped = M.GetCurrentLapInfo()
+  local currentLap, totalLaps, stopped, formationLap = M.GetCurrentLapInfo()
 
   local allCars, classCars, totalCars, classTotal = collectCars("prog", M.LeaderboardProgress)
   table.sort(allCars, progSorter)
@@ -192,7 +217,8 @@ function M.GetPlayerPositions()
   end
 
   overallPos, classPos = applyEnginePosition(classCars, overallPos, classPos)
-  return overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped
+  return overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped,
+    formationLap
 end
 
 function M.GetPlayerPositionsQuali()

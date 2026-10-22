@@ -125,6 +125,9 @@ end
 local function handleSessionChange(sessionChanged, sessionSwitched)
   if sessionSwitched then
     resetRollingToIdle()
+    -- A different session: its own grid and its own lane convention have to be captured again.
+    S.rollingStartGridCaptured = false
+    S.rollingStartStartSides = {}
   end
   if sessionChanged then
     S.firstFrame = true
@@ -133,9 +136,23 @@ local function handleSessionChange(sessionChanged, sessionSwitched)
   end
 end
 
-local function recordAndReorderGrid()
-  Grid.RecordStartingPositions()
-  PoleSide.DetectRollingStartPoleSide()
+-- Captures the starting grid and the pole side. This happens ONCE per session: AC's in-place
+-- restart keeps the same grid, but the cars are not back on it when the restart is detected, so
+-- recording the slots again there would capture the live race classification instead of the grid,
+-- and the pole side would be measured from the aborted attempt's formation, mirroring every
+-- column of the field.
+local function recordAndReorderGrid(sim)
+  if not S.rollingStartGridCaptured then
+    -- A new session: the manual lane override only lasts for one session.
+    S.rollingStartPoleOnRight = false
+    S.rollingStartPoleSideSource = "auto"
+    S.rollingStartStartSides = {}
+    Grid.RecordStartingPositions()
+    PoleSide.DetectRollingStartPoleSide()
+    S.rollingStartGridCaptured = true
+  else
+    U.Log("ROLLING: grid capture reused (same session); pole side and grid slots kept")
+  end
   Grid.ReorderGridByClass()
   S.gridReordered = true
 end
@@ -155,7 +172,7 @@ local function firstFrameGridSetup(sim)
     U.Log("FIRSTFRAME: LoadManualClassesFromStorage FAILED err=" .. tostring(loadErr))
   end
   if Sess.IsRaceMode(sim) then
-    recordAndReorderGrid()
+    recordAndReorderGrid(sim)
   end
 end
 
@@ -167,8 +184,13 @@ local function handleFirstFrame(sim)
   U.Log(sFormat("FIRSTFRAME: idx=%s race=%s dc=%d rc=%d", tostring(sim.currentSessionIndex), tostring(Sess.IsRaceMode()), S.driverCount, #S.releaseClasses))
   S.leaderboardOpened = false
   S.playerStoppedState = false
-  S.allDriversStartingPos = {}
-  S.rollingStartGridPositions = {}
+  -- The captured grid is only dropped when it belongs to an older session: an in-place restart
+  -- reuses the same grid, and clearing it here would leave the rolling start with the live race
+  -- classification instead of the grid slots.
+  if not S.rollingStartGridCaptured then
+    S.allDriversStartingPos = {}
+    S.rollingStartGridPositions = {}
+  end
   if S.driverCount > 0 then
     firstFrameGridSetup(sim)
   end
@@ -185,7 +207,7 @@ local function reloadClassesIfMissing(sim)
     if #S.releaseClasses > 0 then
       Classes.BuildClassInfo()
       if Sess.IsRaceMode(sim) then
-        recordAndReorderGrid()
+        recordAndReorderGrid(sim)
       end
     end
   end
@@ -195,7 +217,7 @@ local function prepareRollingIfNeeded(sim, valid)
   if valid and Sess.IsRaceMode(sim) and S.rollingStartState == "idle" and S.driverCount > 0
       and not Sess.IsSessionFinished(sim) then
     if not S.gridReordered then
-      recordAndReorderGrid()
+      recordAndReorderGrid(sim)
     end
     local okRolling, rollingErr = pcall(Prepare.PrepareRollingStart, sim)
     if not okRolling then
@@ -271,6 +293,9 @@ function Frame.OnSessionStart()
   S.carClassCache       = {}
   S.allDriversStartingPos = {}
   S.uiSourceCache       = {}
+  -- A new session brings its own grid: the capture and the measured grid sides are taken again.
+  S.rollingStartGridCaptured = false
+  S.rollingStartStartSides   = {}
   if S.liveSessionPending then
     S.resultResetAfterExport = true
   else
