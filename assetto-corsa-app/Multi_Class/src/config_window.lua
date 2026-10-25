@@ -122,14 +122,8 @@ local function drawMusicSection(w)
     S.storedSettings.rollingMusicEnabled = S.rollingMusicEnabled
     if not S.rollingMusicEnabled then Audio.Reset() end
   end
-  ui.setCursor(vec2(COL_X, ui.getCursor().y + 2))
-  ui.pushItemWidth(w - 48)
-  local volume, changed = ui.slider("##rollingMusicVolume", S.rollingMusicVolume, 0, 4, "Music volume: %.2f")
-  ui.popItemWidth()
-  if changed then
-    S.rollingMusicVolume = volume
-    S.storedSettings.rollingMusicVolume = volume
-  end
+  S.rollingMusicVolume = 4.0
+  S.storedSettings.rollingMusicVolume = 4.0
   ui.dummy(vec2(0, 8))
 end
 
@@ -143,14 +137,8 @@ local function drawYellowFlagSection(w)
     S.storedSettings.flagSoundEnabled = S.flagSoundEnabled
     if not S.flagSoundEnabled then Audio.ResetFlags() end
   end
-  ui.setCursor(vec2(COL_X, ui.getCursor().y + 2))
-  ui.pushItemWidth(w - 48)
-  local volume, changed = ui.slider("##flagSoundVolume", S.flagSoundVolume, 0, 4, "Flag sound volume: %.2f")
-  ui.popItemWidth()
-  if changed then
-    S.flagSoundVolume = volume
-    S.storedSettings.flagSoundVolume = volume
-  end
+  S.flagSoundVolume = 4.0
+  S.storedSettings.flagSoundVolume = 4.0
   ui.dummy(vec2(0, 8))
 end
 
@@ -287,6 +275,14 @@ function Config.Draw()
   ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(6, 6))
 
   drawBackgroundAndTitle(w, h)
+
+  drawEnduranceSection(w)
+
+  if not S.enduranceEnabled then
+    ui.popStyleVar()
+    return
+  end
+
   drawResultExportSection(w)
   drawMusicSection(w)
   drawYellowFlagSection(w)
@@ -295,7 +291,6 @@ function Config.Draw()
     if Sess.IsRaceMode(sim) then
       drawPoleSideSection(w)
     end
-    drawEnduranceSection(w)
   else
     drawUnsupportedMessage(w, err)
   end

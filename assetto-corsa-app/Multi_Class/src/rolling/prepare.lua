@@ -22,7 +22,10 @@ local function IsPreStart(sim)
   return preStart or RGroups.IsFieldStillAtStartingGrid(sim)
 end
 
--- Returns an unavailability reason, or nil when staging can proceed.
+-- Returns an unavailability reason, or nil when staging can proceed. The second value is
+-- true when the reason may simply be stale sim state (right after an in-place restart the
+-- sim reports the aborted attempt as still running for a few frames) and staging should be
+-- retried instead of giving up.
 local function CheckStagingPossible(sim)
   if S.driverCount <= 0 or
       not ac.hasTrackSpline or not ac.hasTrackSpline() then
@@ -35,7 +38,7 @@ local function CheckStagingPossible(sim)
   end
 
   if not IsPreStart(sim) then
-    return "The race was already moving when the Lua app loaded."
+    return "The race was already moving when the Lua app loaded.", true
   end
   return nil
 end
@@ -151,23 +154,25 @@ local function StageCars(groups, queue)
 end
 
 function M.PrepareRollingStart(sim)
-  if S.rollingStartState ~= "idle" or not Sess.IsRaceMode(sim) then return end
+  if S.rollingStartState ~= "idle" or not Sess.IsRaceMode(sim) then return "not-ready" end
 
-  local reason = CheckStagingPossible(sim)
+  local reason, retryable = CheckStagingPossible(sim)
   if reason then
+    if retryable and S.rollingRestartPending then return "wait" end
     RCtl.MarkRollingStartUnavailable(reason)
-    return
+    return "unavailable"
   end
 
   local groups = RGroups.BuildRollingStartGroups()
   if #groups == 0 then
     RCtl.MarkRollingStartUnavailable("No cars were available to stage.")
-    return
+    return "unavailable"
   end
 
   local queue = BuildReleaseQueue(groups)
   StageCars(groups, queue)
 
+  S.rollingRestartPending = false
   S.rollingStartState = "staged"
   S.rollingStartStatus = "ROLLING START READY"
   S.rollingStartSessionKey = Sess.GetCurrentSessionKey(sim)
@@ -175,6 +180,7 @@ function M.PrepareRollingStart(sim)
   S.rollingStartDiagFrame = 0
   U.Log(sFormat("ROLLING: prepared %d cars in %d classes (reference-style, no teleport); lapOffset=%d",
       #queue, #groups, S.liveRollingStartLapOffset))
+  return "staged"
 end
 
 -- Formation begins when AC green-lights the race. Every AI car is held on the grid; the row-0

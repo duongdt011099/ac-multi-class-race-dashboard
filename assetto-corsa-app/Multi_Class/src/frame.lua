@@ -12,6 +12,7 @@ local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
+local Pos = require("src/leaderboard/positions")
 
 local Frame = {}
 
@@ -86,23 +87,40 @@ local function resetRollingToIdle()
   end
 end
 
--- AC's in-place "Restart Session" reuses the same session index/name and does not fire
--- ac.onSessionStart, so detect the true -> false edge of isSessionStarted ourselves and arm a
--- fresh re-init for the coming pre-start countdown. This is read before the export frame so
--- lastSessionStarted still holds the previous frame's value.
-local function detectInPlaceRestart(sim)
+-- Drops everything that belonged to the attempt that just ended. The captured starting grid
+-- (grid slots and measured sides) is deliberately NOT touched: an in-place restart puts the
+-- field back on the very same grid, and re-measuring it later would record the aborted
+-- attempt's classification/formation instead.
+local function resetAttemptState()
+  RCtl.RestoreRollingStartControls(false)
+  pcall(Yellow.Reset)
+  S.rollingStartState = "idle"
+  S.rollingStartStatus = ""
+  S.leaderboardOpened = false
+  S.playerStoppedState = false
+  S.raceDisplayStable = nil
+  S.raceDisplayPending = nil
+  S.carClassCache = {}
+  S.uiSourceCache = {}
+  S.gridReordered = false
+  S.classReloadAttempted = false
+end
+
+-- AC does not always fire ac.onSessionStart for an in-place restart, so also watch the
+-- true -> false edge of isSessionStarted. This is read before the export frame, so
+-- lastSessionStarted still holds the previous frame's value. The edge means the attempt is
+-- over (restart or race end); tear the formation down so the next attempt can stage again.
+-- It must never run while the session is live: a staged formation has to survive green.
+local function detectSessionEnded(sim)
   if S.lastSessionStarted == true and sim.isSessionStarted ~= true then
-    resetRollingToIdle()
-    S.rollingPendingReinit = true
-  end
-  if sim.isSessionStarted == true then
-    S.rollingPendingReinit = false
-  end
-  if S.rollingPendingReinit and S.driverCount > 0 then
-    S.rollingPendingReinit = false
+    resetAttemptState()
     S.firstFrame = true
-    S.gridReordered = false
-    S.classReloadAttempted = false
+    -- Keep the grid capture for the restart that is normally about to happen. A genuinely
+    -- new session clears it through ac.onSessionStart(restarted=false).
+    S.gridReordered = S.rollingStartGridCaptured
+    pcall(function() Pos.InvalidateLeaderboardCache() end)
+    U.Log("ROLLING: session ended in place; formation reset (grid capture kept=" ..
+        tostring(S.rollingStartGridCaptured) .. ")")
   end
 end
 
@@ -128,11 +146,13 @@ local function handleSessionChange(sessionChanged, sessionSwitched)
     -- A different session: its own grid and its own lane convention have to be captured again.
     S.rollingStartGridCaptured = false
     S.rollingStartStartSides = {}
+    pcall(function() Pos.InvalidateLeaderboardCache() end)
   end
   if sessionChanged then
     S.firstFrame = true
     S.carClassCache = {}
     S.uiSourceCache = {}
+    pcall(function() Pos.InvalidateLeaderboardCache() end)
   end
 end
 
@@ -171,7 +191,7 @@ local function firstFrameGridSetup(sim)
   if not okLoad then
     U.Log("FIRSTFRAME: LoadManualClassesFromStorage FAILED err=" .. tostring(loadErr))
   end
-  if Sess.IsRaceMode(sim) then
+  if Sess.IsRaceMode(sim) and not S.gridReordered then
     recordAndReorderGrid(sim)
   end
 end
@@ -215,13 +235,17 @@ end
 
 local function prepareRollingIfNeeded(sim, valid)
   if valid and Sess.IsRaceMode(sim) and S.rollingStartState == "idle" and S.driverCount > 0
-      and not Sess.IsSessionFinished(sim) then
+      and (S.rollingRestartPending or not Sess.IsSessionFinished(sim)) then
     if not S.gridReordered then
       recordAndReorderGrid(sim)
     end
-    local okRolling, rollingErr = pcall(Prepare.PrepareRollingStart, sim)
+    local okRolling, rollingResult = pcall(Prepare.PrepareRollingStart, sim)
     if not okRolling then
-      RCtl.MarkRollingStartUnavailable("Could not prepare the field: " .. tostring(rollingErr), true)
+      RCtl.MarkRollingStartUnavailable("Could not prepare the field: " .. tostring(rollingResult), true)
+    elseif rollingResult == "wait" then
+      -- The restart signal arrived while the sim still reports the aborted attempt as
+      -- running. Keep retrying: once the field is back on the grid this will stage.
+      return
     end
   end
 end
@@ -247,12 +271,42 @@ local function updateRolling(sim, dt)
   end
 end
 
+local function stopAllFeatures(sim)
+  RCtl.RestoreRollingStartControls(false)
+  pcall(Yellow.Reset)
+  S.rollingStartState = "idle"
+  S.rollingStartStatus = ""
+  S.leaderboardOpened = false
+  ac.setWindowOpen("cl_leaderboard", false)
+end
+
 function Frame.Update(dt)
   local sim = ac.getSim()
   S.driverCount = sim.carsCount or 0
 
+  -- Replay: the app is fully disabled while a replay is being watched, and no session
+  -- result may be auto-saved from replay data. The auto-save preference itself is left
+  -- untouched, so it comes back as soon as the replay ends.
+  if U.IsReplayActive(sim) then
+    stopAllFeatures(sim)
+    ac.setWindowOpen("cl_config", false)
+    return
+  end
+
+  -- "Enable Multiple Class Race" unchecked: every feature of the app is off, only the
+  -- enable checkbox remains in the config window.
+  if not S.enduranceEnabled then
+    stopAllFeatures(sim)
+    if sim.isInMainMenu == true then
+      ac.setWindowOpen("cl_config", true)
+    end
+    S.lastSessionStarted = sim.isSessionStarted
+    S.lastSessionIndex = sim.currentSessionIndex
+    return
+  end
+
   logUpdateEntry(sim)
-  detectInPlaceRestart(sim)
+  detectSessionEnded(sim)
   handleSessionChange(runExportFrame(sim))
   local valid, validationError = Sess.CheckSessionValidity()
   handleFirstFrame(sim)
@@ -276,26 +330,32 @@ function Frame.Update(dt)
   updateRolling(sim, dt)
 end
 
-function Frame.OnSessionStart()
-  -- A new session always drops any field left over from the previous one, whatever state it was
-  -- in (a restart can catch us mid staged/rolling).
-  RCtl.RestoreRollingStartControls(false)
-  pcall(Yellow.Reset)
-  S.rollingStartState = "idle"
-  S.rollingStartStatus = ""
+-- ac.onSessionStart fires both for a genuinely new session and for an in-place
+-- "Restart Session" (the callback's `restarted` flag). Both must drop the leftover field,
+-- but only a genuinely new session brings a new grid: on a restart AC puts the field back
+-- on the same grid, so the captured slots and measured sides have to survive.
+function Frame.OnSessionStart(sessionIndex, restarted)
+  resetAttemptState()
+  S.firstFrame = true
+  S.rollingRestartPending = restarted == true
 
-  S.firstFrame          = true
-  S.playerStoppedState  = false
-  S.raceDisplayStable   = nil
-  S.raceDisplayPending  = nil
-  S.gridReordered       = false
-  S.classReloadAttempted = false
-  S.carClassCache       = {}
-  S.allDriversStartingPos = {}
-  S.uiSourceCache       = {}
-  -- A new session brings its own grid: the capture and the measured grid sides are taken again.
-  S.rollingStartGridCaptured = false
-  S.rollingStartStartSides   = {}
+  if restarted == true then
+    -- Keep the grid capture and the class ordering that was built from it: the cars are
+    -- going back to exactly the same slots, and recapturing now (or later, when they are
+    -- on the old attempt's formation) would corrupt the class spacing.
+    S.gridReordered = S.rollingStartGridCaptured
+  else
+    S.allDriversStartingPos = {}
+    S.rollingStartGridPositions = {}
+    S.rollingStartGridCaptured = false
+    S.rollingStartStartSides = {}
+  end
+
+  -- Persistent class assignments stay valid across a restart; only the derived caches go.
+  S.carClassCache = {}
+  S.uiSourceCache = {}
+  pcall(function() Pos.InvalidateLeaderboardCache() end)
+
   if S.liveSessionPending then
     S.resultResetAfterExport = true
   else
@@ -303,7 +363,8 @@ function Frame.OnSessionStart()
     S.resultResetAfterExport = false
   end
   S.lastExportDiagnostic = nil
-  U.Log("onSessionStart: firstFrame=true")
+  U.Log(sFormat("onSessionStart: restarted=%s firstFrame=true gridCaptured=%s",
+      tostring(restarted), tostring(S.rollingStartGridCaptured)))
 end
 
 return Frame

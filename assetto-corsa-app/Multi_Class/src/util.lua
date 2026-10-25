@@ -115,4 +115,27 @@ function U.NormalizeTrackProgress(progress)
   return progress - math.floor(progress)
 end
 
+-- True while a replay is being watched. sim.isReplayActive is the field CSP exposes for
+-- this; the older candidate names are kept as fallbacks for older builds.
+function U.IsReplayActive(sim)
+  sim = sim or ac.getSim()
+  if not sim then return false end
+  local ok, active = pcall(function() return sim.isReplayActive end)
+  if ok and active == true then return true end
+  -- Fallbacks: none of these are documented, but checking them costs nothing.
+  for _, read in ipairs({
+    function() return sim.isInReplay end,
+    function() return sim.isReplay end,
+    function() return sim.replayMode end,
+  }) do
+    local okField, value = pcall(read)
+    if okField and value == true then return true end
+  end
+  if type(ac.isInReplay) == "function" then
+    local okFn, res = pcall(ac.isInReplay)
+    if okFn and res == true then return true end
+  end
+  return false
+end
+
 return U
