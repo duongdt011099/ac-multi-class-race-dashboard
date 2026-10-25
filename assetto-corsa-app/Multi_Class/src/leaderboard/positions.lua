@@ -8,6 +8,30 @@ local M = {}
 
 local getCar = ac.getCar
 
+local raceCache = {
+  lastTime = -1000000.0,
+  interval = 7.0,
+  valid = false,
+  overallPos = 1,
+  totalCars = 0,
+  classPos = 1,
+  classTotal = 0,
+  gapFront = nil,
+  gapBehind = nil,
+}
+
+local qualiCache = {
+  lastTime = -1000000.0,
+  interval = 7.0,
+  valid = false,
+  overallPos = 1,
+  totalCars = 0,
+  classPos = 1,
+  classTotal = 0,
+  classFastestMs = nil,
+  playerBestMs = nil,
+}
+
 function M.LeaderboardProgress(carIndex)
   local car = getCar(carIndex)
   if not car then return 0 end
@@ -21,6 +45,13 @@ function M.GetCarBestLapMs(idx)
     if okBt and type(bt) == "number" and bt > 0 then return bt end
   end
   return nil
+end
+
+function M.InvalidateLeaderboardCache()
+  raceCache.valid = false
+  raceCache.lastTime = -1000000.0
+  qualiCache.valid = false
+  qualiCache.lastTime = -1000000.0
 end
 
 -- The app runs a rolling start in every race session, so AC counts the formation lap as lap 1
@@ -198,6 +229,21 @@ end
 function M.GetPlayerPositions()
   local sim = ac.getSim()
   local currentLap, totalLaps, stopped, formationLap = M.GetCurrentLapInfo()
+  local now = 0
+  if sim and type(sim.time) == "number" then
+    now = sim.time / 1000
+  end
+
+  if raceCache.valid and now - raceCache.lastTime < raceCache.interval then
+    local cachedGapsFront = raceCache.gapFront
+    local cachedGapsBehind = raceCache.gapBehind
+    if not sim.isSessionStarted or stopped then
+      cachedGapsFront = nil
+      cachedGapsBehind = nil
+    end
+    return raceCache.overallPos, raceCache.totalCars, raceCache.classPos, raceCache.classTotal,
+      cachedGapsFront, cachedGapsBehind, currentLap, totalLaps, stopped, formationLap
+  end
 
   local allCars, classCars, totalCars, classTotal = collectCars("prog", M.LeaderboardProgress)
   table.sort(allCars, progSorter)
@@ -217,11 +263,32 @@ function M.GetPlayerPositions()
   end
 
   overallPos, classPos = applyEnginePosition(classCars, overallPos, classPos)
+
+  raceCache.overallPos = overallPos
+  raceCache.totalCars = totalCars
+  raceCache.classPos = classPos
+  raceCache.classTotal = classTotal
+  raceCache.gapFront = gapFront
+  raceCache.gapBehind = gapBehind
+  raceCache.lastTime = now
+  raceCache.valid = true
+
   return overallPos, totalCars, classPos, classTotal, gapFront, gapBehind, currentLap, totalLaps, stopped,
     formationLap
 end
 
 function M.GetPlayerPositionsQuali()
+  local sim = ac.getSim()
+  local now = 0
+  if sim and type(sim.time) == "number" then
+    now = sim.time / 1000
+  end
+
+  if qualiCache.valid and now - qualiCache.lastTime < qualiCache.interval then
+    return qualiCache.overallPos, qualiCache.totalCars, qualiCache.classPos, qualiCache.classTotal,
+      qualiCache.classFastestMs, qualiCache.playerBestMs
+  end
+
   local allCars, classCars, totalCars, classTotal = collectCars("best", M.GetCarBestLapMs)
   table.sort(allCars, bestSorter)
   table.sort(classCars, bestSorter)
@@ -237,7 +304,18 @@ function M.GetPlayerPositionsQuali()
     end
   end
 
-  return overallPos, totalCars, classPos, classTotal, classFastestMs, M.GetCarBestLapMs(0)
+  local playerBestMs = M.GetCarBestLapMs(0)
+
+  qualiCache.overallPos = overallPos
+  qualiCache.totalCars = totalCars
+  qualiCache.classPos = classPos
+  qualiCache.classTotal = classTotal
+  qualiCache.classFastestMs = classFastestMs
+  qualiCache.playerBestMs = playerBestMs
+  qualiCache.lastTime = now
+  qualiCache.valid = true
+
+  return overallPos, totalCars, classPos, classTotal, classFastestMs, playerBestMs
 end
 
 return M

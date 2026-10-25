@@ -16,6 +16,21 @@ local M = {}
 
 local LOOKAHEAD_M = C.YELLOW_FULL_GAP_M + 20
 
+local YELLOW_SCAN_INTERVAL_GREEN = 0.75
+local YELLOW_SCAN_INTERVAL_YELLOW_PENDING = 1.0
+local YELLOW_SCAN_INTERVAL_YELLOW = 3.5
+local YELLOW_SCAN_INTERVAL_GREEN_PENDING = 1.0
+local YELLOW_SCAN_INTERVAL_DEFAULT = 1.0
+
+local function getYellowScanInterval()
+  local st = S.fcy
+  if st == "green" then return YELLOW_SCAN_INTERVAL_GREEN end
+  if st == "yellow_pending" then return YELLOW_SCAN_INTERVAL_YELLOW_PENDING end
+  if st == "yellow" then return YELLOW_SCAN_INTERVAL_YELLOW end
+  if st == "green_pending" then return YELLOW_SCAN_INTERVAL_GREEN_PENDING end
+  return YELLOW_SCAN_INTERVAL_DEFAULT
+end
+
 local function carState(i)
   local st = S.yellowCars[i]
   if not st then
@@ -171,7 +186,7 @@ local function updateLeader()
 end
 
 -- Updates every car's hazard state and the list of active hazards (position where each stopped).
-local function buildHazards(dt, trackLength)
+local function buildHazardsNow(dt, trackLength)
   local hazards = {}
   for i = 0, S.driverCount - 1 do
     local car = getCar(i)
@@ -208,6 +223,32 @@ local function buildHazards(dt, trackLength)
     end
   end
   S.yellowHazards = hazards
+  S.yellowHazardScanAt = S.yellowClock
+end
+
+local function buildHazards(dt, trackLength)
+  if S.yellowHazardScanAt == nil then
+    S.yellowHazardScanAt = -1000000.0
+  end
+  local interval = getYellowScanInterval()
+  local force = false
+  if S.fcy == "yellow" then
+    if #S.yellowHazards == 0 then
+      force = true
+    end
+  end
+  if force or (S.yellowClock - S.yellowHazardScanAt) >= interval then
+    buildHazardsNow(dt, trackLength)
+  end
+end
+
+function M.ForceHazardScan(dt, trackLength)
+  if not trackLength then
+    local sim = ac.getSim()
+    trackLength = sim and sim.trackLengthM
+  end
+  if not U.IsFinite(trackLength) or trackLength <= C.ROLLING_START_MIN_TRACK_LENGTH_M then return end
+  buildHazardsNow(dt or 0, trackLength)
 end
 
 local function otherHazards()
@@ -224,15 +265,19 @@ local function clipDone(done, startedClock, seconds)
 end
 
 -- The whole-track state machine.
-local function updateFcy()
+local function updateFcy(trackLength)
   local count = #S.yellowHazards
   local state = S.fcy
 
   if state == "green" then
     if S.yellowArmed and count > 0 then
-      S.fcy, S.fcyAt = "yellow_pending", S.yellowClock
-      if otherHazards() > 0 then Audio.PlayYellowFlag() end
-      U.Log(sFormat("YELLOW: t=%.1f full course yellow pending, %d hazard(s), countdown started", S.yellowClock, count))
+      M.ForceHazardScan(0, trackLength)
+      count = #S.yellowHazards
+      if count > 0 then
+        S.fcy, S.fcyAt = "yellow_pending", S.yellowClock
+        if otherHazards() > 0 then Audio.PlayYellowFlag() end
+        U.Log(sFormat("YELLOW: t=%.1f full course yellow pending, %d hazard(s), countdown started", S.yellowClock, count))
+      end
     end
   elseif state == "yellow_pending" then
     -- The countdown always plays to the end, even if the hazard has gone by then.
@@ -241,12 +286,20 @@ local function updateFcy()
       U.Log(sFormat("YELLOW: t=%.1f YELLOW, countdown finished (%d hazard(s))", S.yellowClock, count))
     end
   elseif state == "yellow" then
+    if count == 0 or (S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS and S.yellowClock - (S.yellowHazardScanAt or -1000000.0) > 1.0) then
+      M.ForceHazardScan(0, trackLength)
+      count = #S.yellowHazards
+    end
     if count == 0 and S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS then
       S.fcy, S.fcyAt = "green_pending", S.yellowClock
       Audio.PlayGreenFlag()
       U.Log(sFormat("YELLOW: t=%.1f every hazard is gone, green countdown started", S.yellowClock))
     end
   elseif state == "green_pending" then
+    if count > 0 then
+      M.ForceHazardScan(0, trackLength)
+      count = #S.yellowHazards
+    end
     if count > 0 then
       S.fcy, S.fcyAt = "yellow", S.yellowClock
       Audio.StopGreenFlag()
@@ -504,6 +557,7 @@ function M.Reset()
   end
   S.yellowCars = {}
   S.yellowHazards = {}
+  S.yellowHazardScanAt = -1000000.0
   S.fcy = "green"
   S.fcyAt = 0.0
   S.yellowArmed = false
@@ -548,10 +602,14 @@ function M.Update(sim, dt)
     Audio.PreloadFlags()
   end
 
+  if S.yellowHazardScanAt == nil then
+    S.yellowHazardScanAt = -1000000.0
+  end
+
   S.yellowClock = S.yellowClock + dt
   updateLeader()
   buildHazards(dt, trackLength)
-  updateFcy()
+  updateFcy(trackLength)
   updateCars(trackLength, dt)
   updatePlayer(trackLength, dt)
 end

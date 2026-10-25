@@ -88,13 +88,22 @@ end
 
 local function CheckCarForGreen(carIndex, state, now)
   local car = getCar(carIndex)
-  if not (car and type(car.splinePosition) == "number" and type(state.lastProgress) == "number") then
+  if not (car and type(car.splinePosition) == "number") then
+    return
+  end
+  if state.enteredPhase2 ~= true then
+    return
+  end
+  if type(state.lastProgress) ~= "number" then
+    state.lastProgress = U.NormalizeTrackProgress(car.splinePosition)
+    state.travelled = state.travelled or 0.0
+    state.wrapCount = state.wrapCount or 0
     return
   end
   local progress = U.NormalizeTrackProgress(car.splinePosition)
   local crossedForward = AccumulateTravel(state, progress)
 
-  if crossedForward and state.travelled >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
+  if crossedForward and (state.travelled or 0.0) >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
     local group = S.rollingStartGroups[state.groupIndex]
     if group and not group.green then
       GreenWholeClass(group, now)

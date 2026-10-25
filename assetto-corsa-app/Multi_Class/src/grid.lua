@@ -2,6 +2,7 @@
 local S = require("src/state")
 local U = require("src/util")
 local Classes = require("src/classes/manager")
+local Pos = require("src/leaderboard/positions")
 
 local Grid = {}
 
@@ -83,6 +84,7 @@ function Grid.ReorderGridByClass()
     pos = pos + 1
   end
 
+  pcall(function() Pos.InvalidateLeaderboardCache() end)
   U.Log(sFormat("ReorderGridByClass: reordered=%d drivers, classes={%s}", S.driverCount, table.concat(S.classOrder, ",")))
 end
 

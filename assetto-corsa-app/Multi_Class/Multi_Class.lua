@@ -19,8 +19,8 @@ function script.clConfig()
   Config.Draw()
 end
 
-ac.onSessionStart(function()
-  Frame.OnSessionStart()
+ac.onSessionStart(function(sessionIndex, restarted)
+  Frame.OnSessionStart(sessionIndex, restarted)
 end)
 
 local function registerReleaseCallbacks()

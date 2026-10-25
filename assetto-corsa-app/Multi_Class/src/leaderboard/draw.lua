@@ -242,6 +242,37 @@ local function drawQualiBest(layout, data)
   DrawBoldText(myRow, w / 2, posY + (math.floor(gFs / 2) + 1), gFs, rgbm(0.95, 0.95, 1, 1))
 end
 
+local function formatGapSeconds(seconds, bestLapMs)
+  seconds = math.abs(seconds or 0)
+  -- A gap bigger than the human car's best lap is no longer meaningful in seconds: show
+  -- whole laps instead (1 LAP, 2 LAPS, ...). Floor, so the display never claims a lap the
+  -- car has not completed yet.
+  if bestLapMs and bestLapMs > 0 then
+    local bestLapSec = bestLapMs / 1000.0
+    if bestLapSec > 0 and seconds >= bestLapSec then
+      local laps = math.max(1, math.floor(seconds / bestLapSec))
+      if laps == 1 then
+        return "1 LAP"
+      else
+        return sFormat("%d LAPS", laps)
+      end
+    end
+  end
+  if seconds >= 60 then
+    local mins = math.floor(seconds / 60)
+    local secs = math.floor(seconds % 60 + 0.5)
+    if secs == 60 then
+      mins = mins + 1
+      secs = 0
+    end
+    return sFormat("%dm%02ds", mins, secs)
+  end
+  if seconds >= 10 then
+    return sFormat("%.0fs", seconds)
+  end
+  return sFormat("%.1fs", seconds)
+end
+
 local function buildGapText(sim, data)
   local gapStr = "--"
   local gapColor = rgbm(0.55, 0.55, 0.6, 0.9)
@@ -250,12 +281,19 @@ local function buildGapText(sim, data)
   if data.stopped then
     gapStr = "Car Stopped"
     gapColor = rgbm(1.0, 0.7, 0.35, 1)
-  elseif gapFront and gapBehind then
-    gapStr = sFormat("+%.1fs / -%.1fs", math.abs(gapFront), math.abs(gapBehind))
-  elseif gapFront then
-    gapStr = sFormat("+%.1fs", math.abs(gapFront))
-  elseif gapBehind then
-    gapStr = sFormat("-%.1fs", math.abs(gapBehind))
+  else
+    local playerBest = Positions.GetCarBestLapMs(0)
+    if gapFront and gapBehind then
+      local frontStr = formatGapSeconds(math.abs(gapFront), playerBest)
+      local behindStr = formatGapSeconds(math.abs(gapBehind), playerBest)
+      gapStr = "+" .. frontStr .. " / -" .. behindStr
+    elseif gapFront then
+      local frontStr = formatGapSeconds(math.abs(gapFront), playerBest)
+      gapStr = "+" .. frontStr
+    elseif gapBehind then
+      local behindStr = formatGapSeconds(math.abs(gapBehind), playerBest)
+      gapStr = "-" .. behindStr
+    end
   end
   return gapStr, gapColor
 end
@@ -286,6 +324,8 @@ local function collectData(qualiMode)
 end
 
 function M.Leaderboard(dt)
+  -- The whole app is off while "Enable Multiple Class Race" is unchecked.
+  if not S.enduranceEnabled then return end
   local sim = ac.getSim()
   local layout = computeLayout()
 

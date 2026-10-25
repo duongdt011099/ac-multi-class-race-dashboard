@@ -228,6 +228,11 @@ function Classes.BuildClassInfo()
   end
   sortClassOrder(classMinPos)
 
+  local okPos, posMod = pcall(require, "src/leaderboard/positions")
+  if okPos and posMod and posMod.InvalidateLeaderboardCache then
+    pcall(function() posMod.InvalidateLeaderboardCache() end)
+  end
+
   U.Log(sFormat("BuildClassInfo DONE: %d classes order={%s}", #S.classOrder, table.concat(S.classOrder, ",")))
 end
 
