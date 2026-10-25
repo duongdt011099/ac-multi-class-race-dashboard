@@ -8,6 +8,9 @@ local Snap = {}
 
 local getCar = ac.getCar
 
+local CAPTURE_INTERVAL_SECONDS = 2.0
+local lastCaptureAt = -1000.0
+
 function Snap.GetCarIdentity(i)
   local identity = { driver = "", car = "", skin = "" }
 
@@ -96,8 +99,19 @@ local function resolvePosition(i, lapData, raceFinished)
   return position
 end
 
-local function buildCarEntry(i, raceFinished)
+-- Driver/car/skin never change during a session, so they are read until they resolve once.
+local identityCache = {}
+
+local function cachedIdentity(i)
+  local cached = identityCache[i]
+  if cached then return cached end
   local identity = Snap.GetCarIdentity(i)
+  if identity.driver ~= "" or identity.car ~= "" then identityCache[i] = identity end
+  return identity
+end
+
+local function buildCarEntry(i, raceFinished)
+  local identity = cachedIdentity(i)
   local lapData = Snap.GetCarLapData(i)
   local entry = {
     index = i,
@@ -164,6 +178,12 @@ function Snap.CaptureLiveSession(sim)
   sim = sim or ac.getSim()
   if sim.isSessionStarted ~= true then return end
 
+  -- Walking every car (names, ids, lap data) is expensive, and the snapshot only has to be
+  -- recent, not per-frame: the session end forces a final capture of its own.
+  local now = os.clock()
+  if S.liveSessionKey ~= nil and now - lastCaptureAt < CAPTURE_INTERVAL_SECONDS then return end
+  lastCaptureAt = now
+
   local folder = Sess.SessionTypeToFolder(Sess.ReadLiveSessionType(sim))
   if folder == nil then return end
 
@@ -197,6 +217,8 @@ end
 
 -- Called when a new session starts, so a previous session's snapshot cannot leak into it.
 function Snap.ClearLiveSession()
+  identityCache = {}
+  lastCaptureAt = -1000.0
   S.liveSessionType     = nil
   S.liveSessionKey      = nil
   S.liveTrackName       = ""

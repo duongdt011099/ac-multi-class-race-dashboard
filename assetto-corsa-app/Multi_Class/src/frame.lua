@@ -69,7 +69,13 @@ end
 -- Log the incoming state before any export-side API calls. If the transition handler
 -- encounters an AC/CSP state object that is no longer valid after cars disappear, this
 -- entry still records the zero-car state that led to the failure.
+local UPDATE_ENTRY_INTERVAL = 5.0
+local lastUpdateEntryAt = -1000.0
+
 local function logUpdateEntry(sim)
+  local now = os.clock()
+  if now - lastUpdateEntryAt < UPDATE_ENTRY_INTERVAL then return end
+  lastUpdateEntryAt = now
   local entryOk, entryLine = pcall(buildEntryLine, sim)
   if entryOk and entryLine ~= S.lastExportUpdateDiagnostic then
     S.lastExportUpdateDiagnostic = entryLine

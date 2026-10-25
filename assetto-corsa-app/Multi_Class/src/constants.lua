@@ -44,10 +44,21 @@ C.ROLLING_START_CATCHUP_LIMIT       = 1.5
 C.ROLLING_START_PHASE1_CATCHUP      = 1.15
 C.ROLLING_START_PHASE1_MIN_GAP      = 10.0
 C.ROLLING_START_PHASE1_FULL_GAP     = 80.0
--- When the car ahead is closer than PHASE1_MIN_GAP, the follower does not charge it: it aims at
--- the car ahead's speed plus this margin, so a slow car in front is never run into (and never
--- overtaken) during the single-file run-up.
-C.ROLLING_START_PHASE1_FOLLOW_KMH   = 5.0
+-- Inside PHASE1_MIN_GAP the follower runs below the car ahead's speed, by GAP_GAIN km/h for every
+-- metre it is short of the gap (capped at YIELD_KMH once alongside or past). Aiming at the ahead
+-- car's speed or above let a slightly faster car creep alongside and pass, so the class reached
+-- the double-file zone out of grid order. YIELD_FLOOR keeps a car that slipped past a slow/stalled
+-- car rolling while it drops back.
+C.ROLLING_START_PHASE1_GAP_GAIN_KMH = 2.0
+C.ROLLING_START_PHASE1_YIELD_KMH    = 25.0
+C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH = 50.0
+-- Double-file lane guard: whatever is physically ahead in a car's own lane caps its speed once the
+-- centre-to-centre gap drops below GUARD_GAP, matching that car's speed at HOLD_GAP (about a car
+-- length plus margin) and slowing GAIN km/h per metre closer, so a car never drives into the back
+-- of another one even if the field arrives at the formation point out of order.
+C.ROLLING_START_LANE_GUARD_GAP      = 8.0
+C.ROLLING_START_LANE_GUARD_HOLD_GAP = 5.5
+C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
 -- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.

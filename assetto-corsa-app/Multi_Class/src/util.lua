@@ -7,6 +7,8 @@ local U = {}
 local sFormat = string.format
 local mMin = math.min
 
+local MAX_LOG_BYTES = 20 * 1024 * 1024
+
 local function resolveLogPath()
   if type(ac.dirname) == "function" then
     return ac.dirname() .. "/debug.log"
@@ -21,7 +23,14 @@ function U.Log(msg)
   if not C.DEBUG_ENABLED then return end
   pcall(function()
     if not S.debugLogFile then
-      S.debugLogFile = io.open(resolveLogPath(), "a")
+      local path = resolveLogPath()
+      local file = io.open(path, "a")
+      -- The log used to grow without bound (hundreds of MB); start over once it is large.
+      if file and (file:seek("end") or 0) > MAX_LOG_BYTES then
+        file:close()
+        file = io.open(path, "w")
+      end
+      S.debugLogFile = file
     end
     if S.debugLogFile then
       S.debugLogFile:write(msg .. "\n")

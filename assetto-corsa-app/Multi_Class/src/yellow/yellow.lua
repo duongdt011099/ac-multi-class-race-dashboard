@@ -22,6 +22,9 @@ local YELLOW_SCAN_INTERVAL_YELLOW = 3.5
 local YELLOW_SCAN_INTERVAL_GREEN_PENDING = 1.0
 local YELLOW_SCAN_INTERVAL_DEFAULT = 1.0
 
+-- Longest stretch of time one scan may account for (a pause or a long hitch must not skip a timer).
+local MAX_SCAN_DT = 5.0
+
 local function getYellowScanInterval()
   local st = S.fcy
   if st == "green" then return YELLOW_SCAN_INTERVAL_GREEN end
@@ -186,7 +189,16 @@ local function updateLeader()
 end
 
 -- Updates every car's hazard state and the list of active hazards (position where each stopped).
-local function buildHazardsNow(dt, trackLength)
+local function buildHazardsNow(frameDt, trackLength)
+  updateLeader()
+  -- Hazard state is only advanced when a scan runs, so its timers (recovery, slow, stopped, tow)
+  -- have to count the time since the previous scan. Adding the single frame's dt made a hazard
+  -- take minutes to clear (1.5 s of recovery at one frame per scan), so the yellow never ended.
+  local dt = frameDt
+  local lastScan = S.yellowHazardScanAt
+  if lastScan and lastScan > -1000.0 then
+    dt = math.max(frameDt, math.min(S.yellowClock - lastScan, MAX_SCAN_DT))
+  end
   local hazards = {}
   for i = 0, S.driverCount - 1 do
     local car = getCar(i)
@@ -291,9 +303,13 @@ local function updateFcy(trackLength)
       count = #S.yellowHazards
     end
     if count == 0 and S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS then
-      S.fcy, S.fcyAt = "green_pending", S.yellowClock
-      Audio.PlayGreenFlag()
-      U.Log(sFormat("YELLOW: t=%.1f every hazard is gone, green countdown started", S.yellowClock))
+      M.ForceHazardScan(0, trackLength)
+      count = #S.yellowHazards
+      if count == 0 and S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS then
+        S.fcy, S.fcyAt = "green_pending", S.yellowClock
+        Audio.PlayGreenFlag()
+        U.Log(sFormat("YELLOW: t=%.1f every hazard is gone, green countdown started", S.yellowClock))
+      end
     end
   elseif state == "green_pending" then
     if count > 0 then
@@ -325,7 +341,11 @@ local function fcyLimit(i, p, trackLength)
   return nil
 end
 
-local function gapFactor(i, car, p, trackLength, dt)
+-- The O(N) scan for the nearest car ahead is refreshed twice a second per car; the
+-- smoothing below runs every frame on the cached value.
+local GAP_SCAN_SECONDS = 0.5
+
+local function scanGapFactor(i, p, trackLength)
   local factor = 1.0
   for j = 0, S.driverCount - 1 do
     local other = j ~= i and getCar(j) or nil
@@ -342,9 +362,18 @@ local function gapFactor(i, car, p, trackLength, dt)
       end
     end
   end
+  return factor
+end
+
+local function gapFactor(i, car, p, trackLength, dt)
+  local st = carState(i)
+  local factor = st.gapRaw
+  if not factor or S.yellowClock - (st.gapRawAt or -1000.0) >= GAP_SCAN_SECONDS then
+    factor = scanGapFactor(i, p, trackLength)
+    st.gapRaw, st.gapRawAt = factor, S.yellowClock
+  end
   -- Smooth the factor, so the target limit walks down instead of jumping when a car ahead gets
   -- closer: the limit itself is already ramped, a step here would defeat that.
-  local st = carState(i)
   local smoothed = st.gapF or factor
   if dt and dt > 0 then
     smoothed = smoothed + (factor - smoothed) * math.min(1.0, dt / C.YELLOW_GAP_SMOOTH_SECONDS)
@@ -607,7 +636,6 @@ function M.Update(sim, dt)
   end
 
   S.yellowClock = S.yellowClock + dt
-  updateLeader()
   buildHazards(dt, trackLength)
   updateFcy(trackLength)
   updateCars(trackLength, dt)

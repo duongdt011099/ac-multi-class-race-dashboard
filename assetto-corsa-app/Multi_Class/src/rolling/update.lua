@@ -91,9 +91,6 @@ local function CheckCarForGreen(carIndex, state, now)
   if not (car and type(car.splinePosition) == "number") then
     return
   end
-  if state.enteredPhase2 ~= true then
-    return
-  end
   if type(state.lastProgress) ~= "number" then
     state.lastProgress = U.NormalizeTrackProgress(car.splinePosition)
     state.travelled = state.travelled or 0.0
@@ -103,7 +100,10 @@ local function CheckCarForGreen(carIndex, state, now)
   local progress = U.NormalizeTrackProgress(car.splinePosition)
   local crossedForward = AccumulateTravel(state, progress)
 
-  if crossedForward and (state.travelled or 0.0) >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
+  -- Travel is counted from the grid through the single-file run-up too (not only once double file
+  -- starts), otherwise a car's first phase-2 frame measures from its stale grid progress and the
+  -- class needs roughly an extra half lap before it can go green.
+  if state.enteredPhase2 == true and crossedForward and (state.travelled or 0.0) >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
     local group = S.rollingStartGroups[state.groupIndex]
     if group and not group.green then
       GreenWholeClass(group, now)
