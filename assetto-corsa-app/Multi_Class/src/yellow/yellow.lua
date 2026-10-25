@@ -291,9 +291,13 @@ local function updateFcy(trackLength)
       count = #S.yellowHazards
     end
     if count == 0 and S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS then
-      S.fcy, S.fcyAt = "green_pending", S.yellowClock
-      Audio.PlayGreenFlag()
-      U.Log(sFormat("YELLOW: t=%.1f every hazard is gone, green countdown started", S.yellowClock))
+      M.ForceHazardScan(0, trackLength)
+      count = #S.yellowHazards
+      if count == 0 and S.yellowClock - S.fcyAt >= C.YELLOW_MIN_HOLD_SECONDS then
+        S.fcy, S.fcyAt = "green_pending", S.yellowClock
+        Audio.PlayGreenFlag()
+        U.Log(sFormat("YELLOW: t=%.1f every hazard is gone, green countdown started", S.yellowClock))
+      end
     end
   elseif state == "green_pending" then
     if count > 0 then
