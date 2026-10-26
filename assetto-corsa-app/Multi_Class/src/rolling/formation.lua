@@ -103,7 +103,10 @@ end
 
 local function LockPhase2Position(state, group)
   state.enteredPhase2 = true
-  if state.carIndex == 0 then Audio.PlayRolling() end
+  if state.carIndex == 0 then
+    Audio.PlayRolling()
+    Audio.PlayDoubleFile()
+  end
   state.phase2At = S.rollingStartSessionTime
   local pos = state.classPosition
   if group then

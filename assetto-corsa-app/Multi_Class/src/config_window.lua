@@ -1,4 +1,5 @@
 -- Configuration window (script.clConfig body).
+local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
@@ -122,8 +123,8 @@ local function drawMusicSection(w)
     S.storedSettings.rollingMusicEnabled = S.rollingMusicEnabled
     if not S.rollingMusicEnabled then Audio.Reset() end
   end
-  S.rollingMusicVolume = 4.0
-  S.storedSettings.rollingMusicVolume = 4.0
+  S.rollingMusicVolume = C.AUDIO_VOLUME
+  S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME
   ui.dummy(vec2(0, 8))
 end
 
@@ -137,8 +138,8 @@ local function drawYellowFlagSection(w)
     S.storedSettings.flagSoundEnabled = S.flagSoundEnabled
     if not S.flagSoundEnabled then Audio.ResetFlags() end
   end
-  S.flagSoundVolume = 4.0
-  S.storedSettings.flagSoundVolume = 4.0
+  S.flagSoundVolume = C.AUDIO_VOLUME
+  S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME
   ui.dummy(vec2(0, 8))
 end
 

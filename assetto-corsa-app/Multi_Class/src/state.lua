@@ -1,5 +1,6 @@
 -- All mutable app state, shared by every module through this single table.
 -- Field names are identical to the file-level locals of the old single-file app.
+local C = require("src/constants")
 local S = {}
 
 -- Persisted user settings. ac.storage rejects undeclared keys, so every key is declared here.
@@ -8,9 +9,9 @@ S.storedSettings = ac.storage({
   resultExportEnabled = true,
   resultFolder = "",
   rollingMusicEnabled = true,
-  rollingMusicVolume = 4.0,
+  rollingMusicVolume = C.AUDIO_VOLUME,
   flagSoundEnabled = true,
-  flagSoundVolume = 4.0,
+  flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
 })
 
@@ -51,12 +52,12 @@ S.enduranceEnabled   = S.storedSettings.enduranceEnabled ~= false
 S.resultExportEnabled = true
 S.resultFolder       = ""
 S.rollingMusicEnabled = S.storedSettings.rollingMusicEnabled ~= false
-S.rollingMusicVolume  = 4.0
+S.rollingMusicVolume  = C.AUDIO_VOLUME
 S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
-S.flagSoundVolume     = 4.0
+S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
-if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = 4.0 end
-if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = 4.0 end
+if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
+if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME end
 
 -- Full course yellow: "green" -> "yellow_pending" (countdown clip) -> "yellow" -> "green_pending"
 -- (green clip) -> "green". yellowPlayerActive is true while the yellow panel shows.

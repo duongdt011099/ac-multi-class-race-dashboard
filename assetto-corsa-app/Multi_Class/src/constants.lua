@@ -3,6 +3,9 @@ local C = {}
 
 C.DEBUG_ENABLED = true
 
+-- ui.MediaPlayer:setVolume only accepts 0..1 (values above 1 are not amplification), so 1.0 is the loudest.
+C.AUDIO_VOLUME = 1.0
+
 C.RACE_POS_STABLE_FRAMES = 2
 C.EXPORT_RETRY_SECONDS   = 2
 
