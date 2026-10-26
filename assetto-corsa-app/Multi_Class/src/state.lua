@@ -1,5 +1,6 @@
 -- All mutable app state, shared by every module through this single table.
 -- Field names are identical to the file-level locals of the old single-file app.
+local C = require("src/constants")
 local S = {}
 
 -- Persisted user settings. ac.storage rejects undeclared keys, so every key is declared here.
@@ -8,9 +9,9 @@ S.storedSettings = ac.storage({
   resultExportEnabled = true,
   resultFolder = "",
   rollingMusicEnabled = true,
-  rollingMusicVolume = 2.0,
+  rollingMusicVolume = C.AUDIO_VOLUME,
   flagSoundEnabled = true,
-  flagSoundVolume = 2.0,
+  flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
 })
 
@@ -27,9 +28,11 @@ S.raceDisplayStable         = nil
 S.raceDisplayPending        = nil
 S.gridReordered             = false
 S.classReloadAttempted      = false
--- Armed when a started session ends (in-place restart) so the next pre-start re-stages the field
--- even though AC reuses the same session index/name and does not fire ac.onSessionStart.
-S.rollingPendingReinit      = false
+-- Armed when ac.onSessionStart reports an in-place restart (or when a started session ends in
+-- place). While set, a staging attempt that finds the race still moving is retried on the next
+-- frame instead of permanently marking the rolling start unavailable: right after a restart the
+-- sim still reports the aborted attempt's state for a few frames.
+S.rollingRestartPending    = false
 
 -- Class assignment
 S.driverClass       = {}
@@ -43,14 +46,18 @@ S.carClassCache     = {}
 S.uiSourceCache     = {}
 
 -- Settings mirrored from storedSettings
-S.enduranceEnabled   = true
+-- enduranceEnabled has to be known before the first frame: while it is off, the frame
+-- update returns early and never reaches the class-loading path that restores settings.
+S.enduranceEnabled   = S.storedSettings.enduranceEnabled ~= false
 S.resultExportEnabled = true
 S.resultFolder       = ""
 S.rollingMusicEnabled = S.storedSettings.rollingMusicEnabled ~= false
-S.rollingMusicVolume  = tonumber(S.storedSettings.rollingMusicVolume) or 2.0
+S.rollingMusicVolume  = C.AUDIO_VOLUME
 S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
-S.flagSoundVolume     = tonumber(S.storedSettings.flagSoundVolume) or 2.0
+S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
+if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
+if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME end
 
 -- Full course yellow: "green" -> "yellow_pending" (countdown clip) -> "yellow" -> "green_pending"
 -- (green clip) -> "green". yellowPlayerActive is true while the yellow panel shows.

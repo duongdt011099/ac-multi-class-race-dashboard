@@ -62,6 +62,25 @@ function M.PlayRolling()
   armed = true
 end
 
+-- One-shot callout played when the player enters double file.
+local doubleFilePlayer = nil
+
+function M.PlayDoubleFile()
+  if not S.rollingMusicEnabled then return end
+  local ok, err = pcall(function()
+    if not doubleFilePlayer then
+      doubleFilePlayer = ui.MediaPlayer(ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/sounds/double_file.mp3",
+          { use3D = false })
+      doubleFilePlayer:setAutoPlay(false)
+      doubleFilePlayer:setLooping(false)
+    end
+    doubleFilePlayer:setVolume(C.AUDIO_VOLUME)
+    doubleFilePlayer:setCurrentTime(0)
+    doubleFilePlayer:play()
+  end)
+  if not ok then U.Log("AUDIO: could not play double_file: " .. tostring(err)) end
+end
+
 -- Called when the player's class goes green.
 function M.FadeOut()
   if not (player and started) or fadeLeft or finishing then return end

@@ -54,6 +54,46 @@ local function BuildPositionMaps()
   end
 end
 
+local function LaneKeyGreater(a, b)
+  return S.rollingStartCars[a].laneKey > S.rollingStartCars[b].laneKey
+end
+
+local function LinkLane(lane)
+  table.sort(lane, LaneKeyGreater)
+  for i = 2, #lane do
+    S.rollingStartCars[lane[i]].laneAheadIndex = lane[i - 1]
+  end
+end
+
+-- Running order of each class's double-file lanes, by actual track position rather than grid slot,
+-- so the lane guard always knows the car physically ahead in the same lane.
+local function BuildLaneOrder()
+  for _, group in ipairs(S.rollingStartGroups or {}) do
+    local left, right = group.laneLeft or {}, group.laneRight or {}
+    group.laneLeft, group.laneRight = left, right
+    for i = #left, 1, -1 do left[i] = nil end
+    for i = #right, 1, -1 do right[i] = nil end
+    local ref
+    for _, carIndex in ipairs(group.cars) do
+      local state = S.rollingStartCars[carIndex]
+      if state then
+        state.laneAheadIndex = nil
+        local car = state.enteredPhase2 and not state.green and not state.dropped and getCar(carIndex)
+        if car and type(car.splinePosition) == "number" then
+          ref = ref or car.splinePosition
+          local d = car.splinePosition - ref
+          if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+          state.laneKey = d
+          local lane = (state.startSide or 1) < 0 and left or right
+          lane[#lane + 1] = carIndex
+        end
+      end
+    end
+    LinkLane(left)
+    LinkLane(right)
+  end
+end
+
 local function HoldUnreleasedAI(carIndex)
   setAITopSpeed(carIndex, 0.0)
   setAIThrottleLimit(carIndex, 0.0)
@@ -63,7 +103,10 @@ end
 
 local function LockPhase2Position(state, group)
   state.enteredPhase2 = true
-  if state.carIndex == 0 then Audio.PlayRolling() end
+  if state.carIndex == 0 then
+    Audio.PlayRolling()
+    Audio.PlayDoubleFile()
+  end
   state.phase2At = S.rollingStartSessionTime
   local pos = state.classPosition
   if group then
@@ -124,28 +167,51 @@ local function SingleFileTargets(state, group, car, trackLength)
       end
     end
   end
+  local throttleLimit = 1.0
   if aheadCar and car then
     local gap = Spacing.SignedGap(aheadCar, car, trackLength)
-    if gap < 0 then gap = 0 end
     if gap < C.ROLLING_START_PHASE1_MIN_GAP then
-      -- Too close to the car ahead: match its speed instead of charging into it. This keeps the
-      -- column intact when the car ahead is crawling, and stops the follower from driving
-      -- through (and past) a car that has not launched yet.
-      formationSpeed = math.min(formationSpeed,
-          (aheadCar.speedKmh or 0) + C.ROLLING_START_PHASE1_FOLLOW_KMH)
+      -- Too close to the car ahead: drop below its speed in proportion to the shortfall so the
+      -- gap opens back up. A follower that is alongside or already past backs off hard and hands
+      -- the place back, so the class keeps its grid order into the double-file zone.
+      local aheadSpeed = aheadCar.speedKmh or 0
+      local backOff = math.min(C.ROLLING_START_PHASE1_YIELD_KMH,
+          (C.ROLLING_START_PHASE1_MIN_GAP - gap) * C.ROLLING_START_PHASE1_GAP_GAIN_KMH)
+      formationSpeed = math.min(formationSpeed, math.max(0.0, aheadSpeed - backOff))
+      if gap < 0 then
+        formationSpeed = math.max(formationSpeed, C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH)
+        throttleLimit = 0.5
+      end
     else
       formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
           Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
               C.ROLLING_START_PHASE1_CATCHUP)
     end
   end
-  return formationSpeed, 0.0, 1.0, 1.0
+  return formationSpeed, 0.0, 1.0, throttleLimit
 end
 
-local function DoubleFileTargets(carIndex, state, group, trackLength)
+-- Never close on whatever is physically ahead in this car's own lane (see LANE_GUARD constants).
+local function ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimit)
+  local aheadIndex = state.laneAheadIndex
+  local aheadCar = aheadIndex and getCar(aheadIndex)
+  if not (aheadCar and car) then return targetSpeed, throttleLimit end
+  local gap = Spacing.SignedGap(aheadCar, car, trackLength)
+  if gap >= C.ROLLING_START_LANE_GUARD_GAP then return targetSpeed, throttleLimit end
+  local cap = (aheadCar.speedKmh or 0) +
+      (gap - C.ROLLING_START_LANE_GUARD_HOLD_GAP) * C.ROLLING_START_LANE_GUARD_GAIN_KMH
+  if cap < targetSpeed then
+    targetSpeed = math.max(0.0, cap)
+    if gap < C.ROLLING_START_LANE_GUARD_HOLD_GAP then throttleLimit = math.min(throttleLimit, 0.5) end
+  end
+  return targetSpeed, throttleLimit
+end
+
+local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
   local targetSpeed, throttleLimit = Spacing.ApplyRollingPhaseTwoSpacing(state, group, trackLength)
+  targetSpeed, throttleLimit = ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimit)
   return targetSpeed, targetOffset, cautionLevel, throttleLimit
 end
 
@@ -160,7 +226,7 @@ end
 local function CommandFormationAI(carIndex, state, group, car, trackLength, maxLaneMove)
   local targetSpeed, targetOffset, cautionLevel, throttleLimit
   if state.enteredPhase2 then
-    targetSpeed, targetOffset, cautionLevel, throttleLimit = DoubleFileTargets(carIndex, state, group, trackLength)
+    targetSpeed, targetOffset, cautionLevel, throttleLimit = DoubleFileTargets(carIndex, state, group, car, trackLength)
   else
     targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(state, group, car, trackLength)
   end
@@ -377,8 +443,9 @@ end
 
 -- Periodic diagnostic so the formation can be verified from the log.
 local function LogFormationDiagnostics()
-  S.rollingStartDiagFrame = (S.rollingStartDiagFrame or 0) + 1
-  if S.rollingStartDiagFrame % 30 ~= 0 then return end
+  local now = os.clock()
+  if now - (S.rollingStartDiagAt or -1000) < 5.0 then return end
+  S.rollingStartDiagAt = now
   for _, carIndex in ipairs(S.rollingStartQueue) do
     local state = S.rollingStartCars[carIndex]
     local car = getCar(carIndex)
@@ -404,6 +471,7 @@ function M.MaintainRollingFormation(dt, trackLength)
   }
 
   BuildPositionMaps()
+  BuildLaneOrder()
 
   for _, carIndex in ipairs(S.rollingStartQueue) do
     local state = S.rollingStartCars[carIndex]

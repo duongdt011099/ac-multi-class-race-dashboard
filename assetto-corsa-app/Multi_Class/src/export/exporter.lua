@@ -112,6 +112,8 @@ end
 -- already gone. The results-screen check is kept as a secondary trigger for the case
 -- where the app starts while results are already on screen.
 function Exporter.CheckForFinishedSession(sim)
+  if not S.enduranceEnabled then return end
+  if U.IsReplayActive(sim) then return end
   if not S.resultExportEnabled then return end
   if S.liveSessionType == nil then return end
   if S.liveSessionCarCount <= 0 then return end
@@ -168,6 +170,8 @@ function Exporter.ExportExpiredSessionOnRelease()
     S.liveSessionCarCount, tostring(S.liveSessionHadCountdown), tostring(currentTimeLeft),
     tostring(S.exportedSessionKey == S.liveSessionKey)))
 
+  if not S.enduranceEnabled then return end
+  if U.IsReplayActive() then return end
   if not S.resultExportEnabled then return end
   if S.liveSessionType == nil or S.liveSessionCarCount <= 0 then return end
   if not S.liveSessionHadCountdown or type(currentTimeLeft) ~= "number" or currentTimeLeft > 0 then return end
@@ -281,7 +285,17 @@ end
 -- Emit one diagnostic line whenever AC's export-relevant state changes. This makes it
 -- possible to distinguish a missed end transition from a missing session type, empty car
 -- snapshot, disabled setting, or an actual write failure without logging every frame.
+local EXPORT_STATE_LOG_INTERVAL = 5.0
+local lastExportStateCheck = -1000.0
+
 function Exporter.LogExportState(sim, sessionEnded, sessionBegan, sessionSwitched)
+  -- Gathering the diagnostics costs several sim reads; transitions are always logged, the
+  -- slow-moving fields (time left, pit state) are sampled every few seconds.
+  local now = os.clock()
+  if not (sessionEnded or sessionBegan or sessionSwitched) and now - lastExportStateCheck < EXPORT_STATE_LOG_INTERVAL then
+    return
+  end
+  lastExportStateCheck = now
   local d = gatherDiagnostics(sim)
   local signature = buildSignature(d, sessionEnded, sessionBegan, sessionSwitched)
   if signature ~= S.lastExportDiagnostic then
@@ -290,29 +304,28 @@ function Exporter.LogExportState(sim, sessionEnded, sessionBegan, sessionSwitche
   end
 end
 
+-- Runs every frame, so each condition only reads from the sim once its cheap guards pass.
 local function hasEndSignal(sim, sessionSwitched)
-  local currentSessionKey = Sess.GetCurrentSessionKey(sim)
-  local currentSessionFolder = Sess.SessionTypeToFolder(Sess.ReadLiveSessionType(sim))
-  local sessionTimeLeft = readSessionTimeLeft(sim)
-  local playerInPit = Snap.IsPlayerInPit()
-  local switchedAwayFromTrackedSession = sessionSwitched
-                        and S.liveSessionType ~= nil
-                        and S.liveSessionKey ~= nil
-                        and currentSessionKey ~= S.liveSessionKey
-  local sessionName = Sess.GetSessionNameLower(sim)
-  local lostTrackedSessionData = S.driverCount <= 0
-                        and S.liveSessionType ~= nil
-                        and S.liveSessionCarCount > 0
-                        and (currentSessionFolder == nil or sessionName == "")
-  local timedSessionExpiredInPit = S.liveSessionType ~= nil
-                        and S.liveSessionHadCountdown
-                        and sessionTimeLeft ~= nil
-                        and sessionTimeLeft <= 0
-                        and playerInPit == true
-  return (S.lastSessionStarted == true and sim.isSessionStarted ~= true)
-                        or switchedAwayFromTrackedSession
-                        or lostTrackedSessionData
-                        or timedSessionExpiredInPit
+  if S.lastSessionStarted == true and sim.isSessionStarted ~= true then return true end
+
+  if sessionSwitched and S.liveSessionType ~= nil and S.liveSessionKey ~= nil
+      and Sess.GetCurrentSessionKey(sim) ~= S.liveSessionKey then
+    return true
+  end
+
+  if S.driverCount <= 0 and S.liveSessionType ~= nil and S.liveSessionCarCount > 0
+      and (Sess.SessionTypeToFolder(Sess.ReadLiveSessionType(sim)) == nil
+          or Sess.GetSessionNameLower(sim) == "") then
+    return true
+  end
+
+  if S.liveSessionType ~= nil and S.liveSessionHadCountdown then
+    local sessionTimeLeft = readSessionTimeLeft(sim)
+    if sessionTimeLeft ~= nil and sessionTimeLeft <= 0 and Snap.IsPlayerInPit() == true then
+      return true
+    end
+  end
+  return false
 end
 
 -- Derives this frame's end/begin/switch flags from the previous and current sim state.
