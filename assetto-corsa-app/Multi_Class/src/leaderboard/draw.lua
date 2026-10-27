@@ -277,15 +277,22 @@ local function buildGapText(sim, data)
   local gapStr = "--"
   local gapColor = rgbm(0.55, 0.55, 0.6, 0.9)
   if not sim.isSessionStarted then return gapStr, gapColor end
-  -- Only the gap to the car ahead is shown: the gap behind can point at a retired / pitted car
-  -- and is not meaningful. The label reads "-" (time to make up on the car ahead).
-  local gapFront = data.gapFront
+  -- The labels read the other way round to the usual convention: "-" for the car ahead (time to
+  -- make up) and "+" for the car behind. The position (ahead first) is unchanged. Cars sitting in
+  -- the pits are skipped when the gaps are computed, so a pitted car never shows up here.
+  local gapFront, gapBehind = data.gapFront, data.gapBehind
   if data.stopped then
     gapStr = "Car Stopped"
     gapColor = rgbm(1.0, 0.7, 0.35, 1)
-  elseif gapFront then
+  else
     local playerBest = Positions.GetCarBestLapMs(0)
-    gapStr = "-" .. formatGapSeconds(math.abs(gapFront), playerBest)
+    local frontStr = gapFront and ("-" .. formatGapSeconds(math.abs(gapFront), playerBest))
+    local behindStr = gapBehind and ("+" .. formatGapSeconds(math.abs(gapBehind), playerBest))
+    if frontStr and behindStr then
+      gapStr = frontStr .. " / " .. behindStr
+    else
+      gapStr = frontStr or behindStr or gapStr
+    end
   end
   return gapStr, gapColor
 end

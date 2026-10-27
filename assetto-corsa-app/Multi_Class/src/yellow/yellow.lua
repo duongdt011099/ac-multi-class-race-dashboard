@@ -16,12 +16,24 @@ local M = {}
 
 local LOOKAHEAD_M = C.YELLOW_FULL_GAP_M + 20
 
--- Shows the sim's own track flag / light as yellow while the leaderboard shows yellow, and hands it
--- back to AC afterwards. Only called when the state changes so AC's flag handling is not fought.
-local function syncTrackFlag(active)
-  if (S.yellowTrackFlagOn == true) == active then return end
-  local ok = pcall(physics.overrideRacingFlag, active and ac.FlagType.Caution or ac.FlagType.None)
-  if ok then S.yellowTrackFlagOn = active end
+-- Mirrors the leaderboard on the sim's own track flag: yellow while the yellow panel shows, green
+-- while the green panel shows once the hazards are cleared, and back to AC's handling (None) after.
+-- Only sent on a change so AC's flag handling is not fought every frame.
+local function syncTrackFlag()
+  local want = ac.FlagType.None
+  if S.yellowPlayerActive then
+    want = ac.FlagType.Caution
+  elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
+    want = ac.FlagType.Start
+  end
+  if S.yellowTrackFlag == want then return end
+  local ok, err = pcall(physics.overrideRacingFlag, want)
+  if ok then
+    S.yellowTrackFlag = want
+    U.Log("YELLOW: track flag set to " .. tostring(want))
+  else
+    U.Log("YELLOW: could not set track flag: " .. tostring(err))
+  end
 end
 
 local YELLOW_SCAN_INTERVAL_GREEN = 0.75
@@ -340,7 +352,7 @@ local function updateFcy(trackLength)
   end
 
   S.yellowPlayerActive = (S.fcy == "yellow" or S.fcy == "green_pending")
-  syncTrackFlag(S.yellowPlayerActive)
+  syncTrackFlag()
 end
 
 -- The speed limit (km/h) for a car now, or nil when it may race.
@@ -604,7 +616,7 @@ function M.Reset()
   S.yellowPlayerActive = false
   S.yellowPlayerLimited = false
   S.yellowGreenUntil = 0.0
-  syncTrackFlag(false)
+  syncTrackFlag()
   Audio.ResetFlags()
 end
 

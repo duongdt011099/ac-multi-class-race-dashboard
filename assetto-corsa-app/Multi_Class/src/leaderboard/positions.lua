@@ -152,17 +152,26 @@ local function findPlayerRank(list)
   return nil
 end
 
+-- A car that is in the pits (or retired there) is no real neighbour on track: skip it so the gap
+-- is measured to the nearest car that is actually racing.
+local function isRacingNeighbour(idx)
+  local car = getCar(idx)
+  return car ~= nil and not (car.isInPitlane == true or car.isInPit == true)
+end
+
+local function classGapTo(classCars, from, step)
+  for i = from, step > 0 and #classCars or 1, step do
+    local idx = classCars[i].idx
+    if isRacingNeighbour(idx) then
+      local g = ac.getGapBetweenCars(0, idx)
+      return U.IsFinite(g) and g or nil
+    end
+  end
+  return nil
+end
+
 local function classGaps(classCars, classPos)
-  local gapFront, gapBehind = nil, nil
-  if classPos > 1 then
-    local g = ac.getGapBetweenCars(0, classCars[classPos - 1].idx)
-    if U.IsFinite(g) then gapFront = g end
-  end
-  if classPos < #classCars then
-    local g = ac.getGapBetweenCars(0, classCars[classPos + 1].idx)
-    if U.IsFinite(g) then gapBehind = g end
-  end
-  return gapFront, gapBehind
+  return classGapTo(classCars, classPos - 1, -1), classGapTo(classCars, classPos + 1, 1)
 end
 
 -- CSP computes car.racePosition every frame; ac.getCarLeaderboardPosition() is the
