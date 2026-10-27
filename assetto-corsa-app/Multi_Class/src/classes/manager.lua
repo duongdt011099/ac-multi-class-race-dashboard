@@ -79,7 +79,7 @@ function Classes.AddReleaseClass(name)
   local n = Classes.NormalizeClassName(name)
   U.Log(sFormat("AddReleaseClass: name='%s' normalized='%s' driverCount=%d", tostring(name), n, S.driverCount))
   if n == "" then
-    S.classAddError = "Enter a class name first."
+    S.classAddError = "Please choose the class name."
     return
   end
 

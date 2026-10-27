@@ -1,16 +1,15 @@
-using System.Globalization;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.BackgroundServices;
 
 namespace MulticlassRace.Services.Results;
 
 /// <summary>
-/// Moves expired Lua session results out of the way.
+/// Deletes expired Lua session results.
 ///
 /// The Lua app writes one JSON file per session into practice, qualifying and race folders next to
 /// itself and never removes them, so a user who races regularly accumulates thousands. Anything past
-/// the retention window is history the dashboard no longer offers for import, so it is moved rather
-/// than deleted: a wrong age test costs nothing but an empty folder the user can move files back out of.
+/// the retention window is history the dashboard no longer offers for import, so it is deleted
+/// permanently from disk.
 ///
 /// Only the three session folders are touched, and only files sitting directly in them. Content
 /// Manager results use the same yyMMdd-HHmmss.json naming but live directly in their own sessions
@@ -26,7 +25,8 @@ public sealed class LuaResultSweeper(
     /// <summary>Results older than this are no longer worth offering for import.</summary>
     public static readonly TimeSpan Retention = TimeSpan.FromDays(1);
 
-    private const string QuarantineFolderName = ".deleted";
+    // Older builds moved expired results here instead of deleting them.
+    private const string LegacyQuarantineFolderName = ".deleted";
 
     private static readonly string[] SessionFolderNames =
         [LuaResultPaths.PracticeFolder, LuaResultPaths.QualifyingFolder, LuaResultPaths.RaceFolder];
@@ -40,8 +40,10 @@ public sealed class LuaResultSweeper(
             return 0;
         }
 
+        TryDeleteLegacyQuarantine(root);
+
         var cutoff = DateTime.UtcNow - Retention;
-        var moved = 0;
+        var deleted = 0;
         var failed = 0;
 
         foreach (var folderName in SessionFolderNames)
@@ -71,27 +73,27 @@ public sealed class LuaResultSweeper(
                     continue;
                 }
 
-                if (TryQuarantine(file, cutoff) is false)
+                if (TryDelete(file) is false)
                 {
                     failed++;
                     continue;
                 }
 
-                moved++;
+                deleted++;
             }
         }
 
-        if (moved > 0 || failed > 0)
+        if (deleted > 0 || failed > 0)
         {
             logger.LogInformation(
-                "Swept Lua results older than {Retention} from {Root}: {Moved} moved, {Failed} failed.",
+                "Swept Lua results older than {Retention} from {Root}: {Moved} deleted, {Failed} failed.",
                 Retention,
                 root,
-                moved,
+                deleted,
                 failed);
         }
 
-        return moved;
+        return deleted;
     }
 
     private async Task<string?> ResolveRootAsync()
@@ -133,26 +135,29 @@ public sealed class LuaResultSweeper(
         return lastWrite <= cutoff;
     }
 
-    private static bool TryQuarantine(string file, DateTime cutoff)
+    private void TryDeleteLegacyQuarantine(string root)
     {
-        // Dated by the cutoff the file expired against rather than by now, so a sweep that runs
-        // after the app has been shut down for a week files everything under the right day.
-        var destination = Path.Combine(
-            Path.GetDirectoryName(Path.GetDirectoryName(file)) ?? string.Empty,
-            QuarantineFolderName,
-            cutoff.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            Path.GetFileName(file));
+        var folder = Path.Combine(root, LegacyQuarantineFolderName);
 
         try
         {
-            var folder = Path.GetDirectoryName(destination);
-
-            if (folder is not null)
+            if (Directory.Exists(folder))
             {
-                Directory.CreateDirectory(folder);
+                Directory.Delete(folder, recursive: true);
+                logger.LogInformation("Removed the legacy {Folder} folder.", folder);
             }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not remove the legacy {Folder} folder.", folder);
+        }
+    }
 
-            File.Move(file, destination);
+    private static bool TryDelete(string file)
+    {
+        try
+        {
+            File.Delete(file);
             return true;
         }
         catch

@@ -7,6 +7,8 @@ local Classes = require("src/classes/manager")
 local Writer = require("src/export/writer")
 local Exporter = require("src/export/exporter")
 local Audio = require("src/audio")
+local RCtl = require("src/rolling/control")
+local Detect = require("src/classes/detection")
 
 local Config = {}
 
@@ -128,6 +130,18 @@ local function drawMusicSection(w)
   ui.dummy(vec2(0, 8))
 end
 
+local function drawAutopilotSection(w)
+  if ui.checkbox("Autopilot for my car during the single-file formation lap", S.autopilotEnabled) then
+    S.autopilotEnabled = not S.autopilotEnabled
+    S.storedSettings.autopilotEnabled = S.autopilotEnabled
+    if not S.autopilotEnabled then RCtl.SetPlayerAutopilot(false) end
+  end
+  if ui.itemHovered() then
+    ui.setTooltip("Autopilot drives your car only until the double-file formation. You take over manually when you reach double file.")
+  end
+  ui.dummy(vec2(0, 8))
+end
+
 local function drawYellowFlagSection(w)
   if ui.checkbox("Full course yellow when a car stops on track", S.yellowFlagEnabled) then
     S.yellowFlagEnabled = not S.yellowFlagEnabled
@@ -166,12 +180,38 @@ local function drawPoleSideSection(w)
   ui.dummy(vec2(0, 8))
 end
 
+-- Classes/tags found on the current grid that have not been added yet.
+local function availableClassOptions()
+  local added = {}
+  for _, name in ipairs(S.releaseClasses) do added[string.lower(name)] = true end
+  local options = {}
+  local ok, names = pcall(Detect.GetAvailableClassNames)
+  for _, name in ipairs(ok and names or {}) do
+    if not added[string.lower(name)] then options[#options + 1] = name end
+  end
+  table.sort(options, function(a, b) return string.lower(a) < string.lower(b) end)
+  return options
+end
+
 local function drawAddClassControls(w)
   ui.setCursor(vec2(COL_X, ui.getCursor().y))
   ui.text("Add Class (auto-assign by car tag):")
   ui.setCursor(vec2(COL_X, ui.getCursor().y + 4))
   ui.pushItemWidth(w - 48)
-  S.classAddInput = ui.inputText("##NewReleaseClass", S.classAddInput or "")
+  local options = availableClassOptions()
+  local current = S.classAddInput or ""
+  local stillOffered = false
+  for _, name in ipairs(options) do
+    if name == current then stillOffered = true break end
+  end
+  if not stillOffered then current = "" end
+  S.classAddInput = current
+  local preview = current ~= "" and current or (#options > 0 and "Select a class..." or "No classes left on the grid")
+  ui.combo("##NewReleaseClass", preview, function()
+    for _, name in ipairs(options) do
+      if ui.selectable(name, name == current) then S.classAddInput = name end
+    end
+  end)
   ui.popItemWidth()
   ui.setCursor(vec2(COL_X, ui.getCursor().y + 6))
   if ui.button("Add Class", vec2(w - 48, 28)) then
@@ -286,6 +326,7 @@ function Config.Draw()
 
   drawResultExportSection(w)
   drawMusicSection(w)
+  drawAutopilotSection(w)
   drawYellowFlagSection(w)
 
   if valid then

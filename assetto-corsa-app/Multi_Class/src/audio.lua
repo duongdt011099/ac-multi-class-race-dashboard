@@ -94,8 +94,8 @@ end
 
 -- Estimated seconds until the player's class leader crosses the line, or nil when unknown.
 local function EstimateTimeToGreen(dt)
-  local playerState = S.rollingStartCars and S.rollingStartCars[0]
-  local group = playerState and S.rollingStartGroups and S.rollingStartGroups[playerState.groupIndex]
+  -- The music follows the first class: when its leader crosses the line every class goes green.
+  local group = S.rollingStartGroups and S.rollingStartGroups[1]
   if not group or group.green then return nil end
 
   local leaderIndex

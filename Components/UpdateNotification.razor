@@ -41,7 +41,7 @@
             else
             {
                 <p class="wec-update__summary">
-                    You are running <strong>v@(result.CurrentVersion)</strong>, which is the latest version.
+                    Your version is up-to-date. You are running <strong>v@(result.CurrentVersion)</strong>.
                 </p>
                 <p class="wec-update__published">
                     Checked @result.CheckedAtUtc.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
@@ -49,8 +49,8 @@
             }
         </ChildContent>
         <Footer>
-            <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CheckForUpdateAsync" disabled="@isChecking">
-                @(isChecking ? "Checking..." : "Check for update")
+            <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CheckForUpdateAsync" disabled="@CheckBlocked">
+                @(isChecking ? "Checking..." : CheckBlocked ? "Up to date" : "Check for update")
             </button>
             @if (result.IsUpdateAvailable)
             {

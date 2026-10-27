@@ -124,11 +124,15 @@ public partial class Drivers : IDisposable
         }
     }
 
-    private async Task LoadDriversAsync()
+    private async Task LoadDriversAsync(bool resetView = true)
     {
         drivers = (await DriverService.GetActiveDriversAsync()).ToList();
-        currentPage = 1;
-        searchTerm = "";
+
+        if (resetView)
+        {
+            currentPage = 1;
+            searchTerm = "";
+        }
     }
 
     private void HandleClassFilterChanged(string value)
@@ -338,7 +342,7 @@ public partial class Drivers : IDisposable
                     await DriverService.UpdateDriverAsync(form);
                 }
 
-                await LoadDriversAsync();
+                await LoadDriversAsync(resetView: creating);
             }, "Could not save driver");
 
             if (saved)

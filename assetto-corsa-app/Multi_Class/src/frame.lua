@@ -240,6 +240,11 @@ local function reloadClassesIfMissing(sim)
 end
 
 local function prepareRollingIfNeeded(sim, valid)
+  -- A race already under way when a replay ended must not be re-staged: the grid is long gone.
+  if S.rollingSkipSessionKey and not S.rollingRestartPending
+      and S.rollingSkipSessionKey == Sess.GetCurrentSessionKey(sim) then
+    return
+  end
   if valid and Sess.IsRaceMode(sim) and S.rollingStartState == "idle" and S.driverCount > 0
       and (S.rollingRestartPending or not Sess.IsSessionFinished(sim)) then
     if not S.gridReordered then
@@ -294,6 +299,9 @@ function Frame.Update(dt)
   -- result may be auto-saved from replay data. The auto-save preference itself is left
   -- untouched, so it comes back as soon as the replay ends.
   if U.IsReplayActive(sim) then
+    if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
+      S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
+    end
     stopAllFeatures(sim)
     ac.setWindowOpen("cl_config", false)
     return

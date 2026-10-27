@@ -165,8 +165,12 @@ public partial class Teams
 
             if (saved)
             {
-                currentPage = 1;
-                searchTerm = "";
+                if (creating)
+                {
+                    currentPage = 1;
+                    searchTerm = "";
+                }
+
                 isSaving = false;
                 DriverNotifier.NotifyChanged();
                 Toast.Show(creating ? "Team created." : "Team updated.");

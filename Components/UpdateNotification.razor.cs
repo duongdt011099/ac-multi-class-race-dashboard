@@ -8,6 +8,7 @@ namespace multi_class_race_dashboard.Components;
 public partial class UpdateNotification : IDisposable
 {
     private const int MaxNotesLength = 1500;
+    private static readonly TimeSpan CheckCooldown = TimeSpan.FromMinutes(5);
 
     [Inject] private UpdateStateService StateService { get; set; } = default!;
 
@@ -19,9 +20,11 @@ public partial class UpdateNotification : IDisposable
 
     private UpdateCheckResult? result;
     private string? truncatedNotes;
+    private bool CheckBlocked => isChecking || DateTime.UtcNow < blockedUntilUtc;
     private string lastSeen = string.Empty;
     private bool isOpen;
     private bool isChecking;
+    private DateTime blockedUntilUtc = DateTime.MinValue;
     private bool isDismissing;
 
     private string HeaderTitle => result switch
@@ -100,7 +103,7 @@ public partial class UpdateNotification : IDisposable
 
     private async Task CheckForUpdateAsync()
     {
-        if (isChecking)
+        if (CheckBlocked)
         {
             return;
         }
@@ -119,7 +122,22 @@ public partial class UpdateNotification : IDisposable
         finally
         {
             isChecking = false;
+
+            // Only an up-to-date answer locks the button; errors and new versions can be retried or acted on.
+            if (result is { IsUpdateAvailable: false, HasError: false })
+            {
+                blockedUntilUtc = DateTime.UtcNow + CheckCooldown;
+                _ = ReleaseCooldownAsync();
+            }
+
+            StateHasChanged();
         }
+    }
+
+    private async Task ReleaseCooldownAsync()
+    {
+        await Task.Delay(CheckCooldown);
+        await InvokeAsync(StateHasChanged);
     }
 
     private void ApplyResult(UpdateCheckResult? value)

@@ -103,10 +103,8 @@ end
 
 local function LockPhase2Position(state, group)
   state.enteredPhase2 = true
-  if state.carIndex == 0 then
-    Audio.PlayRolling()
-    Audio.PlayDoubleFile()
-  end
+  if state.groupIndex == 1 then Audio.PlayRolling() end
+  if state.carIndex == 0 then Audio.PlayDoubleFile() end
   state.phase2At = S.rollingStartSessionTime
   local pos = state.classPosition
   if group then
@@ -372,9 +370,16 @@ local function MaintainCar(carIndex, state, trackLength, moves)
 
   TrackLineCrossing(state, car, group)
   if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
+  -- The autopilot only covers the single-file run-up: hand the human car back at double file.
+  local autopiloted = carIndex == 0 and S.playerAutopilotOn == true
+  if autopiloted and (state.enteredPhase2 or state.green) then
+    RCtl.SetPlayerAutopilot(false)
+    ui.toast(ui.Icons.Warning, "Autopilot off: you have control")
+    autopiloted = false
+  end
   if state.green then
     EaseOutLaneOffset(carIndex, state, isAI, moves.greenLaneMove)
-  elseif isAI then
+  elseif isAI or autopiloted then
     CommandFormationAI(carIndex, state, group, car, trackLength, moves.maxLaneMove)
   end
 end

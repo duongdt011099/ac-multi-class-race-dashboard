@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
@@ -47,6 +48,22 @@ internal sealed class DashboardWindow : Form
         }
 
         Controls.Add(_webView);
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+
+        // 20 is DWMWA_USE_IMMERSIVE_DARK_MODE (19 on early Windows 10 builds); failure just leaves the light bar.
+        var dark = 1;
+
+        if (DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int)) != 0)
+        {
+            DwmSetWindowAttribute(Handle, 19, ref dark, sizeof(int));
+        }
     }
 
     /// <summary>Creates the native window without showing it, so other threads can post work to it.</summary>
