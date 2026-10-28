@@ -62,6 +62,13 @@ C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH = 50.0
 C.ROLLING_START_LANE_GUARD_GAP      = 8.0
 C.ROLLING_START_LANE_GUARD_HOLD_GAP = 5.5
 C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
+-- Class guard: every car also watches the previous class's cars. Inside CLASS_GUARD_GAP metres it
+-- is capped to that car's speed plus (gap - CLASS_HOLD_GAP) * GAIN km/h, so a class arriving at 100
+-- km/h never runs into the previous class's tail after that tail slows to the double-file speed,
+-- and the gap between classes is kept at roughly CLASS_HOLD_GAP metres or more.
+C.ROLLING_START_CLASS_GUARD_GAP     = 70.0
+C.ROLLING_START_CLASS_HOLD_GAP      = 30.0
+C.ROLLING_START_CLASS_GUARD_GAIN_KMH = 2.5
 -- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.

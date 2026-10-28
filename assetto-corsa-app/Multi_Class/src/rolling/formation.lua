@@ -205,6 +205,32 @@ local function ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimi
   return targetSpeed, throttleLimit
 end
 
+-- Keep a gap to the nearest car of the previous class that is physically ahead (see CLASS_GUARD constants).
+local function ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
+  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
+  if not (prev and car) then return targetSpeed, throttleLimit end
+  local nearestGap, nearestSpeed
+  for _, otherIndex in ipairs(prev.cars) do
+    local other = S.rollingStartCars[otherIndex]
+    if other and other.released and not other.dropped then
+      local otherCar = getCar(otherIndex)
+      if otherCar and type(otherCar.splinePosition) == "number" then
+        local g = Spacing.SignedGap(otherCar, car, trackLength)
+        if g > -4.0 and (not nearestGap or g < nearestGap) then
+          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
+        end
+      end
+    end
+  end
+  if not nearestGap or nearestGap >= C.ROLLING_START_CLASS_GUARD_GAP then return targetSpeed, throttleLimit end
+  local cap = nearestSpeed + (nearestGap - C.ROLLING_START_CLASS_HOLD_GAP) * C.ROLLING_START_CLASS_GUARD_GAIN_KMH
+  if cap < targetSpeed then
+    targetSpeed = math.max(0.0, cap)
+    if nearestGap < C.ROLLING_START_CLASS_HOLD_GAP then throttleLimit = math.min(throttleLimit, 0.5) end
+  end
+  return targetSpeed, throttleLimit
+end
+
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
@@ -228,6 +254,8 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   else
     targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(state, group, car, trackLength)
   end
+
+  targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
 
   local launch = LaunchProgress(state)
   if launch < 1.0 then
