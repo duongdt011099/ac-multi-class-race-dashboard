@@ -147,6 +147,13 @@ local function drawYellowFlagSection(w)
     S.yellowFlagEnabled = not S.yellowFlagEnabled
     S.storedSettings.yellowFlagEnabled = S.yellowFlagEnabled
   end
+  if ui.checkbox("Lapped cars let faster cars pass (blue flag)", S.blueFlagEnabled) then
+    S.blueFlagEnabled = not S.blueFlagEnabled
+    S.storedSettings.blueFlagEnabled = S.blueFlagEnabled
+  end
+  if ui.itemHovered() then
+    ui.setTooltip("A lapped AI car lifts and moves aside for the faster car behind, and stays back until it is well clear.")
+  end
   if ui.checkbox("Play yellow / green flag sounds", S.flagSoundEnabled) then
     S.flagSoundEnabled = not S.flagSoundEnabled
     S.storedSettings.flagSoundEnabled = S.flagSoundEnabled

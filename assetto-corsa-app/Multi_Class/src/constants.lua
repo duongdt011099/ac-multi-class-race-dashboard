@@ -147,7 +147,7 @@ C.YELLOW_DROP_SECONDS         = 1.5
 C.YELLOW_MOVING_KMH           = 60
 C.YELLOW_MIN_LAP_COUNT        = 2
 -- Once yellow, the field stays under it for at least MIN_HOLD_SECONDS before the green countdown.
-C.YELLOW_MIN_HOLD_SECONDS      = 5.0
+C.YELLOW_MIN_HOLD_SECONDS      = 30.0
 -- A hazard AI car still on track after the leader has covered one more lap is sent to the pits by
 -- raising its stop counter (AC moves a long-stopped AI car there); the human car's own hazard is
 -- ignored after PLAYER_HAZARD_MAX_S.
@@ -198,6 +198,17 @@ C.YELLOW_AUDIO_SECONDS        = 8.7
 C.YELLOW_GREEN_AUDIO_SECONDS  = 8.1
 C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
+-- Lapped-car rule (blue flag). When a car that is a lap or more up has passed an AI car (it is
+-- PASSED_M..ENGAGE_GAP_M ahead of it), the lapped car's top speed is capped at HOLD_FACTOR times the
+-- passer's speed (never below MIN_SPEED_KMH) until the passer is RELEASE_GAP_M ahead, so it does not
+-- pass back. Nothing else about the car is changed.
+C.BLUE_PASSED_M              = 4
+C.BLUE_ENGAGE_GAP_M          = 40
+C.BLUE_RELEASE_GAP_M         = 70
+C.BLUE_HOLD_FACTOR           = 0.98
+C.BLUE_MIN_SPEED_KMH         = 50
+C.BLUE_SCAN_SECONDS          = 0.25
+
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
 C.SUBFOLDER_PRACTICE   = "practice"

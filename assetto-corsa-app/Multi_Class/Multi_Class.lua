@@ -32,6 +32,7 @@ local function registerReleaseCallbacks()
   local okRolling, rollingErr = pcall(ac.onRelease, function()
     RCtl.RestoreRollingStartControls(false)
     pcall(require("src/yellow/yellow").Reset)
+    pcall(require("src/blue/blue").Reset)
   end)
   if not okRolling then
     U.Log("ROLLING: failed to register cleanup callback: " .. tostring(rollingErr))

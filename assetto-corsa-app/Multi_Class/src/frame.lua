@@ -12,6 +12,7 @@ local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
+local Blue = require("src/blue/blue")
 local Pos = require("src/leaderboard/positions")
 
 local Frame = {}
@@ -86,6 +87,7 @@ local function logUpdateEntry(sim)
 end
 
 local function resetRollingToIdle()
+  RCtl.SetPlayerAutopilot(false)
   if S.rollingStartState ~= "idle" then
     RCtl.RestoreRollingStartControls(false)
     S.rollingStartState = "idle"
@@ -100,6 +102,7 @@ end
 local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(Blue.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
@@ -280,11 +283,18 @@ local function updateRolling(sim, dt)
     U.Log("YELLOW: update failed: " .. tostring(yellowErr))
     pcall(Yellow.Reset)
   end
+  local blueOk, blueErr = pcall(Blue.Update, sim, dt)
+  if not blueOk then
+    U.Log("BLUE: update failed: " .. tostring(blueErr))
+    pcall(Blue.Reset)
+  end
 end
 
 local function stopAllFeatures(sim)
+  RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(Blue.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
@@ -317,6 +327,13 @@ function Frame.Update(dt)
     S.lastSessionStarted = sim.isSessionStarted
     S.lastSessionIndex = sim.currentSessionIndex
     return
+  end
+
+  -- The autopilot only ever belongs to a staged/rolling race start; never leave it on elsewhere
+  -- (practice, qualifying, a finished race or an unsupported session).
+  if S.playerAutopilotOn and not (Sess.IsRaceMode(sim) and
+      (S.rollingStartState == "staged" or S.rollingStartState == "rolling")) then
+    RCtl.SetPlayerAutopilot(false)
   end
 
   logUpdateEntry(sim)
