@@ -39,7 +39,7 @@
             {
                 @if (availability.CanImportResults)
                 {
-                    <div class="wec-preset-export">
+                    <div class="wec-preset-export wec-preset-export--nowrap">
                         <span class="wec-preset-export__label">Import Result</span>
                         <AppSelect CssClass="wec-result-file-select" @bind-Value="selectedRaceResultFile"
                                    Disabled="@(isImportingRaceResult || raceResultFiles is null)"

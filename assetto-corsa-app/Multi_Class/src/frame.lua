@@ -309,12 +309,33 @@ function Frame.Update(dt)
   -- result may be auto-saved from replay data. The auto-save preference itself is left
   -- untouched, so it comes back as soon as the replay ends.
   if U.IsReplayActive(sim) then
-    if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
-      S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
+    local rollingLive = S.rollingStartState == "staged" or S.rollingStartState == "rolling"
+    if rollingLive then
+      -- A formation lap in progress is only paused by the replay: keep its state so it carries on
+      -- afterwards, and remember to hand the car back to the autopilot.
+      if S.playerAutopilotOn then
+        S.autopilotResumeAfterReplay = true
+        RCtl.SetPlayerAutopilot(false)
+      end
+      pcall(Yellow.Reset)
+      pcall(Blue.Reset)
+      ac.setWindowOpen("cl_leaderboard", false)
+    else
+      if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
+        S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
+      end
+      stopAllFeatures(sim)
     end
-    stopAllFeatures(sim)
     ac.setWindowOpen("cl_config", false)
     return
+  end
+
+  if S.autopilotResumeAfterReplay then
+    S.autopilotResumeAfterReplay = nil
+    if S.autopilotEnabled and Sess.IsRaceMode(sim)
+        and (S.rollingStartState == "staged" or S.rollingStartState == "rolling") then
+      RCtl.SetPlayerAutopilot(true)
+    end
   end
 
   -- "Enable Multiple Class Race" unchecked: every feature of the app is off, only the
