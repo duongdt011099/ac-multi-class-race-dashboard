@@ -11,13 +11,14 @@
     }
     else
     {
+        var classNames = StandingsFilter.ClassNames(Standings);
         var filtered = StandingsFilter.ByClass(Standings, classFilter);
 
         <div class="wec-session-toolbar">
             <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
             <AppSelect Id="standing-class-filter" CssClass="wec-result-file-select wec-session-toolbar__select"
-                       @bind-Value="classFilter" EmptyLabel="All classes"
-                       Options="@(StandingsFilter.ClassNames(Standings).Select(c => new SelectOption(c, c)))" />
+                       @bind-Value="classFilter"
+                       Options="@(classNames.Select(c => new SelectOption(c, c)))" />
         </div>
 
         <div class="wec-podium">
@@ -102,4 +103,18 @@
     [Parameter] public ClassColorMap Colors { get; set; } = ClassColorMap.Empty;
 
     [Parameter] public EventCallback OnClose { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (Standings is null)
+        {
+            return;
+        }
+
+        var classNames = StandingsFilter.ClassNames(Standings);
+        if (!classNames.Contains(classFilter))
+        {
+            classFilter = classNames.FirstOrDefault() ?? "";
+        }
+    }
 }

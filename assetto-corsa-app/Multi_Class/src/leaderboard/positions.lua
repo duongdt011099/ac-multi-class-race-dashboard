@@ -319,6 +319,10 @@ function M.GetPlayerPositions()
 
   overallPos, classPos = applyEnginePosition(allCars, classCars, overallPos, classPos, retired)
 
+  -- The gaps come from the progress ranking, the displayed class position from the engine; when
+  -- the engine says we lead the class there is no car in front, whatever the progress ranking says.
+  if classPos == 1 then gapFront = nil end
+
   raceCache.overallPos = overallPos
   raceCache.totalCars = totalCars
   raceCache.classPos = classPos
