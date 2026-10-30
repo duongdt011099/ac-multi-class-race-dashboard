@@ -400,6 +400,15 @@ local function MaintainCar(carIndex, state, trackLength, moves)
   if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
   -- The autopilot only covers the single-file run-up: hand the human car back at double file.
   local autopiloted = carIndex == 0 and S.playerAutopilotOn == true
+  if autopiloted and S.autopilotEnabled and not state.autopilotWarned and not state.enteredPhase2
+      and state.hasRolledOver and car and type(car.splinePosition) == "number" then
+    local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
+    local secondsLeft = (C.ROLLING_START_FORMATION_POINT - car.splinePosition) * trackLength / speed
+    if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
+      state.autopilotWarned = true
+      Audio.PlayAutopilotOff()
+    end
+  end
   if autopiloted and (state.enteredPhase2 or state.green) then
     RCtl.SetPlayerAutopilot(false)
     ui.toast(ui.Icons.Warning, "Autopilot off: you have control")

@@ -132,48 +132,127 @@ end
 -- own slot within the class. The first car of the first class has threshold 0, so the overall
 -- leader always gets the field moving (which then starts the timer via the "field is moving"
 -- check). Cars leave one at a time in grid order, so the run-up is a true single file.
--- Nearest car ahead in release order that is an AI car and still running (not dropped).
+-- Nearest car ahead in release order that is still running (not dropped). The human car counts
+-- too (autopilot or manual), so the car behind it also waits for it to get rolling; the wait
+-- timeout keeps a parked human from holding the field.
 local function releaseReferenceState(state)
   for queueIndex = (state.queueIndex or 1) - 1, 1, -1 do
     local carIndex = S.rollingStartQueue[queueIndex]
     local other = carIndex and S.rollingStartCars[carIndex]
-    if other and carIndex ~= 0 and not other.dropped then return other, carIndex end
+    -- A car that launched and is crawling (stall watcher: still > STALL_REFERENCE_SECONDS) is not a
+    -- useful reference: waiting on it would stack a full wait timeout per stalled car down the queue.
+    local stalled = other and carIndex ~= 0 and (other.stillTime or 0) > C.ROLLING_START_RELEASE_STALL_SKIP_SECONDS
+    if other and not other.dropped and not stalled then return other, carIndex end
   end
   return nil
 end
 
-local function isNotStuck(other, otherIndex)
+-- relax (0..1) scales the speed / distance the car ahead has to reach.
+local function isNotStuck(other, otherIndex, relax)
+  relax = relax or 1.0
   if not other.released then return false end
   local car = getCar(otherIndex)
   if not car then return true end
-  if S.rollingStartSessionTime - (other.releasedAt or 0) < C.ROLLING_START_RELEASE_GRACE_SECONDS then
-    return true
-  end
-  if (car.speedKmh or 0) >= C.ROLLING_START_RELEASE_MOVED_KMH then return true end
+  -- The car ahead must be genuinely under way (speed AND distance from its grid slot). Releasing a
+  -- car 4-9 m behind one still at 0 km/h makes its AI refuse to accelerate: it crawls at ~7 km/h
+  -- with the throttle pinned, and the cars behind it pile up. The thresholds are kept small so the
+  -- gaps stay tight.
+  if (car.speedKmh or 0) < C.ROLLING_START_RELEASE_MOVED_KMH * relax then return false end
   local sim = ac.getSim()
   local trackLength = sim and sim.trackLengthM
   if other.gridProgress and type(car.splinePosition) == "number" and U.IsFinite(trackLength) then
     local d = car.splinePosition - other.gridProgress
     if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
-    return d * trackLength >= C.ROLLING_START_RELEASE_MOVED_METERS
+    return d * trackLength >= C.ROLLING_START_RELEASE_MOVED_METERS * relax
   end
-  return false
+  return true
 end
 
 -- Time-based release; a car also waits while the car ahead of it is still getting rolling
 -- (released, but not yet up to MOVED_KMH / MOVED_METERS), so a late starter is not let out on
 -- top of a car that has not launched yet. A healthy car ahead never delays the queue for long.
 -- The wait is capped so one stuck car cannot freeze the field.
+-- Classes share the grid, so a held car can sit directly in front of a car that is already released
+-- (e.g. a GT in an even slot ahead of a Hypercar). The released car then cannot get past it and
+-- stalls, and the held car never goes because it waits for the whole class ahead: a deadlock.
+-- A held car with a released car right behind it in the same lane is released immediately.
+-- Only a car of ANOTHER class that left in its normal turn counts: inside a class the grid order and
+-- the release order agree, and releasing further cars early would pull the class out of order
+-- (a car released ahead of the cars in front of it yields to them at a crawl).
+local function IsBlockingReleasedCar(state)
+  local car = getCar(state.carIndex)
+  local pos = car and car.position
+  if not pos then return false end
+  for _, otherIndex in ipairs(S.rollingStartQueue) do
+    local other = S.rollingStartCars[otherIndex]
+    if other and other.released and not other.green and otherIndex ~= state.carIndex
+        and not other.forcedRelease and other.groupIndex ~= state.groupIndex then
+      local oc = getCar(otherIndex)
+      local op, look = oc and oc.position, oc and oc.look
+      if op and look then
+        local dx, dz = pos.x - op.x, pos.z - op.z
+        local forward = dx * look.x + dz * look.z
+        local lateral = math.abs(dx * look.z - dz * look.x)
+        if forward > 0.5 and forward < C.ROLLING_START_BLOCKER_AHEAD_M
+            and lateral < C.ROLLING_START_BLOCKER_LATERAL_M then
+          U.Log(sFormat("ROLLING: car %d released early: held %.1f m in front of released car %d",
+              state.carIndex, forward, otherIndex))
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+-- A same-class car further back that was released early drives out along this car's lane, so every
+-- car in front of it in the class has to go with it.
+local function ClassMateBehindReleased(state, group)
+  for _, memberIndex in ipairs(group.cars) do
+    local member = S.rollingStartCars[memberIndex]
+    if member and member.released and (member.classPosition or 0) > (state.classPosition or 0) then
+      return true
+    end
+  end
+  return false
+end
+
+-- Normal releases stay in queue order: nothing leaves while a running car before it in the queue
+-- is still held.
+local function EarlierCarStillHeld(state)
+  for queueIndex = (state.queueIndex or 1) - 1, 1, -1 do
+    local other = S.rollingStartCars[S.rollingStartQueue[queueIndex]]
+    if other and not other.released and not other.dropped then return true end
+  end
+  return false
+end
+
 function M.IsRollingCarReleased(state)
   local group = S.rollingStartGroups[state.groupIndex]
   if not group then return true end
+  if IsBlockingReleasedCar(state) or ClassMateBehindReleased(state, group) then
+    state.forcedRelease = true
+    return true
+  end
   local slot = (state.classPosition or 1) - 1
   local threshold = (group.classStartTime or 0.0) + slot * C.ROLLING_START_CAR_SECONDS
   if S.rollingStartReleaseTimer < threshold then return false end
   if S.rollingStartReleaseTimer >= C.ROLLING_START_RELEASE_MAX_SECONDS then return true end
+  if EarlierCarStillHeld(state) then return false end
+
+  -- The gate waits on every launch in turn, so the back of the field falls further and further
+  -- behind schedule; AC resets an AI to the pits after ~70 s on the grid. The later a car is, the
+  -- looser the gate gets, and past GATE_RELAX_END_SECONDS it is open.
+  local late = S.rollingStartReleaseTimer - threshold
+  if late >= C.ROLLING_START_GATE_RELAX_END_SECONDS then return true end
+  local relax = 1.0
+  if late > C.ROLLING_START_GATE_RELAX_START_SECONDS then
+    relax = 1.0 - (late - C.ROLLING_START_GATE_RELAX_START_SECONDS) /
+        (C.ROLLING_START_GATE_RELAX_END_SECONDS - C.ROLLING_START_GATE_RELAX_START_SECONDS)
+  end
 
   local other, otherIndex = releaseReferenceState(state)
-  if not other or isNotStuck(other, otherIndex) then return true end
+  if not other or isNotStuck(other, otherIndex, relax) then return true end
 
   if not state.gateWaitStart then
     state.gateWaitStart = S.rollingStartSessionTime

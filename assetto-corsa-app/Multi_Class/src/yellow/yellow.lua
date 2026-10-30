@@ -25,6 +25,9 @@ local function syncTrackFlag()
     want = ac.FlagType.Caution
   elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
     want = ac.FlagType.Start
+  elseif S.blueLapping and ac.FlagType.FasterCar then
+    -- The human car is lapping an AI car: blue light on the track.
+    want = ac.FlagType.FasterCar
   end
   if S.yellowTrackFlag == want then return end
   local ok, err = pcall(physics.overrideRacingFlag, want)

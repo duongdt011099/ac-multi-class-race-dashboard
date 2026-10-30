@@ -79,7 +79,12 @@ local function holdCar(i, car, p, st, trackLength)
   end
 end
 
+local playerLapped = false
+
 local function scan(trackLength)
+  local me = getCar(0)
+  local mp = me and not inPit(me) and progress(me)
+  playerLapped = mp and findPasser(0, me, mp, trackLength) ~= nil or false
   for i = 1, S.driverCount - 1 do
     local car = getCar(i)
     local p = car and progress(car)
@@ -102,6 +107,9 @@ function M.Reset()
     if st.passer and i ~= 0 then RCtl.RestoreAIControl(i, false) end
   end
   S.blueCars = {}
+  S.blueActive = false
+  S.blueLapping = false
+  playerLapped = false
   clock = 0.0
   lastScanAt = -1000.0
 end
@@ -127,6 +135,7 @@ function M.Update(sim, dt)
     scan(trackLength)
   end
 
+  local lapping = false
   for i, st in pairs(S.blueCars) do
     local car = getCar(i)
     local p = car and progress(car)
@@ -140,7 +149,10 @@ function M.Update(sim, dt)
         holdCar(i, car, p, st, trackLength)
       end
     end
+    if st.passer == 0 then lapping = true end
   end
+  S.blueActive = playerLapped
+  S.blueLapping = lapping
 end
 
 return M

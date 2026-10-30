@@ -81,6 +81,24 @@ function M.PlayDoubleFile()
   if not ok then U.Log("AUDIO: could not play double_file: " .. tostring(err)) end
 end
 
+-- One-shot warning played shortly before the autopilot hands the car back to the player.
+local autopilotOffPlayer = nil
+
+function M.PlayAutopilotOff()
+  local ok, err = pcall(function()
+    if not autopilotOffPlayer then
+      autopilotOffPlayer = ui.MediaPlayer(ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/sounds/auto_pilot_off.mp3",
+          { use3D = false })
+      autopilotOffPlayer:setAutoPlay(false)
+      autopilotOffPlayer:setLooping(false)
+    end
+    autopilotOffPlayer:setVolume(C.AUDIO_VOLUME)
+    autopilotOffPlayer:setCurrentTime(0)
+    autopilotOffPlayer:play()
+  end)
+  if not ok then U.Log("AUDIO: could not play auto_pilot_off: " .. tostring(err)) end
+end
+
 -- Called when the player's class goes green.
 function M.FadeOut()
   if not (player and started) or fadeLeft or finishing then return end

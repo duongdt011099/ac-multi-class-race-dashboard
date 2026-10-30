@@ -62,6 +62,8 @@ S.autopilotEnabled    = S.storedSettings.autopilotEnabled == true
 S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
 -- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
 S.blueCars            = {}
+S.blueActive          = false
+S.blueLapping         = false
 if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
 if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME end
 
