@@ -86,8 +86,6 @@ function M.GetRollingStartDisplay(sim)
       return "YELLOW", rgbm(1.0, 0.9, 0.1, 1)
     elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
       return "GREEN", rgbm(1, 1, 1, 1)
-    elseif S.blueActive then
-      return "BLUE FLAG", rgbm(0.3, 0.6, 1.0, 1)
     end
   end
   if state == "staged" then
@@ -189,9 +187,6 @@ local YELLOW_BLINK_HALF_SECONDS = 0.5
 local function yellowBlinkOn()
   return math.floor((S.yellowClock or 0) / YELLOW_BLINK_HALF_SECONDS) % 2 == 0
 end
-local BLUE_FLAG_FILL = rgbm(0.10, 0.35, 0.95, 1)
-local BLUE_FLAG_BORDER = rgbm(0.45, 0.70, 1.0, 1)
-local BLUE_FLAG_TEXT = rgbm(1, 1, 1, 1)
 local GREEN_FLAG_FILL =rgbm(7 / 255, 137 / 255, 48 / 255, 1)
 local GREEN_FLAG_BORDER = rgbm(0.30, 0.72, 0.42, 1)
 local GREEN_FLAG_TEXT = rgbm(1, 1, 1, 1)
@@ -206,12 +201,6 @@ local function drawBottomPanelBox(layout, flag)
     else
       border = YELLOW_FLAG_FILL
     end
-  elseif flag == "blue" then
-    if yellowBlinkOn() then
-      fill, border = BLUE_FLAG_FILL, BLUE_FLAG_BORDER
-    else
-      border = BLUE_FLAG_FILL
-    end
   elseif flag == "green" then
     fill, border = GREEN_FLAG_FILL, GREEN_FLAG_BORDER
   end
@@ -224,8 +213,6 @@ local function drawRollingText(layout, text, color, flag)
   drawBottomPanelBox(layout, flag)
   if flag == "yellow" then
     color = yellowBlinkOn() and YELLOW_FLAG_TEXT or YELLOW_FLAG_FILL
-  elseif flag == "blue" then
-    color = yellowBlinkOn() and BLUE_FLAG_TEXT or BLUE_FLAG_FILL
   elseif flag == "green" then color = GREEN_FLAG_TEXT end
   local size = MeasureBoldText(text, 17)
   local fontSize = size.x > (w - 2 * padX - 24)
@@ -361,8 +348,6 @@ function M.Leaderboard(dt)
         flag = "yellow"
       elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
         flag = "green"
-      elseif S.blueActive == true then
-        flag = "blue"
       end
     end
     drawRollingText(layout, rollingText, rollingColor, flag)
