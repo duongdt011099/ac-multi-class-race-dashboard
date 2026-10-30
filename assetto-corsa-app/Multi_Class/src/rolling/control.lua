@@ -52,10 +52,30 @@ function M.RestoreAIControl(carIndex, clearOffset)
   end
 end
 
+-- Hands the human car to (or takes it back from) CSP's AI driver. Only used for the optional
+-- single-file autopilot; S.playerAutopilotOn tracks it so it is released exactly once.
+function M.SetPlayerAutopilot(enabled)
+  if enabled == (S.playerAutopilotOn == true) then return end
+  if type(physics.setCarAutopilot) ~= "function" then
+    if enabled then U.Log("ROLLING: physics.setCarAutopilot is unavailable; autopilot skipped") end
+    return
+  end
+  -- Signature is setCarAutopilot(active, chooseTyres): it always acts on the user car, there is no
+  -- car index argument (passing 0 first would read as active=true).
+  local ok, err = pcall(physics.setCarAutopilot, enabled)
+  if not ok then
+    U.Log("ROLLING: setCarAutopilot failed: " .. tostring(err))
+    return
+  end
+  S.playerAutopilotOn = enabled
+  if not enabled then M.RestoreAIControl(0, true) end
+  U.Log("ROLLING: player autopilot " .. (enabled and "ON" or "OFF (manual)"))
+end
+
 function M.RestoreRollingStartControls()
   Audio.Reset()
-  -- The player car (index 0) is never held or autopiloted during the formation, so only the AI
-  -- cars need their controls handed back.
+  M.SetPlayerAutopilot(false)
+  -- The player car (index 0) is never held, so only the AI cars need their controls handed back.
   for carIndex in pairs(S.rollingStartCars) do
     if carIndex ~= 0 then
       M.RestoreAIControl(carIndex, true)
@@ -121,7 +141,10 @@ function M.ReleaseRollingCar(carIndex)
 
   state.released = true
   state.releasedAt = S.rollingStartSessionTime
-  if carIndex == 0 then return end
+  if carIndex == 0 then
+    if S.autopilotEnabled then M.SetPlayerAutopilot(true) end
+    return
+  end
 
   physics.setAIStopCounter(carIndex, 0.0)
   U.Log(sFormat("ROLLING: released car %d (queue %d)%s", carIndex, state.queueIndex or -1, AheadInfo(state)))

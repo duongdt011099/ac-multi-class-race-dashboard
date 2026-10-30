@@ -127,11 +127,19 @@ public class RaceResultService : IRaceResultService
                 ? raceSession.LapsTotal[carIndex]
                 : raceSession.LapsCount;
 
+            var finishOrder = raceSession.RaceResult?.IndexOf(carIndex) ?? -1;
+
+            if (finishOrder < 0)
+            {
+                finishOrder = int.MaxValue;
+            }
+
             entries.Add(new ImportEntry
             {
                 Match = match,
                 BestLapMs = bestLapMs,
-                LapCount = lapCount
+                LapCount = lapCount,
+                FinishOrder = finishOrder
             });
         }
 
@@ -140,7 +148,10 @@ public class RaceResultService : IRaceResultService
         var ranked = RankWithinClasses(
             race,
             entries,
-            classEntries => classEntries.OrderByDescending(e => e.LapCount).ThenBy(e => e.BestLapMs));
+            classEntries => classEntries
+                .OrderBy(e => e.FinishOrder)
+                .ThenByDescending(e => e.LapCount)
+                .ThenBy(e => e.BestLapMs));
 
         foreach (var item in ranked)
         {

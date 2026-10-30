@@ -187,7 +187,7 @@ local YELLOW_BLINK_HALF_SECONDS = 0.5
 local function yellowBlinkOn()
   return math.floor((S.yellowClock or 0) / YELLOW_BLINK_HALF_SECONDS) % 2 == 0
 end
-local GREEN_FLAG_FILL = rgbm(7 / 255, 137 / 255, 48 / 255, 1)
+local GREEN_FLAG_FILL =rgbm(7 / 255, 137 / 255, 48 / 255, 1)
 local GREEN_FLAG_BORDER = rgbm(0.30, 0.72, 0.42, 1)
 local GREEN_FLAG_TEXT = rgbm(1, 1, 1, 1)
 
@@ -277,22 +277,21 @@ local function buildGapText(sim, data)
   local gapStr = "--"
   local gapColor = rgbm(0.55, 0.55, 0.6, 0.9)
   if not sim.isSessionStarted then return gapStr, gapColor end
+  -- The labels read the other way round to the usual convention: "-" for the car ahead (time to
+  -- make up) and "+" for the car behind. The position (ahead first) is unchanged. Cars sitting in
+  -- the pits are skipped when the gaps are computed, so a pitted car never shows up here.
   local gapFront, gapBehind = data.gapFront, data.gapBehind
   if data.stopped then
     gapStr = "Car Stopped"
     gapColor = rgbm(1.0, 0.7, 0.35, 1)
   else
     local playerBest = Positions.GetCarBestLapMs(0)
-    if gapFront and gapBehind then
-      local frontStr = formatGapSeconds(math.abs(gapFront), playerBest)
-      local behindStr = formatGapSeconds(math.abs(gapBehind), playerBest)
-      gapStr = "+" .. frontStr .. " / -" .. behindStr
-    elseif gapFront then
-      local frontStr = formatGapSeconds(math.abs(gapFront), playerBest)
-      gapStr = "+" .. frontStr
-    elseif gapBehind then
-      local behindStr = formatGapSeconds(math.abs(gapBehind), playerBest)
-      gapStr = "-" .. behindStr
+    local frontStr = gapFront and ("-" .. formatGapSeconds(math.abs(gapFront), playerBest))
+    local behindStr = gapBehind and ("+" .. formatGapSeconds(math.abs(gapBehind), playerBest))
+    if frontStr and behindStr then
+      gapStr = frontStr .. " / " .. behindStr
+    else
+      gapStr = frontStr or behindStr or gapStr
     end
   end
   return gapStr, gapColor

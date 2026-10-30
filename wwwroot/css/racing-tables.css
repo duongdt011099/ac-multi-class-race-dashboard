@@ -467,6 +467,22 @@
     flex: 1 1 16rem;
 }
 
+.wec-preset-export--nowrap {
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+}
+
+.wec-preset-export--nowrap .wec-preset-export__label,
+.wec-preset-export--nowrap .wec-toolbar__btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.wec-preset-export--nowrap .wec-result-file-select {
+    flex: 1 1 8rem;
+    min-width: 8rem;
+}
+
 .wec-result-file-select:disabled {
     opacity: 0.6;
     cursor: not-allowed;

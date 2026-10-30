@@ -13,6 +13,8 @@ S.storedSettings = ac.storage({
   flagSoundEnabled = true,
   flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
+  autopilotEnabled = false,
+  blueFlagEnabled = true,
 })
 
 -- Grid / session tracking
@@ -56,6 +58,10 @@ S.rollingMusicVolume  = C.AUDIO_VOLUME
 S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
 S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
+S.autopilotEnabled    = S.storedSettings.autopilotEnabled == true
+S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
+-- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
+S.blueCars            = {}
 if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
 if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME end
 
@@ -104,7 +110,8 @@ S.liveRollingStartLapOffset = 0
 -- Rolling start
 S.rollingStartState          = "idle"
 S.rollingStartStatus         = ""
-S.rollingStartGroups         = {}
+S.rollingSkipSessionKey      = nil   -- race session that was running when a replay took over
+S.rollingStartGroups        = {}
 S.rollingStartCars           = {}
 -- Flat front-to-back release order (overall leader first). Cars are released in class-relative
 -- two-car rows, one class after another, on the shared release timer.

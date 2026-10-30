@@ -152,17 +152,26 @@ local function findPlayerRank(list)
   return nil
 end
 
+-- A car that is in the pits (or retired there) is no real neighbour on track: skip it so the gap
+-- is measured to the nearest car that is actually racing.
+local function isRacingNeighbour(idx)
+  local car = getCar(idx)
+  return car ~= nil and not (car.isInPitlane == true or car.isInPit == true)
+end
+
+local function classGapTo(classCars, from, step)
+  for i = from, step > 0 and #classCars or 1, step do
+    local idx = classCars[i].idx
+    if isRacingNeighbour(idx) then
+      local g = ac.getGapBetweenCars(0, idx)
+      return U.IsFinite(g) and g or nil
+    end
+  end
+  return nil
+end
+
 local function classGaps(classCars, classPos)
-  local gapFront, gapBehind = nil, nil
-  if classPos > 1 then
-    local g = ac.getGapBetweenCars(0, classCars[classPos - 1].idx)
-    if U.IsFinite(g) then gapFront = g end
-  end
-  if classPos < #classCars then
-    local g = ac.getGapBetweenCars(0, classCars[classPos + 1].idx)
-    if U.IsFinite(g) then gapBehind = g end
-  end
-  return gapFront, gapBehind
+  return classGapTo(classCars, classPos - 1, -1), classGapTo(classCars, classPos + 1, 1)
 end
 
 -- CSP computes car.racePosition every frame; ac.getCarLeaderboardPosition() is the
@@ -198,10 +207,50 @@ local function debounceEnginePosition(enginePos)
   return stable
 end
 
-local function engineClassPosition(classCars, stable)
+-- The engine keeps ranking a car that retired in the pits, so the player behind it would stay a
+-- place down. A car sitting stationary in the pits for RETIRED_PIT_SECONDS is treated as retired
+-- and no longer counted as ahead; a normal pit stop is far shorter than that.
+local RETIRED_PIT_SECONDS = 45.0
+local stationaryPitSince = {}
+
+local function isRetiredInPit(idx, now)
+  local car = getCar(idx)
+  local stationary = car ~= nil and (car.isInPitlane == true or car.isInPit == true)
+    and (car.speedKmh or 0) < 1.0
+  if not stationary then
+    stationaryPitSince[idx] = nil
+    return false
+  end
+  local since = stationaryPitSince[idx]
+  if not since or now < since then
+    stationaryPitSince[idx] = now
+    return false
+  end
+  return now - since >= RETIRED_PIT_SECONDS
+end
+
+local function retiredIdxSet(allCars, now)
+  local set = {}
+  for _, c in ipairs(allCars) do
+    if c.idx ~= 0 and isRetiredInPit(c.idx, now) then set[c.idx] = true end
+  end
+  return set
+end
+
+-- Rank of the player once retired cars are skipped.
+local function rankWithoutRetired(list, retired)
+  local rank = 0
+  for _, c in ipairs(list) do
+    if c.idx == 0 then return rank + 1 end
+    if not retired[c.idx] then rank = rank + 1 end
+  end
+  return nil
+end
+
+local function engineClassPositionActive(classCars, stable, retired)
   local classPos = 1
   for _, car in ipairs(classCars) do
-    if car.idx ~= 0 then
+    if car.idx ~= 0 and not retired[car.idx] then
       local rp = enginePosition(car.idx)
       if rp and rp < stable then
         classPos = classPos + 1
@@ -212,11 +261,16 @@ local function engineClassPosition(classCars, stable)
 end
 
 -- Prefers the engine classification (debounced) over the progress-derived ranks.
-local function applyEnginePosition(classCars, overallPos, classPos)
+local function applyEnginePosition(allCars, classCars, overallPos, classPos, retired)
   local enginePos = enginePosition(0)
   if enginePos then
     local stable = debounceEnginePosition(enginePos)
-    return stable, engineClassPosition(classCars, stable)
+    local ahead = 0
+    for idx in pairs(retired) do
+      local rp = enginePosition(idx)
+      if rp and rp < stable then ahead = ahead + 1 end
+    end
+    return math.max(1, stable - ahead), engineClassPositionActive(classCars, stable, retired)
   end
   if S.raceDisplayStable and S.raceDisplayStable > 0 then
     -- Engine has no classification for this car (pre-start, pits, retired): keep showing
@@ -249,10 +303,11 @@ function M.GetPlayerPositions()
   table.sort(allCars, progSorter)
   table.sort(classCars, progSorter)
 
-  local overallPos = findPlayerRank(allCars) or 1
+  local retired = retiredIdxSet(allCars, now)
+  local overallPos = rankWithoutRetired(allCars, retired) or 1
   local classPos = 1
   local gapFront, gapBehind = nil, nil
-  local classRank = findPlayerRank(classCars)
+  local classRank = rankWithoutRetired(classCars, retired)
   if classRank then
     classPos = classRank
     gapFront, gapBehind = classGaps(classCars, classRank)
@@ -262,7 +317,11 @@ function M.GetPlayerPositions()
     gapFront, gapBehind = nil, nil
   end
 
-  overallPos, classPos = applyEnginePosition(classCars, overallPos, classPos)
+  overallPos, classPos = applyEnginePosition(allCars, classCars, overallPos, classPos, retired)
+
+  -- The gaps come from the progress ranking, the displayed class position from the engine; when
+  -- the engine says we lead the class there is no car in front, whatever the progress ranking says.
+  if classPos == 1 then gapFront = nil end
 
   raceCache.overallPos = overallPos
   raceCache.totalCars = totalCars

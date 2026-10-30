@@ -44,7 +44,10 @@
                         <img src="@team.TeamLogo" alt="@team.TeamName" class="wec-table__logo" />
                     }
                     <span>@team.TeamName</span>
-                    <span class="wec-badge" style="background-color: @Filter.ClassColor(team)">@Filter.ClassName(team)</span>
+                    @if (!string.IsNullOrWhiteSpace(Filter.ClassName(team)))
+                    {
+                        <span class="wec-badge" style="background-color: @Filter.ClassColor(team)">@Filter.ClassName(team)</span>
+                    }
                 </label>
             }
         </div>
@@ -78,11 +81,7 @@
     {
         get
         {
-            var options = Filter.ClassLabels(Teams).Select(c => new SelectOption(c, c));
-
-            return Filter.HasUncategorized(Teams)
-                ? options.Append(new SelectOption(ClassFilterKeys.Uncategorized, "Uncategorized"))
-                : options;
+            return Filter.ClassLabels(Teams).Select(c => new SelectOption(c, c));
         }
     }
 

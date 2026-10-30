@@ -103,10 +103,8 @@ end
 
 local function LockPhase2Position(state, group)
   state.enteredPhase2 = true
-  if state.carIndex == 0 then
-    Audio.PlayRolling()
-    Audio.PlayDoubleFile()
-  end
+  if state.groupIndex == 1 then Audio.PlayRolling() end
+  if state.carIndex == 0 then Audio.PlayDoubleFile() end
   state.phase2At = S.rollingStartSessionTime
   local pos = state.classPosition
   if group then
@@ -207,6 +205,32 @@ local function ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimi
   return targetSpeed, throttleLimit
 end
 
+-- Keep a gap to the nearest car of the previous class that is physically ahead (see CLASS_GUARD constants).
+local function ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
+  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
+  if not (prev and car) then return targetSpeed, throttleLimit end
+  local nearestGap, nearestSpeed
+  for _, otherIndex in ipairs(prev.cars) do
+    local other = S.rollingStartCars[otherIndex]
+    if other and other.released and not other.dropped then
+      local otherCar = getCar(otherIndex)
+      if otherCar and type(otherCar.splinePosition) == "number" then
+        local g = Spacing.SignedGap(otherCar, car, trackLength)
+        if g > -4.0 and (not nearestGap or g < nearestGap) then
+          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
+        end
+      end
+    end
+  end
+  if not nearestGap or nearestGap >= C.ROLLING_START_CLASS_GUARD_GAP then return targetSpeed, throttleLimit end
+  local cap = nearestSpeed + (nearestGap - C.ROLLING_START_CLASS_HOLD_GAP) * C.ROLLING_START_CLASS_GUARD_GAIN_KMH
+  if cap < targetSpeed then
+    targetSpeed = math.max(0.0, cap)
+    if nearestGap < C.ROLLING_START_CLASS_HOLD_GAP then throttleLimit = math.min(throttleLimit, 0.5) end
+  end
+  return targetSpeed, throttleLimit
+end
+
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
@@ -230,6 +254,8 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   else
     targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(state, group, car, trackLength)
   end
+
+  targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
 
   local launch = LaunchProgress(state)
   if launch < 1.0 then
@@ -372,9 +398,25 @@ local function MaintainCar(carIndex, state, trackLength, moves)
 
   TrackLineCrossing(state, car, group)
   if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
+  -- The autopilot only covers the single-file run-up: hand the human car back at double file.
+  local autopiloted = carIndex == 0 and S.playerAutopilotOn == true
+  if autopiloted and S.autopilotEnabled and not state.autopilotWarned and not state.enteredPhase2
+      and state.hasRolledOver and car and type(car.splinePosition) == "number" then
+    local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
+    local secondsLeft = (C.ROLLING_START_FORMATION_POINT - car.splinePosition) * trackLength / speed
+    if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
+      state.autopilotWarned = true
+      Audio.PlayAutopilotOff()
+    end
+  end
+  if autopiloted and (state.enteredPhase2 or state.green) then
+    RCtl.SetPlayerAutopilot(false)
+    ui.toast(ui.Icons.Warning, "Autopilot off: you have control")
+    autopiloted = false
+  end
   if state.green then
     EaseOutLaneOffset(carIndex, state, isAI, moves.greenLaneMove)
-  elseif isAI then
+  elseif isAI or autopiloted then
     CommandFormationAI(carIndex, state, group, car, trackLength, moves.maxLaneMove)
   end
 end

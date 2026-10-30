@@ -12,6 +12,7 @@ local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
+local Blue = require("src/blue/blue")
 local Pos = require("src/leaderboard/positions")
 
 local Frame = {}
@@ -86,6 +87,7 @@ local function logUpdateEntry(sim)
 end
 
 local function resetRollingToIdle()
+  RCtl.SetPlayerAutopilot(false)
   if S.rollingStartState ~= "idle" then
     RCtl.RestoreRollingStartControls(false)
     S.rollingStartState = "idle"
@@ -100,6 +102,7 @@ end
 local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(Blue.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
@@ -240,6 +243,11 @@ local function reloadClassesIfMissing(sim)
 end
 
 local function prepareRollingIfNeeded(sim, valid)
+  -- A race already under way when a replay ended must not be re-staged: the grid is long gone.
+  if S.rollingSkipSessionKey and not S.rollingRestartPending
+      and S.rollingSkipSessionKey == Sess.GetCurrentSessionKey(sim) then
+    return
+  end
   if valid and Sess.IsRaceMode(sim) and S.rollingStartState == "idle" and S.driverCount > 0
       and (S.rollingRestartPending or not Sess.IsSessionFinished(sim)) then
     if not S.gridReordered then
@@ -275,11 +283,18 @@ local function updateRolling(sim, dt)
     U.Log("YELLOW: update failed: " .. tostring(yellowErr))
     pcall(Yellow.Reset)
   end
+  local blueOk, blueErr = pcall(Blue.Update, sim, dt)
+  if not blueOk then
+    U.Log("BLUE: update failed: " .. tostring(blueErr))
+    pcall(Blue.Reset)
+  end
 end
 
 local function stopAllFeatures(sim)
+  RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(Blue.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
@@ -294,9 +309,33 @@ function Frame.Update(dt)
   -- result may be auto-saved from replay data. The auto-save preference itself is left
   -- untouched, so it comes back as soon as the replay ends.
   if U.IsReplayActive(sim) then
-    stopAllFeatures(sim)
+    local rollingLive = S.rollingStartState == "staged" or S.rollingStartState == "rolling"
+    if rollingLive then
+      -- A formation lap in progress is only paused by the replay: keep its state so it carries on
+      -- afterwards, and remember to hand the car back to the autopilot.
+      if S.playerAutopilotOn then
+        S.autopilotResumeAfterReplay = true
+        RCtl.SetPlayerAutopilot(false)
+      end
+      pcall(Yellow.Reset)
+      pcall(Blue.Reset)
+      ac.setWindowOpen("cl_leaderboard", false)
+    else
+      if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
+        S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
+      end
+      stopAllFeatures(sim)
+    end
     ac.setWindowOpen("cl_config", false)
     return
+  end
+
+  if S.autopilotResumeAfterReplay then
+    S.autopilotResumeAfterReplay = nil
+    if S.autopilotEnabled and Sess.IsRaceMode(sim)
+        and (S.rollingStartState == "staged" or S.rollingStartState == "rolling") then
+      RCtl.SetPlayerAutopilot(true)
+    end
   end
 
   -- "Enable Multiple Class Race" unchecked: every feature of the app is off, only the
@@ -309,6 +348,13 @@ function Frame.Update(dt)
     S.lastSessionStarted = sim.isSessionStarted
     S.lastSessionIndex = sim.currentSessionIndex
     return
+  end
+
+  -- The autopilot only ever belongs to a staged/rolling race start; never leave it on elsewhere
+  -- (practice, qualifying, a finished race or an unsupported session).
+  if S.playerAutopilotOn and not (Sess.IsRaceMode(sim) and
+      (S.rollingStartState == "staged" or S.rollingStartState == "rolling")) then
+    RCtl.SetPlayerAutopilot(false)
   end
 
   logUpdateEntry(sim)

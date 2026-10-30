@@ -292,6 +292,13 @@
     padding: 1px;
 }
 
+.wec-nav-copyright {
+    padding: 1rem;
+    font-size: 0.72rem;
+    color: #9a9a9a;
+    text-align: center;
+}
+
 .navbar-toggler:checked ~ .nav-scrollable {
     display: block;
 }

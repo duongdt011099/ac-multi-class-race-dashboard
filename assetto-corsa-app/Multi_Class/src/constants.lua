@@ -21,6 +21,7 @@ C.ROLLING_START_SPEED_KMH           = 70
 -- Percentage of track progress where a car that has already crossed the line stacks into two
 -- columns (double file) for the rolling start.
 C.ROLLING_START_FORMATION_POINT     = 0.67
+C.AUTOPILOT_OFF_WARNING_SECONDS     = 10.0
 -- A car is considered to have rolled over the start line once its spline position drops below this.
 C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- Lateral distance of each column from the racing line, in metres. CSP keeps the AI on a lane with
@@ -62,6 +63,13 @@ C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH = 50.0
 C.ROLLING_START_LANE_GUARD_GAP      = 8.0
 C.ROLLING_START_LANE_GUARD_HOLD_GAP = 5.5
 C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
+-- Class guard: every car also watches the previous class's cars. Inside CLASS_GUARD_GAP metres it
+-- is capped to that car's speed plus (gap - CLASS_HOLD_GAP) * GAIN km/h, so a class arriving at 100
+-- km/h never runs into the previous class's tail after that tail slows to the double-file speed,
+-- and the gap between classes is kept at roughly CLASS_HOLD_GAP metres or more.
+C.ROLLING_START_CLASS_GUARD_GAP     = 70.0
+C.ROLLING_START_CLASS_HOLD_GAP      = 30.0
+C.ROLLING_START_CLASS_GUARD_GAIN_KMH = 2.5
 -- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.
@@ -71,16 +79,27 @@ C.ROLLING_START_CAR_SECONDS         = 0.7
 -- (0 = the very end), and the largest playback-rate trim used to stay in sync.
 C.ROLLING_MUSIC_END_LEAD_SECONDS = 0.0
 C.ROLLING_MUSIC_RATE_RANGE       = 0.04
-C.ROLLING_START_RELEASE_MOVED_METERS     = 20
-C.ROLLING_START_RELEASE_MOVED_KMH        = 30
+C.ROLLING_START_RELEASE_MOVED_METERS     = 10
+C.ROLLING_START_RELEASE_MOVED_KMH        = 20
 C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 10.0
+-- A reference car that has been crawling this long (stall watcher time) is skipped by the release
+-- gate, so a stalled car does not hold the whole queue behind it.
+C.ROLLING_START_RELEASE_STALL_SKIP_SECONDS = 1.0
+-- A held car this close in front of (and in the lane of) a released car is released too.
+C.ROLLING_START_BLOCKER_AHEAD_M            = 16.0
+C.ROLLING_START_BLOCKER_LATERAL_M          = 2.0
 -- A car just released is given this long to get going before it counts as stuck. It has to be
 -- shorter than the release cadence, otherwise the gate never applies and every car is let out
 -- while the one in front is still crawling.
 C.ROLLING_START_RELEASE_GRACE_SECONDS    = 0.3
 -- After this long the gate is ignored entirely, so the back of the grid is never left standing
 -- long enough for AC to teleport it to the pits.
-C.ROLLING_START_RELEASE_MAX_SECONDS      = 150.0
+C.ROLLING_START_RELEASE_MAX_SECONDS      = 50.0
+-- A car running this far behind its release slot gets a progressively looser gate, and none at all
+-- from GATE_RELAX_END_SECONDS: the last cars in the field must leave well before AC (~70 s) sends
+-- them to the pits.
+C.ROLLING_START_GATE_RELAX_START_SECONDS = 4.0
+C.ROLLING_START_GATE_RELAX_END_SECONDS   = 14.0
 -- Launch ramp after release: throttle limit and top speed climb gradually so cold-tyre cars do not spin.
 -- The start values are deliberately high: a car launched at 25 km/h with a quarter throttle creeps
 -- along at 5-15 km/h, and the next car (released 0.7 s later) is then let out on top of it, which
@@ -140,7 +159,7 @@ C.YELLOW_DROP_SECONDS         = 1.5
 C.YELLOW_MOVING_KMH           = 60
 C.YELLOW_MIN_LAP_COUNT        = 2
 -- Once yellow, the field stays under it for at least MIN_HOLD_SECONDS before the green countdown.
-C.YELLOW_MIN_HOLD_SECONDS      = 5.0
+C.YELLOW_MIN_HOLD_SECONDS      = 30.0
 -- A hazard AI car still on track after the leader has covered one more lap is sent to the pits by
 -- raising its stop counter (AC moves a long-stopped AI car there); the human car's own hazard is
 -- ignored after PLAYER_HAZARD_MAX_S.
@@ -191,6 +210,17 @@ C.YELLOW_AUDIO_SECONDS        = 8.7
 C.YELLOW_GREEN_AUDIO_SECONDS  = 8.1
 C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
+-- Lapped-car rule (blue flag). When a car that is a lap or more up has passed an AI car (it is
+-- PASSED_M..ENGAGE_GAP_M ahead of it), the lapped car's top speed is capped at HOLD_FACTOR times the
+-- passer's speed (never below MIN_SPEED_KMH) until the passer is RELEASE_GAP_M ahead, so it does not
+-- pass back. Nothing else about the car is changed.
+C.BLUE_PASSED_M              = 4
+C.BLUE_ENGAGE_GAP_M          = 40
+C.BLUE_RELEASE_GAP_M         = 70
+C.BLUE_HOLD_FACTOR           = 0.98
+C.BLUE_MIN_SPEED_KMH         = 50
+C.BLUE_SCAN_SECONDS          = 0.25
+
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
 C.SUBFOLDER_PRACTICE   = "practice"
