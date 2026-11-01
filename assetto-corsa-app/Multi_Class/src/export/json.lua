@@ -65,6 +65,7 @@ local function collectRaceEntries()
 
     order[#order + 1] = {
       index = carData.index,
+      laps = officialLapCount,
       position = carData.position > 0 and carData.position or (carData.index + 1),
     }
   end
@@ -72,7 +73,10 @@ local function collectRaceEntries()
 end
 
 local function buildRaceResultOrder(order)
+  -- AC's racePosition can be stale or rewritten once the timer ends, so completed laps rank
+  -- first and the AC position only breaks ties between cars on the same lap count.
   table.sort(order, function(a, b)
+    if a.laps ~= b.laps then return a.laps > b.laps end
     if a.position == b.position then return a.index < b.index end
     return a.position < b.position
   end)

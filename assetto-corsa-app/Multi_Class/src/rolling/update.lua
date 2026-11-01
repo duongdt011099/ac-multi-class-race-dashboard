@@ -86,6 +86,25 @@ local function AccumulateTravel(state, progress)
   return rawDelta < -0.5
 end
 
+-- True once every active car of the class is in double file and the tail is within
+-- GREEN_MAX_TAIL_GAP_M of the class leader.
+local function ClassClosedUp(group, trackLength)
+  local lead, tail
+  for _, memberIndex in ipairs(group.cars) do
+    local st = S.rollingStartCars[memberIndex]
+    local car = st and not st.dropped and getCar(memberIndex)
+    if car and type(car.splinePosition) == "number" then
+      if not st.enteredPhase2 then return false end
+      lead = lead or car
+      tail = car
+      local ahead = lead.splinePosition - car.splinePosition
+      if ahead > 0.5 then ahead = ahead - 1.0 elseif ahead < -0.5 then ahead = ahead + 1.0 end
+      if ahead * trackLength > C.ROLLING_START_GREEN_MAX_TAIL_GAP_M then return false end
+    end
+  end
+  return true
+end
+
 local function CheckCarForGreen(carIndex, state, now)
   local car = getCar(carIndex)
   if not (car and type(car.splinePosition) == "number") then
@@ -106,7 +125,8 @@ local function CheckCarForGreen(carIndex, state, now)
   if state.enteredPhase2 == true and crossedForward and (state.travelled or 0.0) >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
     local group = S.rollingStartGroups[state.groupIndex]
     if group and not group.green then
-      GreenWholeClass(group, now)
+      -- Don't go green yet: wait for the rest of the class to close up into double file.
+      group.greenPendingAt = group.greenPendingAt or now
     elseif not group then
       Green.GiveRollingGreen(carIndex, state, now)
     end
@@ -120,10 +140,20 @@ end
 -- sits just before the line (first crossing immediate, green after a full lap) or just after it
 -- (first crossing already ~a lap in, green right there). The old fixed "two crossings" rule
 -- made grid-after-line tracks such as Spa force a second, ~10-minute formation lap.
-local function DetectGreenCrossings(now)
+local function DetectGreenCrossings(now, trackLength)
   for _, carIndex in ipairs(S.rollingStartQueue) do
     local state = S.rollingStartCars[carIndex]
     if state and not state.green then CheckCarForGreen(carIndex, state, now) end
+  end
+
+  for _, group in ipairs(S.rollingStartGroups or {}) do
+    if group.greenPendingAt and not group.green then
+      local timedOut = now - group.greenPendingAt >= C.ROLLING_START_GREEN_HOLD_MAX_SECONDS
+      if timedOut or ClassClosedUp(group, trackLength) then
+        if timedOut then U.Log("ROLLING: class green forced after hold timeout.") end
+        GreenWholeClass(group, now)
+      end
+    end
   end
 end
 
@@ -175,7 +205,7 @@ function M.UpdateRollingStart(sim)
   end
 
   Formation.MaintainRollingFormation(ClampedFrameDelta(now), trackLength)
-  DetectGreenCrossings(now)
+  DetectGreenCrossings(now, trackLength)
 
   -- The procedure is complete once every class has gone green.
   if AllClassesGreen() then

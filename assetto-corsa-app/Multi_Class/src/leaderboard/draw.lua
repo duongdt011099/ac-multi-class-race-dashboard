@@ -343,7 +343,9 @@ function M.Leaderboard(dt)
 
   if rollingText then
     local flag = nil
-    if not rollingActive then
+    if rollingText == "GREEN — GO" then
+      flag = "green"
+    elseif not rollingActive then
       if S.yellowPlayerActive == true then
         flag = "yellow"
       elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then

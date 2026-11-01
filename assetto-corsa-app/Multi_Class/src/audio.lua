@@ -20,7 +20,6 @@ local armed = false      -- the human car has entered double file
 local started = false
 local fadeLeft = nil
 local finishing = false  -- green arrived near the end: let the track finish on its own
-local smoothSpeed = nil
 
 local function filePath()
   return ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/" .. FILE_NAME
@@ -38,7 +37,6 @@ end
 function M.Reset()
   dispose()
   armed = false
-  smoothSpeed = nil
 end
 
 -- Load the track paused at the start of the formation so it is ready when needed.
@@ -110,7 +108,7 @@ function M.FadeOut()
   end
 end
 
--- Estimated seconds until the player's class leader crosses the line, or nil when unknown.
+-- Estimated metres until the player's class leader crosses the line, or nil when unknown.
 local function EstimateTimeToGreen(dt)
   -- The music follows the first class: when its leader crosses the line every class goes green.
   local group = S.rollingStartGroups and S.rollingStartGroups[1]
@@ -129,9 +127,8 @@ local function EstimateTimeToGreen(dt)
   local p = U.NormalizeTrackProgress(leader.splinePosition or 0)
   if p < 0.3 then return nil end
 
-  local speed = math.max((leader.speedKmh or 0) / 3.6, 1.0)
-  smoothSpeed = smoothSpeed and (smoothSpeed + (speed - smoothSpeed) * math.min(1.0, dt * 2.0)) or speed
-  return (1.0 - p) * trackLength / math.max(smoothSpeed, 8.0)
+  -- Distance left to the line, in metres. Compared against S = v * t (see M.Update).
+  return (1.0 - p) * trackLength
 end
 
 local function StartPlayback(duration, position)
@@ -341,11 +338,13 @@ function M.Update(dt)
     end
     local marker = math.max(1.0, duration - C.ROLLING_MUSIC_END_LEAD_SECONDS)
 
-    local timeToGreen = EstimateTimeToGreen(dt)
-    if not timeToGreen then return end
+    local distance = EstimateTimeToGreen(dt)
+    if not distance then return end
 
     if not started then
-      if timeToGreen <= marker then StartPlayback(duration, marker - timeToGreen) end
+      -- S = v * t: the distance the pack covers at the double-file speed while the track plays.
+      local speed = C.ROLLING_START_SPEED_KMH / 3.6
+      if distance <= speed * marker then StartPlayback(duration, marker - distance / speed) end
       return
     end
 

@@ -107,7 +107,7 @@ local function updateHazard(i, car, dt, trackLength)
   if inPit(car) then
     st.slow, st.ok, st.moved = 0.0, 0.0, false
     if st.hazard then
-      st.hazard, st.ignored = false, false
+      st.hazard, st.ignored, st.confirmLogged = false, false, false
       U.Log(sFormat("YELLOW: car %d reached the pits; hazard ended after %.0f s", i, S.yellowClock - (st.hazardAt or 0)))
     end
     return false
@@ -127,9 +127,11 @@ local function updateHazard(i, car, dt, trackLength)
     if speed > C.YELLOW_SLOW_KMH * C.YELLOW_RECOVER_FACTOR then
       st.ok = st.ok + dt
       -- A hazard lives for at least MIN_ZONE_SECONDS so it cannot flicker on and off.
-      if st.ok >= C.YELLOW_RECOVER_SECONDS and S.yellowClock - st.hazardAt >= C.YELLOW_MIN_ZONE_SECONDS then
-        st.hazard, st.ignored, st.slow, st.stopT, st.ok = false, false, 0.0, 0.0, 0.0
-        U.Log(sFormat("YELLOW: car %d moving again; hazard ended after %.0f s", i, S.yellowClock - st.hazardAt))
+      -- (An unconfirmed hazard, one that never reached the yellow, can end at once.)
+      local held = S.yellowClock - st.hazardAt
+      if st.ok >= C.YELLOW_RECOVER_SECONDS and (held < C.YELLOW_CONFIRM_SECONDS or held >= C.YELLOW_MIN_ZONE_SECONDS) then
+        st.hazard, st.ignored, st.slow, st.stopT, st.ok, st.confirmLogged = false, false, 0.0, 0.0, 0.0, false
+        U.Log(sFormat("YELLOW: car %d moving again; hazard ended after %.0f s", i, held))
       end
     else
       st.ok = 0.0
@@ -249,7 +251,14 @@ local function buildHazardsNow(frameDt, trackLength)
         end
       end
 
-      if st.hazardP and not st.ignored then
+      -- A car that is back up to speed within a few seconds (a spin or a slide onto the grass) never
+      -- calls the yellow: the hazard only counts once it has lasted YELLOW_CONFIRM_SECONDS.
+      local confirmed = S.yellowClock - st.hazardAt >= C.YELLOW_CONFIRM_SECONDS
+      if confirmed and not st.confirmLogged then
+        st.confirmLogged = true
+        U.Log(sFormat("YELLOW: t=%.1f car %d hazard confirmed after %.0f s", S.yellowClock, i, S.yellowClock - st.hazardAt))
+      end
+      if st.hazardP and not st.ignored and confirmed then
         hazards[#hazards + 1] = { index = i, p = st.hazardP }
       end
     end

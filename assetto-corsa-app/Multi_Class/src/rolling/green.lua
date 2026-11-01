@@ -21,7 +21,6 @@ function M.GiveRollingGreen(carIndex, state, now)
   if carIndex == 0 then
     Audio.FadeOut()
     S.rollingStartStatus = "GREEN â€” GO"
-    ui.toast(ui.Icons.Play, "Rolling start: green light")
   end
 end
 

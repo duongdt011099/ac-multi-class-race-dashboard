@@ -38,6 +38,19 @@ C.ROLLING_START_GREEN_WINDOW_SECONDS  = 10.0
 -- whose grid sits after the line (first crossing is already ~a lap in, green right there) both go
 -- green after a single formation lap.
 C.ROLLING_START_GREEN_MIN_TRAVEL_LAP  = 0.5
+-- Green is held until the class tail has closed up to within this many metres of the class leader
+-- (i.e. the whole class is in double file), or GREEN_HOLD_MAX_SECONDS have passed since the leader
+-- crossed the line.
+C.ROLLING_START_GREEN_MAX_TAIL_GAP_M  = 140.0
+-- Double-file cars wait for stragglers: while a car of their class is still in single file behind
+-- them, the double-file cars slow from full speed (stragglers closer than WAIT_START_GAP_M) down to
+-- WAIT_MIN_SPEED_KMH (stragglers WAIT_FULL_GAP_M or more behind) so the tail can close up.
+-- Stragglers further back than WAIT_MAX_RANGE_M are ignored.
+C.ROLLING_START_WAIT_START_GAP_M      = 30.0
+C.ROLLING_START_WAIT_FULL_GAP_M       = 150.0
+C.ROLLING_START_WAIT_MAX_RANGE_M      = 600.0
+C.ROLLING_START_WAIT_MIN_SPEED_KMH    = 30.0
+C.ROLLING_START_GREEN_HOLD_MAX_SECONDS = 60.0
 -- Catch-up multiplier used by the phase-two spacing (reference GetLinearMultiplier default).
 C.ROLLING_START_CATCHUP_LIMIT       = 1.5
 -- Single-file run-up catch-up. Cars released later begin further back; the rear of the pack may
@@ -76,8 +89,10 @@ C.ROLLING_START_CLASS_GUARD_GAIN_KMH = 2.5
 C.ROLLING_START_CAR_SECONDS         = 0.7
 -- A car is only released once the car ahead of it has actually started moving.
 -- Rolling-start music: seconds before the end of the track that should line up with the green light
--- (0 = the very end), and the largest playback-rate trim used to stay in sync.
-C.ROLLING_MUSIC_END_LEAD_SECONDS = 0.0
+-- (0 = the track ends as the leader crosses the line; positive = it ends that many seconds after
+-- the crossing, covering the wait for the class to close up before green), and the largest
+-- playback-rate trim used to stay in sync.
+C.ROLLING_MUSIC_END_LEAD_SECONDS = 6.0
 C.ROLLING_MUSIC_RATE_RANGE       = 0.04
 C.ROLLING_START_RELEASE_MOVED_METERS     = 10
 C.ROLLING_START_RELEASE_MOVED_KMH        = 20
@@ -151,6 +166,9 @@ C.YELLOW_CORNER_FACTOR        = 1.5
 C.YELLOW_RECOVER_FACTOR       = 1.15
 C.YELLOW_RECOVER_SECONDS      = 1.5
 C.YELLOW_MIN_ZONE_SECONDS     = 15.0
+-- A stop/crash only calls the yellow once the car has stayed a hazard this long; a car that rejoins
+-- and races normally before then (a spin or a slide on the grass) does not.
+C.YELLOW_CONFIRM_SECONDS      = 6.0
 C.YELLOW_STOPPED_KMH          = 20
 C.YELLOW_STOPPED_SECONDS      = 0.15
 C.YELLOW_DROP_FROM_KMH        = 110

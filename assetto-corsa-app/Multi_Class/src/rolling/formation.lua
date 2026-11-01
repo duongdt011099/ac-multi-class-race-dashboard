@@ -231,11 +231,40 @@ local function ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLim
   return targetSpeed, throttleLimit
 end
 
+-- Double-file cars wait for the rest of their class: slow down in proportion to how far behind the
+-- farthest released car is that has not yet entered double file (see WAIT constants).
+local function WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
+  if not (group and group.cars and car) then return targetSpeed, throttleLimit end
+  local farthest = 0.0
+  for _, memberIndex in ipairs(group.cars) do
+    local member = S.rollingStartCars[memberIndex]
+    if member and member.released and not member.enteredPhase2 and not member.dropped and not member.green then
+      local other = getCar(memberIndex)
+      if other and type(other.splinePosition) == "number" then
+        local behind = -Spacing.SignedGap(other, car, trackLength)
+        if behind > 0 and behind <= C.ROLLING_START_WAIT_MAX_RANGE_M and behind > farthest then
+          farthest = behind
+        end
+      end
+    end
+  end
+  if farthest <= C.ROLLING_START_WAIT_START_GAP_M then return targetSpeed, throttleLimit end
+  local t = math.min(1.0, (farthest - C.ROLLING_START_WAIT_START_GAP_M) /
+      (C.ROLLING_START_WAIT_FULL_GAP_M - C.ROLLING_START_WAIT_START_GAP_M))
+  local waitSpeed = targetSpeed + (C.ROLLING_START_WAIT_MIN_SPEED_KMH - targetSpeed) * t
+  if waitSpeed < targetSpeed then
+    targetSpeed = math.max(0.0, waitSpeed)
+    throttleLimit = math.min(throttleLimit, 1.0 - 0.5 * t)
+  end
+  return targetSpeed, throttleLimit
+end
+
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
   local targetSpeed, throttleLimit = Spacing.ApplyRollingPhaseTwoSpacing(state, group, trackLength)
   targetSpeed, throttleLimit = ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimit)
+  targetSpeed, throttleLimit = WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
   return targetSpeed, targetOffset, cautionLevel, throttleLimit
 end
 
