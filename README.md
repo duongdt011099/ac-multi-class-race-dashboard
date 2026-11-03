@@ -55,8 +55,8 @@ To use the dashboard you need:
 1. You have to configure the car tags in Content Manager to make the leaderboard work correctly.
 <img width="816" height="602" alt="image" src="https://github.com/user-attachments/assets/ee3cd70e-8090-400b-9576-504072184f6a" />
 
-2. In game class-leaderboard config - You have to type the car tag to make the leaderboard auto order by class: eg: Hyperpar
-<img width="490" height="561" alt="image" src="https://github.com/user-attachments/assets/7188cb24-4dbc-4d42-a35b-d2755f13dde6" />
+2. In game class-leaderboard config - You have to choose the car tag to make the leaderboard auto order by class: eg: Hyperpar
+<img width="491" height="615" alt="image" src="https://github.com/user-attachments/assets/beac5935-4eb6-4642-bb9b-595d4910552c" />
 
 ## Rolling Start
 
