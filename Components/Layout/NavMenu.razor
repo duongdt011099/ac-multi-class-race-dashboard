@@ -6,7 +6,7 @@
     </div>
 </div>
 
-@rendermode InteractiveServer
+@rendermode Interactive
 @implements IDisposable
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
@@ -37,7 +37,7 @@
                 <div class="wec-nav-human__title">
                     <span class="bi bi-person-nav" aria-hidden="true"></span> Current Human Driver
                 </div>
-                <div class="wec-nav-human__card">
+                <button type="button" class="wec-nav-human__card wec-nav-human__card--link" title="Open driver details" @onclick="OpenHumanDriver">
                     <div class="wec-nav-human__row">
                         @if (!string.IsNullOrWhiteSpace(humanDriver.CarImageUrl))
                         {
@@ -55,7 +55,7 @@
                         }
                         <span>@(humanDriver.TeamName ?? "No team")</span>
                     </div>
-                </div>
+                </button>
             }
             else
             {

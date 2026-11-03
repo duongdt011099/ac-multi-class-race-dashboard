@@ -16,7 +16,11 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
 
     public async Task<IEnumerable<Driver>> GetActiveDriversAsync()
     {
+        // Read-only list for display: no change tracking, and split queries so each driver row is not
+        // repeated once per class item of its team.
         return await _context.Driver
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(d => d.Team)
                 .ThenInclude(t => t!.ClassSettingItems)
                     .ThenInclude(i => i.ClassSetting)

@@ -196,6 +196,6 @@ public class DriversPageTests : PageTestContext
 
         cut.Find(".wec-modal-overlay").Click();
 
-        Assert.Empty(cut.FindAll(".wec-modal"));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-modal")));
     }
 }

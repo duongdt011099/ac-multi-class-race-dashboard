@@ -9,12 +9,34 @@ main {
 }
 
 .sidebar {
-    background-color: #2b2b2e;
+    background: linear-gradient(180deg, #0d0d10 0%, #08080a 100%);
+    border-right: 1px solid #23232a;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.6);
+    position: relative;
+}
+
+/* A thin red light running down the sidebar edge. */
+.sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -1px;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, #ff2e24, transparent);
+    background-size: 100% 200%;
+    animation: sidebar-run 4s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+@keyframes sidebar-run {
+    from { background-position: 0 0; opacity: 0.35; }
+    to   { background-position: 0 100%; opacity: 0.9; }
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
+    background-color: #0a0a0c;
+    border-bottom: 1px solid #23232a;
     justify-content: flex-end;
     height: 3.5rem;
     display: flex;
@@ -50,14 +72,37 @@ main {
 }
 
 @media (min-width: 641px) {
+    /* The window itself never scrolls: the sidebar stays put and only the content (or, on the table
+       pages, the table inside it) moves. */
     .page {
         flex-direction: row;
+        height: 100vh;
+        overflow: hidden;
     }
 
     .sidebar {
         width: 250px;
+        flex: 0 0 250px;
+        height: 100vh;
         position: sticky;
         top: 0;
+    }
+
+    main {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    article.content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding-bottom: 1rem;
     }
 
     .top-row {
@@ -80,8 +125,10 @@ main {
 }
 
 #blazor-error-ui {
-    color-scheme: light only;
-    background: lightyellow;
+    color-scheme: dark only;
+    background: #2a0b0a;
+    color: #f3f3f5;
+    border-top: 2px solid #e10600;
     bottom: 0;
     box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
     box-sizing: border-box;
@@ -101,7 +148,19 @@ main {
 }
 
 .background-image {
-    background-image: url('/background.png');
-    background-size: cover;
-    background-position: center;
+    min-height: 100vh;
+    background-color: #070708;
+    background-image:
+        radial-gradient(60rem 36rem at 0% 0%, rgba(225, 6, 0, 0.16), transparent 60%),
+        radial-gradient(50rem 32rem at 100% 100%, rgba(225, 6, 0, 0.1), transparent 60%),
+        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    background-attachment: fixed;
+    animation: bg-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes bg-drift {
+    from { background-position: 0 0, 100% 100%, 0 0, 0 0; }
+    to   { background-position: 8% 6%, 92% 94%, 0 0, 0 0; }
 }

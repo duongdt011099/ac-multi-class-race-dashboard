@@ -1,10 +1,14 @@
-<button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="OnCancel">@CancelText</button>
+<button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="CancelAsync">@CancelText</button>
 <button type="button" class="wec-modal__btn @(Danger ? "wec-modal__btn--danger" : "wec-modal__btn--primary")"
         @onclick="OnConfirm" disabled="@(IsBusy || Disabled)">
     @(IsBusy ? BusyText : ConfirmText)
 </button>
 
 @code {
+    [CascadingParameter] private Modal? ParentModal { get; set; }
+
+    private Task CancelAsync() => ParentModal is null ? OnCancel.InvokeAsync() : ParentModal.CloseAsync(OnCancel);
+
     [Parameter] public string CancelText { get; set; } = "Cancel";
 
     [Parameter, EditorRequired] public string ConfirmText { get; set; } = string.Empty;

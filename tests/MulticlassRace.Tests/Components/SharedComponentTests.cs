@@ -43,7 +43,8 @@ public class SharedComponentTests : TestContext
 
         cut.Find(".wec-modal__close").Click();
 
-        Assert.True(closed);
+        // The dialog plays a short closing animation before it raises OnClose.
+        cut.WaitForAssertion(() => Assert.True(closed));
     }
 
     [Fact]
@@ -62,7 +63,7 @@ public class SharedComponentTests : TestContext
         Assert.Equal(0, closed);
 
         enabled.Find(".wec-modal-overlay").Click();
-        Assert.Equal(1, closed);
+        enabled.WaitForAssertion(() => Assert.Equal(1, closed));
     }
 
     [Fact]
@@ -113,8 +114,8 @@ public class SharedComponentTests : TestContext
         cut.Find(".wec-modal__btn--danger").Click();
         cut.Find(".wec-modal__btn--secondary").Click();
 
+        cut.WaitForAssertion(() => Assert.Equal(1, cancelled));
         Assert.Equal(1, confirmed);
-        Assert.Equal(1, cancelled);
         Assert.Contains("wec-modal--small", cut.Find(".wec-modal").ClassList);
         Assert.Contains("Sure?", cut.Find(".wec-modal__body p").TextContent);
     }

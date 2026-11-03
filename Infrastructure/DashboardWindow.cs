@@ -42,6 +42,11 @@ internal sealed class DashboardWindow : Form
         StartPosition = FormStartPosition.CenterScreen;
         WindowState = FormWindowState.Maximized;
 
+        // No native title bar: the page draws its own close button. A borderless form would cover the
+        // taskbar when maximized, so the maximized bounds are limited to the working area.
+        FormBorderStyle = FormBorderStyle.None;
+        MaximizedBounds = Screen.FromPoint(Cursor.Position).WorkingArea;
+
         if (icon is not null)
         {
             Icon = icon;
@@ -138,6 +143,7 @@ internal sealed class DashboardWindow : Form
 
             core.NavigationStarting += OnNavigationStarting;
             core.NewWindowRequested += OnNewWindowRequested;
+            core.WebMessageReceived += OnWebMessageReceived;
 
             _initialized = true;
             core.Navigate(_baseUri.ToString());
@@ -170,6 +176,7 @@ internal sealed class DashboardWindow : Form
         settings.IsStatusBarEnabled = false;
         settings.IsGeneralAutofillEnabled = false;
         settings.IsPasswordAutosaveEnabled = false;
+        settings.IsNonClientRegionSupportEnabled = true;
     }
 
     private void SetAccessCookie(CoreWebView2 core)
@@ -178,6 +185,20 @@ internal sealed class DashboardWindow : Form
         cookie.IsHttpOnly = true;
         cookie.SameSite = CoreWebView2CookieSameSiteKind.Strict;
         core.CookieManager.AddOrUpdateCookie(cookie);
+    }
+
+    // The page's own close button asks the window to hide, exactly like the old title-bar X did.
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        switch (e.TryGetWebMessageAsString())
+        {
+            case "close":
+                Close();
+                break;
+            case "minimize":
+                WindowState = FormWindowState.Minimized;
+                break;
+        }
     }
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)

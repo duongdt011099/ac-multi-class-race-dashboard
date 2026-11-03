@@ -1,0 +1,965 @@
+/* Black & red racing theme. Loaded after racing-tables.css and the scoped bundle, so it only
+   overrides colours and adds motion; layout rules stay where they were. */
+
+:root {
+    color-scheme: dark;
+
+    --wec-bg: #070708;
+    --wec-surface: #111115;
+    --wec-surface-2: #17171c;
+    --wec-surface-3: #1f1f26;
+    --wec-border: #2a2a32;
+    --wec-border-soft: #1d1d23;
+    --wec-text: #f3f3f5;
+    --wec-text-2: #c7c7cf;
+    --wec-muted: #8d8d99;
+    --wec-red: #e10600;
+    --wec-red-hot: #ff2e24;
+    --wec-red-deep: #8f0400;
+    --wec-red-soft: rgba(225, 6, 0, 0.14);
+    --wec-red-glow: rgba(255, 46, 36, 0.45);
+
+    --wec-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --wec-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --bs-body-bg: var(--wec-bg);
+    --bs-body-color: var(--wec-text);
+    --bs-border-color: var(--wec-border);
+}
+
+html, body {
+    background: var(--wec-bg);
+    color: var(--wec-text);
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+a, .btn-link { color: var(--wec-red-hot); transition: color 0.15s ease; }
+a:hover, .btn-link:hover { color: #ff6a62; }
+
+::selection { background: var(--wec-red); color: #fff; }
+
+
+h1, h2, h3, h4, h5, h6 { color: var(--wec-text); }
+
+/* ---------- Entrance motion ---------- */
+
+@keyframes wec-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wec-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes wec-pop {
+    from { opacity: 0; transform: translateY(18px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes wec-row-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wec-pulse {
+    0%   { box-shadow: 0 0 0 0 var(--wec-red-glow); }
+    70%  { box-shadow: 0 0 0 8px rgba(255, 46, 36, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 46, 36, 0); }
+}
+
+@keyframes wec-sweep {
+    from { transform: translateX(-120%) skewX(-20deg); }
+    to   { transform: translateX(260%) skewX(-20deg); }
+}
+
+@keyframes wec-glow-drift {
+    0%   { background-position: 0% 0%, 100% 100%, 0 0; }
+    50%  { background-position: 12% 8%, 88% 92%, 0 0; }
+    100% { background-position: 0% 0%, 100% 100%, 0 0; }
+}
+
+@keyframes wec-line-run {
+    from { background-position: 0 0; }
+    to   { background-position: 200% 0; }
+}
+
+.content > * {
+    animation: wec-rise 0.55s var(--wec-ease) both;
+}
+.content > *:nth-child(2) { animation-delay: 0.06s; }
+.content > *:nth-child(3) { animation-delay: 0.12s; }
+.content > *:nth-child(4) { animation-delay: 0.18s; }
+.content > *:nth-child(n+5) { animation-delay: 0.24s; }
+
+.wec-table tbody tr {
+    animation: wec-row-in 0.4s var(--wec-ease) both;
+}
+.wec-table tbody tr:nth-child(1)  { animation-delay: 0.03s; }
+.wec-table tbody tr:nth-child(2)  { animation-delay: 0.06s; }
+.wec-table tbody tr:nth-child(3)  { animation-delay: 0.09s; }
+.wec-table tbody tr:nth-child(4)  { animation-delay: 0.12s; }
+.wec-table tbody tr:nth-child(5)  { animation-delay: 0.15s; }
+.wec-table tbody tr:nth-child(6)  { animation-delay: 0.18s; }
+.wec-table tbody tr:nth-child(7)  { animation-delay: 0.21s; }
+.wec-table tbody tr:nth-child(8)  { animation-delay: 0.24s; }
+.wec-table tbody tr:nth-child(9)  { animation-delay: 0.27s; }
+.wec-table tbody tr:nth-child(10) { animation-delay: 0.30s; }
+.wec-table tbody tr:nth-child(n+11) { animation-delay: 0.33s; }
+
+/* ---------- Tables ---------- */
+
+.wec-table-wrapper {
+    position: relative;
+    background: var(--wec-surface);
+    border: 1px solid var(--wec-border);
+    border-top: 0;
+    border-radius: 10px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+    overflow-x: auto;
+}
+
+/* A red light that keeps running along the top edge of every table. */
+.wec-table-wrapper::before {
+    content: "";
+    position: sticky;
+    display: block;
+    left: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--wec-red-deep), var(--wec-red-hot), #ff8a80, var(--wec-red-hot), var(--wec-red-deep));
+    background-size: 200% 100%;
+    animation: wec-line-run 3.5s linear infinite;
+}
+
+.wec-table { color: var(--wec-text); }
+
+.wec-table thead th {
+    background: #0c0c0f;
+    color: var(--wec-text-2);
+    border-bottom: 1px solid var(--wec-red);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+}
+
+.wec-table tbody td {
+    border-bottom: 1px solid var(--wec-border-soft);
+    transition: background-color 0.2s ease;
+}
+
+.wec-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.022); }
+
+.wec-table tbody tr {
+    transition: background-color 0.2s ease, box-shadow 0.25s var(--wec-ease);
+}
+
+.wec-table tbody tr:hover {
+    background: linear-gradient(90deg, rgba(225, 6, 0, 0.2), rgba(225, 6, 0, 0.04) 60%, transparent);
+    box-shadow: inset 3px 0 0 var(--wec-red);
+}
+
+.wec-table__position { color: var(--wec-text); }
+.wec-table__position--gold   { color: #ffc83d; text-shadow: 0 0 14px rgba(255, 200, 61, 0.45); }
+.wec-table__position--silver { color: #c9d1d9; text-shadow: 0 0 12px rgba(201, 209, 217, 0.3); }
+.wec-table__position--bronze { color: #e0914f; text-shadow: 0 0 12px rgba(224, 145, 79, 0.35); }
+
+.wec-table__sort:hover { color: var(--wec-red-hot); }
+
+.wec-table__logo,
+.wec-podium__logo {
+    background: #fff;
+    border-color: var(--wec-border);
+}
+.wec-table__logo--fallback,
+.wec-podium__logo--fallback { background: var(--wec-surface-3); color: var(--wec-muted); }
+
+.wec-table-scroll { border-color: var(--wec-border); }
+
+.wec-empty, .wec-seasons__empty, .wec-drivers__empty { color: var(--wec-muted); }
+
+/* ---------- Badges & status ---------- */
+
+.wec-badge {
+    border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    transition: transform 0.2s var(--wec-spring), box-shadow 0.2s ease;
+}
+.wec-badge:hover { transform: translateY(-1px) scale(1.05); }
+.wec-badge--hypercar { background: linear-gradient(135deg, #ff2e24, #b30500); box-shadow: 0 0 14px rgba(225, 6, 0, 0.45); }
+.wec-badge--lmp2     { background: linear-gradient(135deg, #1a73e8, #0a4aa0); }
+.wec-badge--lmgt3    { background: linear-gradient(135deg, #3fa34d, #25702f); }
+.wec-badge--default  { background: linear-gradient(135deg, #52525b, #34343b); }
+
+.wec-status { color: var(--wec-text-2); }
+.wec-status::before { background: #22c55e; }
+.wec-status--inactive { color: var(--wec-muted); }
+.wec-status--inactive::before { background: #55555f; }
+.wec-status--finished { color: #4ade80; }
+.wec-status--finished::before { background: #22c55e; }
+.wec-status--inprogress { color: #fbbf24; }
+.wec-status--inprogress::before { background: #fbbf24; animation: wec-pulse 1.6s ease-out infinite; }
+.wec-status--notstarted { color: var(--wec-muted); }
+.wec-status--notstarted::before { background: #55555f; }
+
+/* ---------- Buttons ---------- */
+
+.wec-toolbar__btn,
+.wec-modal__btn {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s var(--wec-ease), box-shadow 0.25s ease,
+                background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.wec-toolbar__btn,
+.wec-modal__btn--primary {
+    background: linear-gradient(180deg, var(--wec-red-hot), var(--wec-red) 55%, #b80500);
+    border-color: #ff4a40;
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(225, 6, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.wec-toolbar__btn::after,
+.wec-modal__btn--primary::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    transform: translateX(-120%) skewX(-20deg);
+    pointer-events: none;
+}
+
+.wec-toolbar__btn:hover,
+.wec-modal__btn--primary:hover {
+    background: linear-gradient(180deg, #ff4a40, var(--wec-red-hot) 55%, var(--wec-red));
+    border-color: #ff6a62;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 26px rgba(255, 46, 36, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.wec-toolbar__btn:hover::after,
+.wec-modal__btn--primary:hover::after {
+    animation: wec-sweep 0.7s var(--wec-ease);
+}
+
+.wec-toolbar__btn:active,
+.wec-modal__btn:active,
+.wec-btn:active { transform: translateY(0) scale(0.97); }
+
+.wec-modal__btn--secondary {
+    background: transparent;
+    color: var(--wec-text);
+    border-color: var(--wec-border);
+}
+.wec-modal__btn--secondary:hover {
+    border-color: var(--wec-red);
+    color: #fff;
+    background: var(--wec-red-soft);
+    transform: translateY(-1px);
+}
+
+.wec-modal__btn--danger {
+    background: #7a0f0f;
+    border-color: #b91c1c;
+}
+.wec-modal__btn--danger:hover {
+    background: #b91c1c;
+    border-color: #ef4444;
+    box-shadow: 0 8px 22px rgba(239, 68, 68, 0.35);
+    transform: translateY(-1px);
+}
+
+.wec-toolbar__btn--disabled,
+.wec-toolbar__btn:disabled { box-shadow: none; filter: grayscale(0.6); }
+.wec-toolbar__btn--disabled:hover,
+.wec-toolbar__btn:disabled:hover { transform: none; }
+
+.wec-btn {
+    background: var(--wec-surface-2);
+    color: var(--wec-text-2);
+    border-color: var(--wec-border);
+    transition: transform 0.2s var(--wec-spring), background-color 0.2s ease,
+                color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.wec-btn:hover {
+    background: var(--wec-red);
+    border-color: var(--wec-red-hot);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(225, 6, 0, 0.4);
+}
+.wec-btn--icon:disabled:hover {
+    background: var(--wec-surface-2);
+    color: var(--wec-text-2);
+    border-color: var(--wec-border);
+    transform: none;
+    box-shadow: none;
+}
+
+.wec-drivers__add {
+    background: transparent;
+    border-color: var(--wec-red);
+    color: var(--wec-red-hot);
+    transition: all 0.2s var(--wec-ease);
+}
+.wec-drivers__add:hover { background: var(--wec-red); color: #fff; box-shadow: 0 6px 16px rgba(225, 6, 0, 0.35); }
+
+.wec-drivers__remove { background: var(--wec-surface-2); border-color: var(--wec-border); color: var(--wec-muted); transition: all 0.2s ease; }
+.wec-drivers__remove:hover { background: var(--wec-red); border-color: var(--wec-red-hot); color: #fff; transform: rotate(90deg); }
+
+.wec-pagination { background: var(--wec-surface); border-top-color: var(--wec-border); }
+.wec-pagination__btn { background: var(--wec-surface-2); border-color: var(--wec-border); color: var(--wec-text); transition: all 0.2s ease; }
+.wec-pagination__btn:hover:not(:disabled) { border-color: var(--wec-red); color: #fff; background: var(--wec-red-soft); transform: translateY(-1px); }
+.wec-pagination__info { color: var(--wec-muted); }
+
+/* ---------- Form controls ---------- */
+
+.wec-form-field input[type="text"],
+.wec-form-field input[type="number"],
+.wec-form-field select,
+.wec-seasons__add input,
+.wec-filters__item select,
+.wec-filters__item input[type="text"],
+.wec-race-teams__filter select,
+.wec-session-setting select,
+.wec-result-file-select,
+.wec-setting-entry-input,
+.wec-drivers__searchbox input,
+.wec-form-field--number input,
+.form-control, .form-select {
+    background: var(--wec-surface-2);
+    color: var(--wec-text);
+    border-color: var(--wec-border);
+    transition: border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease;
+}
+
+.wec-form-field input:focus,
+.wec-form-field select:focus,
+.wec-seasons__add input:focus,
+.wec-filters__item select:focus,
+.wec-filters__item input[type="text"]:focus,
+.wec-drivers__searchbox input:focus,
+.wec-form-field--number input:focus,
+.form-control:focus, .form-select:focus {
+    background: var(--wec-surface-3);
+    border-color: var(--wec-red-hot);
+    box-shadow: 0 0 0 3px rgba(225, 6, 0, 0.25), 0 0 18px rgba(225, 6, 0, 0.2);
+    color: #fff;
+}
+
+.wec-form-field input::placeholder, .form-control::placeholder { color: #5f5f6b; }
+
+.wec-form-field label,
+.wec-filters__item,
+.wec-tab,
+.wec-session-toolbar__label,
+.wec-preset-export__label,
+.wec-race-teams__filter label,
+.wec-setting-entries__header,
+.wec-drivers__title,
+.wec-session-block__date { color: var(--wec-muted); }
+
+.wec-form-field--readonly input[type="text"] { background: #0e0e12; color: var(--wec-muted); }
+.wec-form-field input[type="color"],
+.wec-class-list__field--color input[type="color"] { background: var(--wec-surface-2); border-color: var(--wec-border); }
+
+.wec-form-field input[type="file"]::file-selector-button {
+    background: var(--wec-surface-3);
+    border-color: var(--wec-border);
+    color: var(--wec-text);
+    transition: all 0.2s ease;
+}
+.wec-form-field input[type="file"]::file-selector-button:hover { border-color: var(--wec-red); background: var(--wec-red-soft); }
+
+.wec-session-setting label,
+.wec-race-teams__select-all,
+.wec-preset-export__mode,
+.wec-result-file-select { color: var(--wec-text-2); }
+
+.wec-form-hint, .wec-context, .wec-text-muted, .wec-race-teams__hint,
+.wec-config__intro, .wec-config__hint, .wec-breadcrumb { color: var(--wec-muted); }
+.wec-points-preview { color: var(--wec-text-2); }
+.wec-config__hint code { background: rgba(255, 255, 255, 0.08); color: var(--wec-text-2); }
+
+/* ---------- Tabs ---------- */
+
+.wec-tabs { border-bottom-color: var(--wec-border); }
+.wec-tab { position: relative; transition: color 0.2s ease; }
+.wec-tab:hover { color: #fff; }
+.wec-tab--active { color: #fff; border-bottom-color: transparent; text-shadow: 0 0 16px var(--wec-red-glow); }
+.wec-tab--active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--wec-red-hot), transparent);
+    box-shadow: 0 0 12px var(--wec-red-hot);
+    animation: wec-fade 0.35s ease both;
+}
+.wec-tab--disabled, .wec-tab--disabled:hover { color: #44444d; text-shadow: none; }
+
+/* ---------- Rows, lists, cards ---------- */
+
+.wec-race-teams__row {
+    background: var(--wec-surface);
+    border-color: var(--wec-border);
+    color: var(--wec-text);
+    transition: transform 0.2s var(--wec-ease), background-color 0.2s ease, border-color 0.2s ease;
+}
+.wec-race-teams__row:hover { background: var(--wec-surface-2); border-color: #4a1210; transform: translateX(3px); }
+.wec-race-teams__row--selected,
+.wec-race-teams__row--selected:hover { background: linear-gradient(90deg, rgba(225, 6, 0, 0.22), var(--wec-surface)); border-color: var(--wec-red); }
+.wec-race-teams__select-all.wec-disabled { color: #55555f; }
+
+.wec-seasons__row { border-bottom-color: var(--wec-border-soft); transition: background-color 0.2s ease; }
+.wec-seasons__row:nth-child(even) { background: rgba(255, 255, 255, 0.022); }
+.wec-seasons__row:hover { background: var(--wec-red-soft); }
+.wec-seasons__name { color: var(--wec-text); }
+.wec-seasons__races { color: var(--wec-muted); }
+
+.wec-drivers { border-top-color: var(--wec-border); }
+.wec-drivers__grid, .wec-drivers__results { border-color: var(--wec-border); background: var(--wec-surface); }
+.wec-drivers__row { border-bottom-color: var(--wec-border-soft); transition: background-color 0.2s ease; }
+.wec-drivers__row:nth-child(even) { background: rgba(255, 255, 255, 0.022); }
+.wec-drivers__row:hover { background: var(--wec-red-soft); }
+.wec-drivers__num, .wec-drivers__result-name { color: var(--wec-text); }
+.wec-drivers__car, .wec-drivers__result-meta { color: var(--wec-muted); }
+.wec-drivers__result { border-bottom-color: var(--wec-border-soft); transition: background-color 0.15s ease; }
+.wec-drivers__result:hover { background: var(--wec-red-soft); }
+.wec-drivers__result--empty:hover { background: none; }
+.wec-drivers__livery, .wec-drivers__car-img { border-color: var(--wec-border); background: var(--wec-surface-3); }
+.wec-drivers__car-img { transition: transform 0.25s var(--wec-ease), border-color 0.2s ease, box-shadow 0.2s ease; }
+.wec-drivers__car-btn:hover .wec-drivers__car-img { transform: scale(1.12); border-color: var(--wec-red-hot); box-shadow: 0 6px 18px rgba(225, 6, 0, 0.4); }
+
+.wec-skin-preview { background: var(--wec-surface-2); border-color: var(--wec-border); }
+
+.wec-class-search__menu, .wec-dropdown__menu {
+    background: var(--wec-surface-2);
+    border-color: var(--wec-border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
+    animation: wec-pop 0.22s var(--wec-ease) both;
+}
+.wec-class-search__option { color: var(--wec-text); }
+.wec-class-search__option:hover { background: var(--wec-red-soft); }
+.wec-class-search__empty { color: var(--wec-muted); }
+.wec-class-search__swatch { border-color: rgba(255, 255, 255, 0.25); }
+.wec-dropdown__item { background: var(--wec-surface-3); }
+.wec-dropdown__item-title { color: var(--wec-text-2); }
+
+.wec-class-tags__chip { background: var(--wec-surface-3); border-color: var(--wec-border); color: var(--wec-text); transition: transform 0.2s var(--wec-spring); }
+.wec-class-tags__chip:hover { transform: translateY(-1px); border-color: var(--wec-red); }
+.wec-class-tags__chip-remove:hover { background: var(--wec-red); color: #fff; }
+
+.wec-folder-picker__current { background: var(--wec-surface-2); border-color: var(--wec-border); color: var(--wec-text); }
+.wec-folder-picker__list { background: var(--wec-surface); border-color: var(--wec-border); }
+.wec-folder-picker__list .wec-folder-picker__row { color: var(--wec-text); border-bottom-color: var(--wec-border-soft); transition: background-color 0.15s ease; }
+.wec-folder-picker__list .wec-folder-picker__row:hover { background: var(--wec-red-soft); }
+.wec-folder-picker__list .wec-folder-picker__row--selected,
+.wec-folder-picker__list .wec-folder-picker__row--selected:hover { background: rgba(225, 6, 0, 0.3); }
+
+.wec-track-preview__img { border-color: var(--wec-border); }
+.wec-track-preview__label, .wec-race-track__layout { color: var(--wec-muted); }
+.wec-race-track__thumb { border-color: var(--wec-border); background: var(--wec-surface-3); transition: transform 0.25s var(--wec-ease); }
+tr:hover .wec-race-track__thumb { transform: scale(1.06); }
+
+/* ---------- Config cards ---------- */
+
+.wec-config {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--wec-surface-2), var(--wec-surface));
+    border: 1px solid var(--wec-border);
+    border-top: 0;
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.wec-config::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--wec-red-deep), var(--wec-red-hot), var(--wec-red-deep));
+    background-size: 200% 100%;
+    animation: wec-line-run 3.5s linear infinite;
+}
+.wec-lua-result__details dt { color: var(--wec-muted); }
+.wec-lua-result__details dd { color: var(--wec-text-2); }
+
+/* ---------- Modals ---------- */
+
+.wec-modal-overlay {
+    background: rgba(2, 2, 4, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: wec-fade 0.25s ease both;
+}
+
+.wec-modal {
+    position: relative;
+    background: linear-gradient(180deg, var(--wec-surface-2), var(--wec-surface));
+    border: 1px solid var(--wec-border);
+    border-top: 0;
+    border-radius: 12px;
+    color: var(--wec-text);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 60px rgba(225, 6, 0, 0.12);
+    animation: wec-pop 0.35s var(--wec-spring) both;
+}
+.wec-modal::before {
+    content: "";
+    position: sticky;
+    display: block;
+    top: 0;
+    z-index: 2;
+    height: 3px;
+    background: linear-gradient(90deg, var(--wec-red-deep), var(--wec-red-hot), var(--wec-red-deep));
+    background-size: 200% 100%;
+    animation: wec-line-run 3.5s linear infinite;
+}
+.wec-modal__header { color: var(--wec-text); border-bottom-color: var(--wec-border); }
+.wec-modal__footer { border-top-color: var(--wec-border); }
+.wec-modal__close { color: var(--wec-muted); transition: color 0.2s ease, transform 0.25s var(--wec-spring); }
+.wec-modal__close:hover { color: var(--wec-red-hot); transform: rotate(90deg) scale(1.15); }
+
+.wec-loading-overlay { background: rgba(7, 7, 8, 0.7); backdrop-filter: blur(3px); }
+.wec-loading-overlay__content { background: var(--wec-surface-2); border-color: var(--wec-border); border-top-color: var(--wec-red); }
+.wec-lua-import-loading__message { color: var(--wec-text-2); }
+
+.wec-update__published { color: var(--wec-muted); }
+.wec-update__asset, .wec-update__notes { background: var(--wec-surface-3); color: var(--wec-text-2); }
+.wec-update__notes { border-left-color: var(--wec-border); }
+.wec-update__error, .wec-alert { background: rgba(185, 28, 28, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ff8a85; }
+
+/* ---------- Spinner, toast ---------- */
+
+.wec-spinner {
+    border-color: rgba(225, 6, 0, 0.18);
+    border-top-color: var(--wec-red-hot);
+    filter: drop-shadow(0 0 8px var(--wec-red-glow));
+}
+.wec-spinner__label { color: var(--wec-muted); }
+
+.wec-toast {
+    background: var(--wec-surface-3);
+    border: 1px solid var(--wec-border);
+    border-left: 4px solid #22c55e;
+    animation: wec-toast-in 0.45s var(--wec-spring) both;
+}
+.wec-toast--error { border-left-color: var(--wec-red-hot); box-shadow: 0 8px 28px rgba(225, 6, 0, 0.35); }
+
+/* ---------- Podium ---------- */
+
+.wec-podium__slot { animation: wec-rise 0.8s var(--wec-ease) both; }
+.wec-podium__slot:nth-child(1) { animation-delay: 0.25s; }
+.wec-podium__slot:nth-child(2) { animation-delay: 0.05s; }
+.wec-podium__slot:nth-child(3) { animation-delay: 0.4s; }
+
+.wec-podium__card {
+    background: linear-gradient(180deg, var(--wec-surface-3), var(--wec-surface));
+    border-color: var(--wec-border);
+    color: var(--wec-text);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.6);
+    transition: transform 0.35s var(--wec-ease), box-shadow 0.35s ease;
+}
+.wec-podium__card:hover { transform: translateY(-6px); }
+.wec-podium__card--first {
+    border-top-color: #ffc83d;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65), 0 0 50px rgba(255, 200, 61, 0.18);
+}
+.wec-podium__card--first:hover { box-shadow: 0 24px 54px rgba(0, 0, 0, 0.7), 0 0 70px rgba(255, 200, 61, 0.3); }
+.wec-podium__card--first .wec-podium__pos { color: #ffc83d; text-shadow: 0 0 18px rgba(255, 200, 61, 0.55); }
+.wec-podium__card--second .wec-podium__pos { color: #c9d1d9; }
+.wec-podium__card--third .wec-podium__pos { color: #e0914f; }
+.wec-podium__points { color: #fff; }
+.wec-podium__points-label { color: var(--wec-muted); }
+
+/* ---------- Sidebar bits living in global scope ---------- */
+
+.wec-navbar-brand__logo { filter: drop-shadow(0 0 14px rgba(225, 6, 0, 0.35)); transition: filter 0.3s ease, transform 0.3s var(--wec-ease); }
+.wec-navbar-brand__logo:hover { filter: drop-shadow(0 0 22px rgba(255, 46, 36, 0.7)); transform: scale(1.03); }
+
+.nav-title { color: var(--wec-text); }
+
+/* Blazor's error bar */
+.blazor-error-boundary { background-color: var(--wec-red-deep); }
+
+
+/* ---------- Popup windows: richer open animation ---------- */
+
+@keyframes wec-modal-in {
+    0%   { opacity: 0; transform: perspective(900px) translateY(40px) rotateX(10deg) scale(0.92); filter: blur(6px); }
+    60%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: perspective(900px) translateY(0) rotateX(0) scale(1); filter: blur(0); }
+}
+
+@keyframes wec-modal-glow {
+    0%   { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 0 rgba(255, 46, 36, 0); }
+    35%  { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 90px rgba(255, 46, 36, 0.55); }
+    100% { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 60px rgba(225, 6, 0, 0.12); }
+}
+
+@keyframes wec-modal-shine {
+    from { transform: translateX(-130%) skewX(-18deg); opacity: 0.9; }
+    to   { transform: translateX(330%) skewX(-18deg); opacity: 0; }
+}
+
+@keyframes wec-close-in {
+    from { opacity: 0; transform: rotate(-120deg) scale(0.3); }
+    to   { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+.wec-modal {
+    animation: wec-modal-in 0.5s var(--wec-ease) both, wec-modal-glow 1.1s ease-out both;
+    transform-origin: 50% 40%;
+}
+
+/* One bright streak crosses the window as it opens. */
+.wec-modal::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 28%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+    pointer-events: none;
+    animation: wec-modal-shine 0.9s 0.15s var(--wec-ease) both;
+}
+
+.wec-modal__header { animation: wec-rise 0.45s 0.12s var(--wec-ease) both; }
+.wec-modal__header > span { position: relative; }
+.wec-modal__header > span::after {
+    content: "";
+    display: block;
+    height: 2px;
+    margin-top: 4px;
+    background: var(--wec-red-hot);
+    box-shadow: 0 0 10px var(--wec-red-hot);
+    transform-origin: left;
+    animation: wec-underline 0.6s 0.3s var(--wec-ease) both;
+}
+@keyframes wec-underline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.wec-modal__close { animation: wec-close-in 0.5s 0.25s var(--wec-spring) both; }
+
+.wec-modal__body { animation: wec-rise 0.45s 0.18s var(--wec-ease) both; }
+.wec-modal__body > * { animation: wec-rise 0.45s var(--wec-ease) both; }
+.wec-modal__body > *:nth-child(1) { animation-delay: 0.22s; }
+.wec-modal__body > *:nth-child(2) { animation-delay: 0.27s; }
+.wec-modal__body > *:nth-child(3) { animation-delay: 0.32s; }
+.wec-modal__body > *:nth-child(4) { animation-delay: 0.37s; }
+.wec-modal__body > *:nth-child(5) { animation-delay: 0.42s; }
+.wec-modal__body > *:nth-child(n+6) { animation-delay: 0.47s; }
+
+.wec-modal__footer { animation: wec-rise 0.45s 0.35s var(--wec-ease) both; }
+.wec-modal__footer .wec-modal__btn { animation: wec-pop 0.4s var(--wec-spring) both; }
+.wec-modal__footer .wec-modal__btn:nth-last-child(1) { animation-delay: 0.45s; }
+.wec-modal__footer .wec-modal__btn:nth-last-child(2) { animation-delay: 0.4s; }
+
+/* The primary button breathes to draw the eye once the window has settled. */
+.wec-modal__footer .wec-modal__btn--primary { animation: wec-pop 0.4s 0.45s var(--wec-spring) both, wec-breathe 2.4s 1.2s ease-in-out infinite; }
+@keyframes wec-breathe {
+    0%, 100% { box-shadow: 0 6px 18px rgba(225, 6, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+    50%      { box-shadow: 0 6px 28px rgba(255, 46, 36, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+}
+
+.wec-modal-overlay { animation: wec-fade 0.3s ease both; }
+
+/* Toasts: slide in with a bounce, and a bar drains along the bottom. */
+.wec-toast { overflow: hidden; animation: wec-toast-bounce 0.55s var(--wec-spring) both; }
+.wec-toast::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #22c55e, #86efac);
+    transform-origin: left;
+    animation: wec-toast-drain 4s linear forwards;
+}
+.wec-toast--error::after { background: linear-gradient(90deg, var(--wec-red-deep), var(--wec-red-hot)); }
+@keyframes wec-toast-bounce {
+    from { opacity: 0; transform: translateX(120%) scale(0.9); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes wec-toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* ---------- Popup fixes and closing animation ---------- */
+
+/* The streak and the 3D tilt stretched the dialog's scroll area sideways. */
+.wec-modal { overflow-x: hidden; }
+.wec-modal-overlay { overflow-x: hidden; }
+
+@keyframes wec-modal-out {
+    from { opacity: 1; transform: perspective(900px) translateY(0) scale(1); filter: blur(0); }
+    to   { opacity: 0; transform: perspective(900px) translateY(26px) rotateX(-8deg) scale(0.94); filter: blur(4px); }
+}
+@keyframes wec-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+.wec-modal-overlay--closing { animation: wec-fade-out 0.22s ease forwards; pointer-events: none; }
+.wec-modal-overlay--closing .wec-modal { animation: wec-modal-out 0.22s var(--wec-ease) forwards; }
+.wec-modal-overlay--closing .wec-modal::after { animation: none; opacity: 0; }
+
+/* Scrollbar flicker: the staggered slide-in briefly makes the content taller than the window.
+   Scrolling stays locked while the open animation runs and is handed back once it has settled. */
+@keyframes wec-scroll-unlock {
+    0%, 99% { overflow-y: hidden; }
+    100%    { overflow-y: auto; }
+}
+.wec-modal {
+    overflow-y: hidden;
+    animation: wec-modal-in 0.5s var(--wec-ease) both, wec-modal-glow 1.1s ease-out both, wec-scroll-unlock 0.95s linear forwards;
+}
+.wec-modal-overlay--closing .wec-modal { overflow-y: hidden; animation: wec-modal-out 0.22s var(--wec-ease) forwards; }
+.wec-modal-overlay { overflow-y: hidden; }
+.wec-modal-overlay--top { overflow-y: auto; animation: wec-fade 0.3s ease both, wec-scroll-unlock 0.95s linear forwards; }
+.wec-modal-overlay--top.wec-modal-overlay--closing { overflow-y: hidden; animation: wec-fade-out 0.22s ease forwards; }
+
+/* A page-level transform that outlives its animation becomes the containing block of every
+   position:fixed popup inside it, which is what made popups scroll and flicker. Only hold the
+   starting state, never the end state. */
+.content > * { animation-fill-mode: backwards; }
+
+/* ---------- Frameless window ---------- */
+
+.wec-window-controls {
+    position: fixed;
+    top: 10px;
+    right: 14px;
+    z-index: 2000;
+    display: flex;
+    gap: 8px;
+}
+
+.wec-window-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--wec-border);
+    border-radius: 50%;
+    background: rgba(17, 17, 21, 0.85);
+    color: var(--wec-text-2);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: transform 0.25s var(--wec-spring), background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.wec-window-btn:hover {
+    background: var(--wec-surface-3);
+    color: #fff;
+    transform: translateY(-1px) scale(1.1);
+}
+
+.wec-window-btn--close:hover {
+    background: var(--wec-red);
+    border-color: var(--wec-red-hot);
+    color: #fff;
+    transform: rotate(90deg) scale(1.12);
+    box-shadow: 0 0 18px var(--wec-red-glow);
+}
+.wec-window-btn:active { transform: scale(0.9); }
+
+/* Drag the frameless window by the sidebar header. */
+.top-row { -webkit-app-region: drag; app-region: drag; }
+.top-row a, .top-row button { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* ---------- Stylish scrollbars ---------- */
+
+
+/* The standard scrollbar-width/-color properties would override the ::-webkit-scrollbar rules
+   below, so they are reset wherever racing-tables.css set them. */
+.wec-race-teams__list { scrollbar-width: auto; scrollbar-color: auto; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    margin: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    min-height: 48px;
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    background-image: linear-gradient(180deg, #4a1512 0%, #7d0b07 50%, #4a1512 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 46, 36, 0.25);
+    transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+    background-image: linear-gradient(90deg, #4a1512 0%, #7d0b07 50%, #4a1512 100%);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-image: linear-gradient(180deg, #a30c06 0%, #ff2e24 50%, #a30c06 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 138, 128, 0.5), 0 0 10px rgba(255, 46, 36, 0.6);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background-image: linear-gradient(180deg, #ff4a40, #ff2e24, #ff4a40);
+}
+
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+/* ---------- Image loading placeholders ---------- */
+
+@keyframes wec-shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+}
+
+@keyframes wec-img-reveal {
+    from { opacity: 0; transform: scale(1.06); filter: blur(8px); }
+    to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+/* While an image is still on its way, a dark shimmer with a red glint sweeps across its box. */
+.wec-table__logo, .wec-podium__logo, .wec-drivers__livery, .wec-drivers__car-img,
+.wec-race-track__thumb, .wec-nav-human__car-img, .wec-nav-human__logo,
+.wec-image-viewer__img, .wec-track-preview__img, .wec-form-field__preview,
+.wec-skin-preview__img {
+    background-color: var(--wec-surface-3);
+    background-image: linear-gradient(100deg, transparent 30%, rgba(255, 46, 36, 0.22) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: wec-shimmer 1.3s linear infinite;
+}
+
+/* The pictures themselves are invisible until loaded, so the shimmer shows through the alt text box. */
+.wec-table__logo:not(.is-loaded):not(.is-error),
+.wec-podium__logo:not(.is-loaded):not(.is-error),
+.wec-drivers__livery:not(.is-loaded):not(.is-error),
+.wec-drivers__car-img:not(.is-loaded):not(.is-error),
+.wec-race-track__thumb:not(.is-loaded):not(.is-error),
+.wec-nav-human__car-img:not(.is-loaded):not(.is-error),
+.wec-nav-human__logo:not(.is-loaded):not(.is-error),
+.wec-image-viewer__img:not(.is-loaded):not(.is-error),
+.wec-track-preview__img:not(.is-loaded):not(.is-error),
+.wec-form-field__preview:not(.is-loaded):not(.is-error),
+.wec-skin-preview__img:not(.is-loaded):not(.is-error) {
+    color: transparent;
+}
+
+.wec-image-viewer__img:not(.is-loaded):not(.is-error) { width: 100%; min-height: 16rem; }
+.wec-skin-preview__img:not(.is-loaded):not(.is-error) { width: 100%; min-height: 8rem; }
+.wec-track-preview__img:not(.is-loaded):not(.is-error) { width: 12rem; min-height: 6rem; }
+
+/* Loaded: stop the shimmer and let the picture fade in sharp. Logos keep their white tile. */
+.wec-table__logo.is-loaded, .wec-podium__logo.is-loaded, .wec-nav-human__logo.is-loaded {
+    background-image: none;
+    background-color: #fff;
+    animation: wec-img-reveal 0.5s var(--wec-ease) backwards;
+}
+.wec-drivers__livery.is-loaded, .wec-drivers__car-img.is-loaded, .wec-race-track__thumb.is-loaded,
+.wec-nav-human__car-img.is-loaded, .wec-image-viewer__img.is-loaded, .wec-track-preview__img.is-loaded,
+.wec-form-field__preview.is-loaded, .wec-skin-preview__img.is-loaded {
+    background-image: none;
+    animation: wec-img-reveal 0.5s var(--wec-ease) backwards;
+}
+
+/* A picture that failed keeps a calm static box instead of shimmering forever. */
+.is-error { animation: none; background-image: none; }
+
+/* ---------- First-load screen ---------- */
+
+/* Pages render only once the live connection is up, so until then the content area and the sidebar
+   hold no elements at all. That emptiness is the loading state. */
+@keyframes wec-ring-spin { to { transform: rotate(360deg); } }
+
+.content:not(:has(*)) {
+    position: relative;
+    min-height: 60vh;
+    animation: wec-fade 0.4s 0.15s ease both;
+}
+
+.content:not(:has(*))::before {
+    content: "";
+    position: absolute;
+    top: calc(50% - 3.2rem);
+    left: calc(50% - 2.2rem);
+    width: 4.4rem;
+    height: 4.4rem;
+    border-radius: 50%;
+    border: 3px solid rgba(225, 6, 0, 0.14);
+    border-top-color: var(--wec-red-hot);
+    border-right-color: rgba(255, 46, 36, 0.55);
+    filter: drop-shadow(0 0 14px var(--wec-red-glow));
+    animation: wec-ring-spin 0.9s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+}
+
+.content:not(:has(*))::after {
+    content: "LOADING";
+    position: absolute;
+    top: calc(50% + 1.6rem);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Bruno Ace', 'Arial Narrow', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.4em;
+    color: var(--wec-text-2);
+    text-indent: 0.4em;
+}
+
+/* Sidebar skeleton: pulsing bars where the logo, driver card and links will appear. */
+.sidebar:not(:has(*)) {
+    min-height: 100vh;
+}
+
+.sidebar:not(:has(*))::before {
+    content: "";
+    position: absolute;
+    top: 1.5rem;
+    left: 1rem;
+    right: 1rem;
+    height: 28rem;
+    border-radius: 8px;
+    background:
+        linear-gradient(100deg, transparent 30%, rgba(255, 46, 36, 0.16) 50%, transparent 70%) 0 0 / 200% 100%,
+        repeating-linear-gradient(180deg, var(--wec-surface-3) 0 2.6rem, transparent 2.6rem 3.4rem);
+    animation: wec-shimmer 1.3s linear infinite;
+    opacity: 0.8;
+}
+
+/* ---------- Scroll inside the table, not the layout ---------- */
+
+@media (min-width: 641px) {
+    html, body { height: 100%; overflow: hidden; }
+
+    .content > * { flex-shrink: 0; }
+
+    /* The table card takes the space left under the toolbar and filters; its rows scroll, its
+       header stays and the pagination stays pinned under it. */
+    .content > .wec-table-wrapper {
+        flex: 1 1 auto;
+        min-height: 12rem;
+        margin-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .content > .wec-table-wrapper > .wec-table-scroller {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .content > .wec-table-wrapper > .wec-pagination { flex: 0 0 auto; }
+}
+
+.wec-table-wrapper::before { flex: 0 0 auto; }

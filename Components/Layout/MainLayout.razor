@@ -1,5 +1,16 @@
 ﻿@inherits LayoutComponentBase
 
+<div class="wec-window-controls">
+    <button type="button" class="wec-window-btn" title="Minimize" aria-label="Minimize window"
+            onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('minimize')">
+        <i class="bi bi-dash-lg"></i>
+    </button>
+    <button type="button" class="wec-window-btn wec-window-btn--close" title="Close" aria-label="Close window"
+            onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('close')">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</div>
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />

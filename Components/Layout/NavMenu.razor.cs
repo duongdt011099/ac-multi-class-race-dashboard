@@ -80,6 +80,15 @@ public partial class NavMenu : IDisposable
         });
     }
 
+    // The Drivers page picks the id up from the query string, opens that driver's editor and clears it.
+    private void OpenHumanDriver()
+    {
+        if (humanDriver is not null)
+        {
+            Nav.NavigateTo($"drivers?edit={humanDriver.DriverId}");
+        }
+    }
+
     private void OpenUpdateDialog()
     {
         UpdateRequest.Request();

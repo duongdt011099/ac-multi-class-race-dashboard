@@ -1,10 +1,11 @@
-<div class="wec-modal-overlay @OverlayClass" @attributes="OverlayAttributes">
+<CascadingValue Value="this" IsFixed="true">
+<div class="wec-modal-overlay @OverlayClass @(closing ? "wec-modal-overlay--closing" : null)" @attributes="OverlayAttributes">
     <div class="wec-modal @SizeClass @ModalClass" @onclick:stopPropagation="CloseOnBackdropClick">
         <div class="wec-modal__header">
             <span>@Title</span>
             @if (OnClose.HasDelegate)
             {
-                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="OnClose">
+                <button type="button" class="wec-modal__close" aria-label="Close" @onclick="() => CloseAsync(OnClose)">
                     <i class="bi bi-x-lg"></i>
                 </button>
             }
@@ -20,8 +21,23 @@
         }
     </div>
 </div>
+</CascadingValue>
 
 @code {
+    private const int CloseAnimationMs = 220;
+    private bool closing;
+
+    /// <summary>Plays the closing animation, then raises the callback that removes the dialog.</summary>
+    public async Task CloseAsync(EventCallback callback)
+    {
+        if (closing) return;
+        closing = true;
+        StateHasChanged();
+        await Task.Delay(CloseAnimationMs);
+        await callback.InvokeAsync();
+        closing = false;
+    }
+
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
 
     [Parameter] public ModalSize Size { get; set; } = ModalSize.Default;
@@ -54,6 +70,6 @@
 
     // Only attached when backdrop closing is on, so otherwise every click inside a dialog does not round-trip.
     private IReadOnlyDictionary<string, object>? OverlayAttributes => CloseOnBackdropClick
-        ? new Dictionary<string, object> { ["onclick"] = OnClose }
+        ? new Dictionary<string, object> { ["onclick"] = EventCallback.Factory.Create(this, () => CloseAsync(OnClose)) }
         : null;
 }

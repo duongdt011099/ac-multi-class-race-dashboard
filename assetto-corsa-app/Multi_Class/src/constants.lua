@@ -232,8 +232,11 @@ C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 -- PASSED_M..ENGAGE_GAP_M ahead of it), the lapped car's top speed is capped at HOLD_FACTOR times the
 -- passer's speed (never below MIN_SPEED_KMH) until the passer is RELEASE_GAP_M ahead, so it does not
 -- pass back. Nothing else about the car is changed.
-C.BLUE_PASSED_M              = 4
-C.BLUE_ENGAGE_GAP_M          = 40
+C.BLUE_PASSED_M              = 0.5
+C.BLUE_ENGAGE_GAP_M          = 60
+C.BLUE_CLOSE_GAP_M           = 15
+C.BLUE_CLOSE_FACTOR          = 0.85
+C.BLUE_CLOSE_CAUTION         = 2.0
 C.BLUE_RELEASE_GAP_M         = 70
 C.BLUE_HOLD_FACTOR           = 0.98
 C.BLUE_MIN_SPEED_KMH         = 50

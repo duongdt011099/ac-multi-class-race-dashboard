@@ -20,6 +20,11 @@ public partial class Drivers : IDisposable
 
     [Inject] private IAssettoCorsaContentService CarContentService { get; set; } = default!;
 
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    /// <summary>Set by the sidebar's current-driver card: open this driver's editor straight away.</summary>
+    [SupplyParameterFromQuery(Name = "edit")] public Guid? EditDriverId { get; set; }
+
     [Inject] private DriverDataChangeNotifier DriverNotifier { get; set; } = default!;
 
     [Inject] private GameConfigChangeNotifier ConfigNotifier { get; set; } = default!;
@@ -87,8 +92,44 @@ public partial class Drivers : IDisposable
         var config = await ConfigService.GetAsync();
         presetPath = ContentManagerPaths.ResolvePreset(config?.PresetPath);
         teamOptions = (await TeamService.GetActiveTeamsAsync()).ToList();
-        await LoadCarsAsync();
         await LoadDriversAsync();
+        OpenRequestedDriver();
+
+        // The car list is only needed by the edit dialog, so it must not hold up the table.
+        _ = LoadCarsInBackgroundAsync();
+    }
+
+    protected override void OnParametersSet() => OpenRequestedDriver();
+
+    private void OpenRequestedDriver()
+    {
+        if (EditDriverId is not { } id || drivers is null)
+        {
+            return;
+        }
+
+        var driver = drivers.FirstOrDefault(d => d.DriverId == id);
+
+        if (driver is not null)
+        {
+            OpenEdit(driver);
+        }
+
+        // Drop the query so a refresh or a later visit does not reopen the editor.
+        Nav.NavigateTo("drivers", replace: true);
+    }
+
+    private async Task LoadCarsInBackgroundAsync()
+    {
+        try
+        {
+            await LoadCarsAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The page was left before the list finished loading.
+        }
     }
 
     private async void OnConfigChanged()

@@ -73,9 +73,20 @@ local function holdCar(i, car, p, st, trackLength)
   elseif ahead < 0 then
     drop(i, st, "passer is behind again")
   else
-    local cap = math.max(C.BLUE_MIN_SPEED_KMH, (passer.speedKmh or 0) * C.BLUE_HOLD_FACTOR)
+    -- The closer the passer, the further under its speed the lapped car is held, so it can neither
+    -- close up nor punch the faster car when that one brakes.
+    local factor = C.BLUE_HOLD_FACTOR
+    if ahead < C.BLUE_CLOSE_GAP_M then
+      factor = C.BLUE_CLOSE_FACTOR + (C.BLUE_HOLD_FACTOR - C.BLUE_CLOSE_FACTOR) * (ahead / C.BLUE_CLOSE_GAP_M)
+    end
+    local cap = math.max(C.BLUE_MIN_SPEED_KMH, (passer.speedKmh or 0) * factor)
     st.cap = cap
     pcall(physics.setAITopSpeed, i, cap)
+    if ahead < C.BLUE_CLOSE_GAP_M and (car.speedKmh or 0) > cap then
+      pcall(physics.setAICaution, i, C.BLUE_CLOSE_CAUTION)
+    else
+      pcall(physics.setAICaution, i, 1.0)
+    end
   end
 end
 

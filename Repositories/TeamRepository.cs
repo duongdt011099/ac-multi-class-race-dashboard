@@ -32,6 +32,8 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
     public async Task<IEnumerable<Team>> GetActiveTeamsAsync()
     {
         return await _context.Teams
+        .AsNoTracking()
+        .AsSplitQuery()
         .Include(team => team.ClassSettingItems)
             .ThenInclude(item => item.ClassSetting)
         .Where(t => t.IsActive)

@@ -10,6 +10,12 @@ public class AssettoCorsaContentService : IAssettoCorsaContentService
         "(?m)^[\\t ]*\"name\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    // Reading ui_car.json for every installed car is by far the slowest thing the Drivers page does, so
+    // the list is kept for the life of the process. It is rebuilt when the cars folder changes (a car
+    // added or removed bumps its last-write time) or when the game folder moves.
+    private static readonly SemaphoreSlim CarOptionsGate = new(1, 1);
+    private static (string Root, DateTime Stamp, IReadOnlyList<CarOptionModel> Cars)? _carOptionsCache;
+
     private readonly AssettoCorsaPathResolver _pathResolver;
     private readonly ILogger<AssettoCorsaContentService> _logger;
 
@@ -39,18 +45,42 @@ public class AssettoCorsaContentService : IAssettoCorsaContentService
             return Array.Empty<CarOptionModel>();
         }
 
-        var cars = new List<CarOptionModel>();
+        var stamp = Directory.GetLastWriteTimeUtc(carsRoot);
 
-        foreach (var carId in ListDirectories(carsRoot))
+        await CarOptionsGate.WaitAsync();
+
+        try
         {
-            var displayName = await ReadCarDisplayNameAsync(carsRoot, carId) ?? carId;
-            cars.Add(new CarOptionModel(carId, displayName));
-        }
+            if (_carOptionsCache is { } cached && cached.Root == carsRoot && cached.Stamp == stamp)
+            {
+                return cached.Cars;
+            }
 
-        return cars
-            .OrderBy(car => car.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(car => car.CarId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            var carIds = ListDirectories(carsRoot);
+            var options = new CarOptionModel[carIds.Count];
+
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, carIds.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = 8 },
+                async (index, _) =>
+                {
+                    var carId = carIds[index];
+                    options[index] = new CarOptionModel(carId, await ReadCarDisplayNameAsync(carsRoot, carId) ?? carId);
+                });
+
+            var cars = options
+                .OrderBy(car => car.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(car => car.CarId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _carOptionsCache = (carsRoot, stamp, cars);
+
+            return cars;
+        }
+        finally
+        {
+            CarOptionsGate.Release();
+        }
     }
 
     public async Task<string?> GetCarDisplayNameAsync(string car)
