@@ -38,8 +38,6 @@ else
                     <td>@championship.SeasonCount</td>
                     <td><StatusBadge IsActive="championship.IsActive" /></td>
                     <td class="wec-table__actions">
-                        <IconButton Icon="bi-pencil" Title="@($"Edit {championship.ChampionshipName}")" StopPropagation="true"
-                                    OnClick="() => OpenEdit(championship)" />
                         <IconButton Icon="bi-trash" Title="@($"Delete {championship.ChampionshipName}")" StopPropagation="true"
                                     OnClick="() => confirmDeleteChampionship = championship" />
                     </td>
@@ -76,7 +74,21 @@ else
 
 @if (selectedChampionship is not null)
 {
-    <Modal Title="@($"{selectedChampionship.ChampionshipName} — Seasons")" OnClose="CloseSeasons">
+    <Modal Title="@($"{selectedChampionship.ChampionshipName} — Seasons")" Size="ModalSize.Wide"
+           ModalClass="wec-modal--championship" OnClose="CloseSeasons">
+        @if (detailsForm is not null)
+        {
+            <div class="wec-championship-details">
+                <FormField For="championship-detail-name" Label="Championship Name">
+                    <input id="championship-detail-name" type="text" @bind="detailsForm.ChampionshipName" />
+                </FormField>
+                <CheckboxField Id="championship-detail-active" Label="Is Active" @bind-Value="detailsForm.IsActive" />
+                <ToolbarButton Icon="bi-check-lg" OnClick="SaveDetailsAsync" Disabled="isSavingDetails">
+                    @(isSavingDetails ? "Saving..." : "Save")
+                </ToolbarButton>
+            </div>
+        }
+
         <div class="wec-seasons__add">
             <input type="text" placeholder="Season name..." @bind="newSeasonName" @bind:event="oninput"
                    @onkeydown="HandleNewSeasonEnter" />
@@ -97,12 +109,15 @@ else
         {
             @foreach (var season in seasons)
             {
-                <div class="wec-seasons__row">
+                var current = season;
+                <div class="wec-seasons__row wec-row-clickable" title="@($"View races for {season.SeasonName}")"
+                     @onclick="() => NavigateToRaces(current)">
                     <span class="wec-seasons__name">@season.SeasonName</span>
                     <span class="wec-seasons__races">@season.RaceCount race@(season.RaceCount == 1 ? "" : "s")</span>
-                    <IconButton Icon="bi-flag" Title="@($"View races for {season.SeasonName}")" OnClick="() => NavigateToRaces(season)" />
-                    <IconButton Icon="bi-files" Title="@($"Clone {season.SeasonName}")" OnClick="() => OpenCloneDialog(season)" />
-                    <IconButton Icon="bi-trash" Title="@($"Delete {season.SeasonName}")" OnClick="() => confirmDeleteSeason = season" />
+                    <IconButton Icon="bi-files" Title="@($"Clone {season.SeasonName}")" StopPropagation="true"
+                                OnClick="() => OpenCloneDialog(current)" />
+                    <IconButton Icon="bi-trash" Title="@($"Delete {season.SeasonName}")" StopPropagation="true"
+                                OnClick="() => confirmDeleteSeason = current" />
                 </div>
             }
         }

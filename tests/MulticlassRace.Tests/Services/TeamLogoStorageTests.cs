@@ -24,7 +24,7 @@ public class TeamLogoStorageTests : IDisposable
 
         var url = await storage.SaveAsync(teamId, "Logo.PNG", "image/png", 5, Bytes("hello"));
 
-        Assert.Equal($"/uploads/team-logos/{teamId}.png", url);
+        Assert.StartsWith($"/uploads/team-logos/{teamId}.png?v=", url);
         Assert.Equal("hello", await File.ReadAllTextAsync(Path.Combine(_root, "team-logos", $"{teamId}.png")));
     }
 
@@ -40,6 +40,45 @@ public class TeamLogoStorageTests : IDisposable
         var files = Directory.GetFiles(Path.Combine(_root, "team-logos"));
         Assert.Single(files);
         Assert.EndsWith(".jpg", files[0]);
+    }
+
+    [Fact]
+    public async Task ListUploaded_ListsIdenticalPicturesOnce()
+    {
+        var storage = new TeamLogoStorage(_root);
+
+        await storage.SaveAsync(Guid.NewGuid(), "a.png", "image/png", 1, Bytes("same"));
+        await storage.SaveAsync(Guid.NewGuid(), "b.png", "image/png", 1, Bytes("same"));
+        await storage.SaveAsync(Guid.NewGuid(), "c.png", "image/png", 1, Bytes("other"));
+
+        Assert.Equal(2, (await storage.ListUploadedAsync()).Count);
+    }
+
+    [Fact]
+    public async Task UseUploaded_CopiesLogoToTheTeamAndLeavesTheSourceAlone()
+    {
+        var storage = new TeamLogoStorage(_root);
+        var owner = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var sourceUrl = await storage.SaveAsync(owner, "a.png", "image/png", 1, Bytes("logo"));
+
+        var url = await storage.UseUploadedAsync(other, sourceUrl);
+
+        Assert.StartsWith($"/uploads/team-logos/{other}.png?v=", url);
+        Assert.Equal("logo", await File.ReadAllTextAsync(Path.Combine(_root, "team-logos", $"{other}.png")));
+
+        // Replacing the copy later must not break the team the picture came from.
+        await storage.SaveAsync(other, "b.jpg", "image/jpeg", 1, Bytes("new"));
+        Assert.True(File.Exists(Path.Combine(_root, "team-logos", $"{owner}.png")));
+    }
+
+    [Fact]
+    public async Task UseUploaded_RejectsMissingOrEscapingPaths()
+    {
+        var storage = new TeamLogoStorage(_root);
+
+        await Assert.ThrowsAsync<InvalidLogoException>(() => storage.UseUploadedAsync(Guid.NewGuid(), "/uploads/team-logos/nope.png"));
+        await Assert.ThrowsAsync<InvalidLogoException>(() => storage.UseUploadedAsync(Guid.NewGuid(), "../../app.db"));
     }
 
     [Fact]

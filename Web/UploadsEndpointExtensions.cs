@@ -19,7 +19,10 @@ public static class UploadsEndpointExtensions
         return app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(uploadsRoot),
-            RequestPath = RequestPath
+            RequestPath = RequestPath,
+            // A team logo is overwritten in place, so the browser must check with the server each time
+            // instead of trusting a heuristically cached copy.
+            OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "no-cache"
         });
     }
 

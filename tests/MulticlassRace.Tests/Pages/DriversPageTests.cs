@@ -146,7 +146,7 @@ public class DriversPageTests : PageTestContext
         driver.Car = "removed_car";
         DriverService.Drivers.Add(driver);
         var cut = RenderComponent<Drivers>();
-        cut.WaitForElement("button[title='Edit Alonso']").Click();
+        cut.WaitForElement("tr[title='Edit Alonso']").Click();
 
         Assert.Single(cut.FindAll(".wec-modal__footer .wec-modal__btn--danger"));
         Assert.Contains(cut.FindAll("#driver-car option"), o => o.TextContent.Contains("(not found on disk)"));
@@ -158,7 +158,7 @@ public class DriversPageTests : PageTestContext
         var driver = FakeDriverService.Driver("Alonso");
         DriverService.Drivers.Add(driver);
         var cut = RenderComponent<Drivers>();
-        cut.WaitForElement("button[title='Edit Alonso']").Click();
+        cut.WaitForElement("tr[title='Edit Alonso']").Click();
 
         cut.Find(".wec-modal__footer .wec-modal__btn--danger").Click();
         Assert.Equal("Delete Driver", cut.Find(".wec-modal__header span").TextContent);

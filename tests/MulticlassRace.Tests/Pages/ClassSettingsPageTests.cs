@@ -67,7 +67,7 @@ public class ClassSettingsPageTests : PageTestContext
     public void MoveDown_ReordersClassesInDialog()
     {
         var cut = RenderComponent<ClassSettings>();
-        cut.WaitForElement("button[title='Edit WEC']").Click();
+        cut.WaitForElement("tr[title='Edit WEC']").Click();
 
         cut.FindAll("button[title='Move down']")[0].Click();
 

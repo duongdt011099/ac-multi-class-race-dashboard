@@ -21,14 +21,14 @@
 
         <div class="wec-form-row">
             <FormField For="driver-car" Label="Car">
-                <AppSelect Id="driver-car" Value="@Driver.Car" ValueChanged="HandleCarChanged"
+                <ImageSelect Id="driver-car" Value="@Driver.Car" ValueChanged="HandleCarChanged"
                            Disabled="IsLoadingCars" Options="CarSelectOptions"
                            EmptyLabel="@(IsLoadingCars ? "Loading cars..." : "Select car...")"
                            OrphanLabel="@(IsCarMissingOnDisk ? $"{CarFallbackName} (not found on disk)" : null)" />
             </FormField>
 
             <FormField For="driver-skin" Label="Skin" Hint="@(NoSkinsFound ? "No skins found for this car." : null)">
-                <AppSelect Id="driver-skin" @bind-Value="Driver.Skin" Options="SkinSelectOptions"
+                <ImageSelect Id="driver-skin" @bind-Value="Driver.Skin" Options="SkinSelectOptions"
                            EmptyLabel="@SkinPlaceholder"
                            OrphanLabel="@($"{Driver.Skin} (not found on disk)")"
                            Disabled="@(string.IsNullOrWhiteSpace(Driver.Car) || isLoadingSkins || skinOptions.Count == 0)" />
@@ -118,9 +118,9 @@
     private static readonly IReadOnlyList<SelectOption> CountryOptions =
         Countries.All.Select(c => new SelectOption(c, $"{Countries.GetFlag(c)} {c}")).ToList();
 
-    private IEnumerable<SelectOption> CarSelectOptions => CarOptions.Select(c => new SelectOption(c.CarId, c.DisplayName));
+    private IEnumerable<SelectOption> CarSelectOptions => CarOptions.Select(c => new SelectOption(c.CarId, c.DisplayName, $"/car-thumb?car={Uri.EscapeDataString(c.CarId)}"));
 
-    private IEnumerable<SelectOption> SkinSelectOptions => skinOptions.Select(s => new SelectOption(s, s));
+    private IEnumerable<SelectOption> SkinSelectOptions => skinOptions.Select(s => new SelectOption(s, s, CarContentService.BuildSkinPreviewUrl(Driver.Car, s)));
 
     private IEnumerable<SelectOption> TeamSelectOptions => TeamOptions.Select(t => new SelectOption(t.TeamId.ToString(), t.TeamName));
 

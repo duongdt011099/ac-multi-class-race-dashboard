@@ -29,6 +29,8 @@ public partial class Championship
     private ChampionshipModel? confirmDeleteChampionship;
     private bool isDeleting;
     private ChampionshipModel? selectedChampionship;
+    private ChampionshipFormModel? detailsForm;
+    private bool isSavingDetails;
     private List<SeasonModel>? seasons;
     private string? newSeasonName;
     private bool isAddingSeason;
@@ -74,17 +76,6 @@ public partial class Championship
             ChampionshipId = Guid.NewGuid(),
             ChampionshipName = string.Empty,
             IsActive = true
-        };
-    }
-
-    private void OpenEdit(ChampionshipModel championship)
-    {
-        isCreating = false;
-        editingChampionship = new ChampionshipFormModel
-        {
-            ChampionshipId = championship.ChampionshipId,
-            ChampionshipName = championship.ChampionshipName,
-            IsActive = championship.IsActive
         };
     }
 
@@ -169,6 +160,12 @@ public partial class Championship
     private async Task OpenSeasons(ChampionshipModel championship)
     {
         selectedChampionship = championship;
+        detailsForm = new ChampionshipFormModel
+        {
+            ChampionshipId = championship.ChampionshipId,
+            ChampionshipName = championship.ChampionshipName,
+            IsActive = championship.IsActive
+        };
         newSeasonName = null;
         seasons = null;
 
@@ -185,10 +182,44 @@ public partial class Championship
         seasons = (await SeasonService.GetSeasonsByChampionshipAsync(selectedChampionship.ChampionshipId)).ToList();
     }
 
+    // The details popup is where a championship is edited: name and active flag sit above its seasons.
+    private async Task SaveDetailsAsync()
+    {
+        if (detailsForm is null || selectedChampionship is null
+            || !RequireText(detailsForm.ChampionshipName, "Championship name is required."))
+        {
+            return;
+        }
+
+        isSavingDetails = true;
+
+        try
+        {
+            var form = detailsForm;
+            var saved = await TryAsync(async () =>
+            {
+                await ChampionshipService.UpdateChampionshipAsync(form);
+                await LoadChampionshipsAsync();
+            }, "Could not save championship");
+
+            if (saved)
+            {
+                selectedChampionship = championships?.FirstOrDefault(c => c.ChampionshipId == form.ChampionshipId)
+                    ?? selectedChampionship;
+                Toast.Show("Championship updated.");
+            }
+        }
+        finally
+        {
+            isSavingDetails = false;
+        }
+    }
+
     private void CloseSeasons()
     {
-        if (!isAddingSeason && !isDeletingSeason && !isCloningSeason)
+        if (!isAddingSeason && !isDeletingSeason && !isCloningSeason && !isSavingDetails)
         {
+            detailsForm = null;
             selectedChampionship = null;
             seasons = null;
             newSeasonName = null;

@@ -20,7 +20,8 @@
     <Body>
         @foreach (var setting in settings!)
         {
-            <tr>
+            var current = setting;
+            <tr class="wec-row-clickable" title="@($"Edit {setting.SettingName}")" @onclick="() => OpenEdit(current)">
                 <td>@setting.SettingName</td>
                 <td>
                     @if (setting.IsDefault)
@@ -36,8 +37,7 @@
                     <span class="wec-points-preview">@PointSettingForms.FormatPreview(setting.Config)</span>
                 </td>
                 <td class="wec-table__actions">
-                    <IconButton Icon="bi-pencil" Title="@($"Edit {setting.SettingName}")" OnClick="() => OpenEdit(setting)" />
-                    <IconButton Icon="bi-trash" Title="@($"Delete {setting.SettingName}")" OnClick="() => confirmDelete = setting" />
+                    <IconButton Icon="bi-trash" Title="@($"Delete {setting.SettingName}")" StopPropagation="true" OnClick="() => confirmDelete = setting" />
                 </td>
             </tr>
         }

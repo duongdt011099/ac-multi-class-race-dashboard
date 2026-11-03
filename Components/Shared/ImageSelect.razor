@@ -1,0 +1,181 @@
+@using MulticlassRace.Common
+
+@* A dropdown whose entries carry a picture next to their text. A real <select> stays in the markup
+   (visually hidden) so the id, label, form semantics and assistive technology keep working; the
+   visible trigger and menu are drawn on top of it. *@
+
+<div class="wec-imgselect @(open ? "wec-imgselect--open" : null) @(Disabled ? "wec-imgselect--disabled" : null) @CssClass"
+     @onkeydown="HandleKeyDown">
+    <select id="@Id" class="wec-imgselect__native" value="@Value" disabled="@Disabled" tabindex="-1" aria-hidden="true"
+            @onchange="HandleNativeChange" @attributes="AdditionalAttributes">
+        @if (EmptyLabel is not null)
+        {
+            <option value="@EmptyValue">@EmptyLabel</option>
+        }
+        @if (HasOrphan)
+        {
+            <option value="@Value">@OrphanLabel</option>
+        }
+        @foreach (var option in Options)
+        {
+            <option value="@option.Value">@option.Label</option>
+        }
+    </select>
+
+    <button type="button" class="wec-imgselect__trigger" disabled="@Disabled" aria-haspopup="listbox"
+            aria-expanded="@(open ? "true" : "false")" @onclick="Toggle">
+        @if (Selected?.ImageUrl is { Length: > 0 } selectedImage)
+        {
+            <img src="@selectedImage" class="wec-imgselect__img" alt="" loading="lazy" />
+        }
+        else
+        {
+            <span class="wec-imgselect__img wec-imgselect__img--empty" aria-hidden="true"><i class="bi bi-image"></i></span>
+        }
+        <span class="wec-imgselect__text @(HasValue ? null : "wec-imgselect__text--placeholder")">@DisplayText</span>
+        <i class="bi bi-chevron-down wec-imgselect__chevron" aria-hidden="true"></i>
+    </button>
+
+    @if (open)
+    {
+        <div class="wec-imgselect__backdrop" @onclick="Close"></div>
+        <div class="wec-imgselect__menu" role="listbox">
+            @if (Options.Count() > SearchThreshold)
+            {
+                <div class="wec-imgselect__search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input type="text" placeholder="Search..." value="@filter" @oninput="e => filter = e.Value?.ToString() ?? string.Empty"
+                           @ref="searchBox" />
+                </div>
+            }
+            <div class="wec-imgselect__list">
+                @if (EmptyLabel is not null && string.IsNullOrWhiteSpace(filter))
+                {
+                    <button type="button" role="option" class="wec-imgselect__option wec-imgselect__option--none @(!HasValue ? "wec-imgselect__option--selected" : null)"
+                            @onclick="() => Pick(EmptyValue)">
+                        <span class="wec-imgselect__img wec-imgselect__img--empty" aria-hidden="true"><i class="bi bi-slash-circle"></i></span>
+                        <span class="wec-imgselect__text">@EmptyLabel</span>
+                    </button>
+                }
+                @foreach (var option in Visible)
+                {
+                    var current = option;
+                    <button type="button" role="option" aria-selected="@(current.Value == Value ? "true" : "false")"
+                            class="wec-imgselect__option @(current.Value == Value ? "wec-imgselect__option--selected" : null)"
+                            @onclick="() => Pick(current.Value)">
+                        @if (current.ImageUrl is { Length: > 0 } image)
+                        {
+                            <img src="@image" class="wec-imgselect__img" alt="" loading="lazy" />
+                        }
+                        else
+                        {
+                            <span class="wec-imgselect__img wec-imgselect__img--empty" aria-hidden="true"><i class="bi bi-image"></i></span>
+                        }
+                        <span class="wec-imgselect__text">@current.Label</span>
+                        @if (current.Value == Value)
+                        {
+                            <i class="bi bi-check-lg wec-imgselect__check" aria-hidden="true"></i>
+                        }
+                    </button>
+                }
+                @if (!Visible.Any())
+                {
+                    <div class="wec-imgselect__empty">No matches</div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const int SearchThreshold = 8;
+
+    private bool open;
+    private string filter = string.Empty;
+    private ElementReference searchBox;
+    private bool focusSearch;
+
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter] public string? CssClass { get; set; }
+
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter] public IEnumerable<SelectOption> Options { get; set; } = Array.Empty<SelectOption>();
+
+    [Parameter] public string? EmptyLabel { get; set; }
+
+    [Parameter] public string EmptyValue { get; set; } = "";
+
+    /// <summary>Shown for a current value that is not in <see cref="Options"/>, such as a car removed from disk.</summary>
+    [Parameter] public string? OrphanLabel { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool HasValue => !string.IsNullOrEmpty(Value);
+
+    private bool HasOrphan => HasValue && OrphanLabel is not null && !Options.Any(o => o.Value == Value);
+
+    private SelectOption? Selected => HasValue ? Options.FirstOrDefault(o => o.Value == Value) : null;
+
+    private string DisplayText => Selected?.Label ?? (HasOrphan ? OrphanLabel! : EmptyLabel ?? string.Empty);
+
+    private IEnumerable<SelectOption> Visible => string.IsNullOrWhiteSpace(filter)
+        ? Options
+        : Options.Where(o => o.Label.Contains(filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private void Toggle()
+    {
+        if (Disabled)
+        {
+            return;
+        }
+
+        open = !open;
+        filter = string.Empty;
+        focusSearch = open;
+    }
+
+    private void Close()
+    {
+        open = false;
+        filter = string.Empty;
+    }
+
+    private async Task Pick(string value)
+    {
+        Close();
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    private Task HandleNativeChange(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && open)
+        {
+            Close();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusSearch && open)
+        {
+            focusSearch = false;
+
+            try
+            {
+                await searchBox.FocusAsync();
+            }
+            catch (InvalidOperationException)
+            {
+                // No search box when the list is short.
+            }
+        }
+    }
+}

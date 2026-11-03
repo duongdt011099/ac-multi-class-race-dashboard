@@ -44,7 +44,45 @@ public static class GameContentImageEndpoints
                 return Results.NotFound();
             }
 
-            return Results.File(fullPath, type == "livery" ? "image/png" : "image/jpeg");
+            return Results.File(fullPath, type == "livery" ? "image/png" : "image/jpeg",
+                lastModified: File.GetLastWriteTimeUtc(fullPath));
+        });
+
+        // One representative picture per car for dropdowns: the first skin (alphabetically) that has a preview.
+        app.MapGet("/car-thumb", async (string? car, AssettoCorsaPathResolver pathResolver) =>
+        {
+            if (!IsSafeFolderName(car))
+            {
+                return Results.NotFound();
+            }
+
+            var carsRoot = await ResolveGameFolderAsync(pathResolver, "cars");
+
+            if (carsRoot is null)
+            {
+                return Results.NotFound();
+            }
+
+            var skinsRoot = Path.GetFullPath(Path.Combine(carsRoot, car!.Trim(), "skins"));
+
+            if (!skinsRoot.StartsWith(carsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || !Directory.Exists(skinsRoot))
+            {
+                return Results.NotFound();
+            }
+
+            foreach (var skinDirectory in Directory.EnumerateDirectories(skinsRoot)
+                         .OrderBy(directory => directory, StringComparer.OrdinalIgnoreCase))
+            {
+                var preview = Path.Combine(skinDirectory, "preview.jpg");
+
+                if (File.Exists(preview))
+                {
+                    return Results.File(preview, "image/jpeg", lastModified: File.GetLastWriteTimeUtc(preview));
+                }
+            }
+
+            return Results.NotFound();
         });
 
         app.MapGet("/track-image", async (

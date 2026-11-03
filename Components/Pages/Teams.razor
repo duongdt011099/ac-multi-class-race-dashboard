@@ -27,7 +27,7 @@ else
         </FilterItem>
     </FilterBar>
 
-    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="5" EmptyText="No teams found">
+    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="4" EmptyText="No teams found">
         <Header>
             <th>#</th>
             <SortableHeader TColumn="TeamSortColumn" Column="TeamSortColumn.Team" Current="sort.Column"
@@ -36,7 +36,6 @@ else
                             Descending="sort.Descending" OnSort="sort.Toggle">Class</SortableHeader>
             <SortableHeader TColumn="TeamSortColumn" Column="TeamSortColumn.Status" Current="sort.Column"
                             Descending="sort.Descending" OnSort="sort.Toggle">Status</SortableHeader>
-            <th class="wec-table__actions">Actions</th>
         </Header>
         <Body>
             @{
@@ -45,14 +44,12 @@ else
             @foreach (var team in paged.Items)
             {
                 index++;
-                <tr>
+                var current = team;
+                <tr class="wec-row-clickable" title="@($"Edit {team.TeamName}")" @onclick="() => OpenEdit(current)">
                     <td class="wec-table__position">@index</td>
                     <td><TeamCell Name="@team.TeamName" Logo="@team.TeamLogo" ShowInitialsFallback="true" /></td>
                     <td><ClassBadges Tags="team.ClassTags" /></td>
                     <td><StatusBadge IsActive="team.IsActive" /></td>
-                    <td class="wec-table__actions">
-                        <IconButton Icon="bi-pencil" Title="@($"Edit {team.TeamName}")" OnClick="() => OpenEdit(team)" />
-                    </td>
                 </tr>
             }
         </Body>

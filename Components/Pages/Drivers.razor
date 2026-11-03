@@ -65,10 +65,10 @@ else
             {
                 index++;
                 var current = driver;
-                <tr>
+                <tr class="wec-row-clickable" title="@($"Edit {driver.DriverName}")" @onclick="() => HandleRowClick(current)">
                     @if (isBatchMode)
                     {
-                        <td class="wec-table__check">
+                        <td class="wec-table__check" @onclick:stopPropagation="true">
                             <input type="checkbox" title="@($"Select {driver.DriverName}")"
                                    checked="@selectedIds.Contains(driver.DriverId)"
                                    @onchange="e => ToggleSelected(current.DriverId, (bool)e.Value!)" />
@@ -86,7 +86,7 @@ else
                         @if (!string.IsNullOrEmpty(driver.CarImageUrl))
                         {
                             <button type="button" class="wec-drivers__car-btn" title="View bigger"
-                                    @onclick="() => OpenCarImageAsync(driver)">
+                                    @onclick="() => OpenCarImageAsync(driver)" @onclick:stopPropagation="true">
                                 <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car"
                                      onerror="this.style.display='none'" />
                             </button>
@@ -105,8 +105,8 @@ else
                     <td>@(driver.DriverAgression?.ToString() ?? "—")</td>
                     <td><StatusBadge IsActive="driver.IsActive" /></td>
                     <td class="wec-table__actions">
-                        <IconButton Icon="bi-pencil" Title="@($"Edit {driver.DriverName}")" OnClick="() => OpenEdit(driver)" />
-                        <IconButton Icon="bi-trash" Title="@($"Delete {driver.DriverName}")" OnClick="() => confirmDeleteDriver = driver" />
+                        <IconButton Icon="bi-trash" Title="@($"Delete {driver.DriverName}")" StopPropagation="true"
+                                    OnClick="() => confirmDeleteDriver = driver" />
                     </td>
                 </tr>
             }

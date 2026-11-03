@@ -159,7 +159,7 @@ public class TeamsPageTests : PageTestContext
     {
         await SeedTeamsAsync("Ferrari");
         var cut = RenderComponent<Teams>();
-        cut.WaitForElement("button[title='Edit Ferrari']").Click();
+        cut.WaitForElement("tr[title='Edit Ferrari']").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("#team-id")));
         Assert.Equal("WEC - Hypercar", cut.Find(".wec-class-tags__chip-text").TextContent);
@@ -171,7 +171,7 @@ public class TeamsPageTests : PageTestContext
     {
         await SeedTeamsAsync("Ferrari");
         var cut = RenderComponent<Teams>();
-        cut.WaitForElement("button[title='Edit Ferrari']").Click();
+        cut.WaitForElement("tr[title='Edit Ferrari']").Click();
         cut.WaitForElement(".wec-class-tags__chip-remove").Click();
 
         Assert.Empty(cut.FindAll(".wec-class-tags__chip"));

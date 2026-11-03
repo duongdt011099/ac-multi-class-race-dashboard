@@ -5,8 +5,10 @@
 @inject ITeamLogoStorage LogoStorage
 @inject ToastService Toast
 
-<Modal Title="@(IsCreating ? "New Team" : "Edit Team")" OnClose="OnCancel">
+<Modal Title="@(IsCreating ? "New Team" : "Edit Team")" Size="ModalSize.Wide" ModalClass="wec-modal--team"
+       BodyClass="wec-modal__body--two-col" OnClose="OnCancel">
     <ChildContent>
+      <div class="wec-team-col">
         @if (!IsCreating)
         {
             <FormField For="team-id" Label="Team ID" CssClass="wec-form-field--readonly">
@@ -26,9 +28,40 @@
                     <img src="@Team.TeamLogo" alt="Team logo preview" class="wec-form-field__preview" />
                 }
                 <InputFile id="team-logo-file" OnChange="HandleLogoUpload" accept="image/*" />
+                <button type="button" class="wec-modal__btn wec-modal__btn--secondary wec-logo-picker__toggle" @onclick="ToggleLibrary">
+                    <i class="bi bi-images"></i> @(showLibrary ? "Hide" : "Choose uploaded")
+                </button>
             </div>
+
+            @if (showLibrary)
+            {
+                <div class="wec-logo-picker">
+                    @if (library is null)
+                    {
+                        <div class="wec-logo-picker__empty">Loading logos...</div>
+                    }
+                    else if (library.Count == 0)
+                    {
+                        <div class="wec-logo-picker__empty">No logos uploaded yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var logo in library)
+                        {
+                            var url = logo;
+                            <button type="button" title="Use this logo"
+                                    class="wec-logo-picker__item @(IsCurrent(url) ? "wec-logo-picker__item--current" : null)"
+                                    @onclick="() => UseLogo(url)">
+                                <img src="@url" alt="Uploaded logo" loading="lazy" />
+                            </button>
+                        }
+                    }
+                </div>
+            }
         </div>
 
+      </div>
+      <div class="wec-team-col">
         <div class="wec-form-field">
             <label for="team-class-search">Team Classes</label>
             @if (ClassOptions.Count == 0)
@@ -44,6 +77,7 @@
         <CheckboxField Id="team-active" Label="Is Active" @bind-Value="Team.IsActive" />
 
         <TeamDriverList Drivers="Drivers" />
+      </div>
     </ChildContent>
     <Footer>
         <ModalActions ConfirmText="@(IsCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="IsSaving"
@@ -66,6 +100,43 @@
 
     [Parameter] public EventCallback OnCancel { get; set; }
 
+    // The uploaded logos are shown straight away; the button only hides them.
+    private bool showLibrary = true;
+    private IReadOnlyList<string>? library;
+
+    protected override async Task OnInitializedAsync()
+    {
+        library = await LogoStorage.ListUploadedAsync();
+    }
+
+    // The team's address carries a ?v= version the library entries do not have.
+    private bool IsCurrent(string url) =>
+        !string.IsNullOrWhiteSpace(Team.TeamLogo) &&
+        string.Equals(url, Team.TeamLogo.Split('?')[0], StringComparison.OrdinalIgnoreCase);
+
+    private async Task ToggleLibrary()
+    {
+        showLibrary = !showLibrary;
+
+        if (showLibrary)
+        {
+            library = await LogoStorage.ListUploadedAsync();
+        }
+    }
+
+    private async Task UseLogo(string url)
+    {
+        try
+        {
+            Team.TeamLogo = await LogoStorage.UseUploadedAsync(Team.TeamId, url);
+            library = await LogoStorage.ListUploadedAsync();
+        }
+        catch (InvalidLogoException ex)
+        {
+            Toast.Show(ex.Message, isError: true);
+        }
+    }
+
     private async Task HandleLogoUpload(InputFileChangeEventArgs e)
     {
         if (e.File is null)
@@ -83,6 +154,11 @@
                 file.ContentType,
                 file.Size,
                 () => file.OpenReadStream(TeamLogoStorage.MaxLogoSizeBytes));
+
+            if (showLibrary)
+            {
+                library = await LogoStorage.ListUploadedAsync();
+            }
         }
         catch (InvalidLogoException ex)
         {

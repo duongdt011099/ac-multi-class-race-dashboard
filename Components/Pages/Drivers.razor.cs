@@ -276,6 +276,18 @@ public partial class Drivers : IDisposable
         };
     }
 
+    // A row click edits the driver; while batch-selecting it ticks the row instead.
+    private void HandleRowClick(DriverModel driver)
+    {
+        if (isBatchMode)
+        {
+            ToggleSelected(driver.DriverId, !selectedIds.Contains(driver.DriverId));
+            return;
+        }
+
+        OpenEdit(driver);
+    }
+
     private void OpenEdit(DriverModel driver)
     {
         isCreating = false;
