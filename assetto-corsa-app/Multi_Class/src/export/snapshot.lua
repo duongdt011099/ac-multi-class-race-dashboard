@@ -79,11 +79,28 @@ end
 -- Preserve the last pre-finish overall position for result export and the OVERALL panel. If AC
 -- ends the session before every car reaches the configured lap count, freeze the last observed
 -- classification at that transition as well.
+local leaderFinished = false
+
+-- Once any car (the overall leader, often from a faster class) completes the race distance, AC
+-- rewrites every other car's racePosition. Cars of slower classes never reach the lap count
+-- themselves, so they have to be frozen from the leader's finish, not from their own.
+local function detectLeaderFinished()
+  if leaderFinished or S.liveSessionType ~= C.SUBFOLDER_RACE or S.liveTotalLaps <= 0 then return end
+  for i = 0, S.driverCount - 1 do
+    local ok, lc = pcall(function() return getCar(i).lapCount end)
+    if ok and type(lc) == "number" and lc >= S.liveTotalLaps then
+      leaderFinished = true
+      U.Log("POSITIONS: leader (car " .. i .. ") finished, freezing positions")
+      return
+    end
+  end
+end
+
 local function resolvePosition(i, lapData, raceFinished)
   local position = lapData.position
-  local finalLapReached = S.liveSessionType == C.SUBFOLDER_RACE
+  local finalLapReached = leaderFinished or (S.liveSessionType == C.SUBFOLDER_RACE
       and S.liveTotalLaps > 0
-      and lapData.lapCount >= S.liveTotalLaps
+      and lapData.lapCount >= S.liveTotalLaps)
 
   if finalLapReached or raceFinished then
     local frozenPosition = S.finishedRacePositions[i]
@@ -136,6 +153,7 @@ function Snap.CaptureLiveCarResults(forceFreeze)
 
   local raceFinished = S.liveSessionType == C.SUBFOLDER_RACE
       and (forceFreeze == true or Sess.IsSessionFinished())
+  detectLeaderFinished()
   local cars = {}
   local availableCars = 0
   for i = 0, S.driverCount - 1 do
@@ -219,6 +237,7 @@ end
 function Snap.ClearLiveSession()
   identityCache = {}
   lastCaptureAt = -1000.0
+  leaderFinished = false
   S.liveSessionType     = nil
   S.liveSessionKey      = nil
   S.liveTrackName       = ""

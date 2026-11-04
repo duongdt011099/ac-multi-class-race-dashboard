@@ -59,8 +59,14 @@ end
 
 -- Column target: hold the gap to the car two rows ahead. Also returns the gap in metres.
 local function columnTarget(car, map, startPos, trackLength)
-  local aheadIndex = map[startPos - 2]
-  local aheadCar = aheadIndex and getCar(aheadIndex)
+  -- Walk up the column: a dropped/missing car (stalled, pitted) leaves a hole at startPos-2, so
+  -- follow the next car further up the same lane or the whole chain behind it never catches up.
+  local aheadCar
+  for pos = startPos - 2, 1, -2 do
+    local aheadIndex = map[pos]
+    aheadCar = aheadIndex and getCar(aheadIndex)
+    if aheadCar then break end
+  end
   if not aheadCar then return SPEED, 1.0, 0.0 end
 
   local splineDist = gap(aheadCar, car, trackLength)
