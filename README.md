@@ -1,9 +1,9 @@
 # Asetto Corsa Multi-Class Race Dashboard
 
-<img width="1887" height="857" alt="image" src="https://github.com/user-attachments/assets/d010cb12-9687-416a-9a32-1d494e9a91ef" />
-<img width="1875" height="836" alt="image" src="https://github.com/user-attachments/assets/4b9ee6f1-8b83-4b82-8c4d-54cdb76342fd" />
-<img width="1878" height="903" alt="image" src="https://github.com/user-attachments/assets/d97860be-816a-4f5a-a3db-ebcf5589afd0" />
-<img width="1878" height="878" alt="image" src="https://github.com/user-attachments/assets/03a4b6a9-4e4f-48d7-9469-271cc1b78831" />
+<img width="1911" height="1012" alt="image" src="https://github.com/user-attachments/assets/beb502c7-f3c1-49de-b6e3-da756775c536" />
+<img width="1904" height="997" alt="image" src="https://github.com/user-attachments/assets/31d882ce-d996-4d10-a22c-c83696d3183a" />
+<img width="1909" height="1010" alt="image" src="https://github.com/user-attachments/assets/c4f831ff-a6be-49a1-9352-893567c60702" />
+<img width="1898" height="977" alt="image" src="https://github.com/user-attachments/assets/9149a9f0-b7a7-40f2-bfb9-4c3c23dd462a" />
 
 The Multi-Class Race Dashboard helps you run and manage a multi-class racing championship — Hypercar, LMP2 and GT3 — in Assetto Corsa and Content Manager. It covers everything from your entry list to the final race results and championship points, all in one place.
 
@@ -55,8 +55,8 @@ To use the dashboard you need:
 1. You have to configure the car tags in Content Manager to make the leaderboard work correctly.
 <img width="816" height="602" alt="image" src="https://github.com/user-attachments/assets/ee3cd70e-8090-400b-9576-504072184f6a" />
 
-2. In game class-leaderboard config - You have to type the car tag to make the leaderboard auto order by class: eg: Hyperpar
-<img width="490" height="561" alt="image" src="https://github.com/user-attachments/assets/7188cb24-4dbc-4d42-a35b-d2755f13dde6" />
+2. In game class-leaderboard config - You have to choose the car tag to make the leaderboard auto order by class: eg: Hyperpar
+<img width="491" height="615" alt="image" src="https://github.com/user-attachments/assets/beac5935-4eb6-4642-bb9b-595d4910552c" />
 
 ## Rolling Start
 
