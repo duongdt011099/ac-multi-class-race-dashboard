@@ -38,6 +38,17 @@ public sealed class RaceTeamFilter
             .ToList();
     }
 
+    /// <summary>
+    /// The teams that can enter the race: only those holding a class of the race's class setting. A team
+    /// already entered stays listed even without one, so an older entry can still be removed.
+    /// </summary>
+    public List<TeamModel> Eligible(IEnumerable<TeamModel> teams, ISet<Guid> selectedTeamIds)
+    {
+        return _classSettingId is null
+            ? teams.ToList()
+            : teams.Where(t => !string.IsNullOrWhiteSpace(ClassName(t)) || selectedTeamIds.Contains(t.TeamId)).ToList();
+    }
+
     public bool HasUncategorized(IEnumerable<TeamModel> teams)
         => teams.Any(t => string.IsNullOrWhiteSpace(ClassName(t)));
 

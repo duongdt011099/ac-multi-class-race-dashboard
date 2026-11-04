@@ -23,7 +23,7 @@
         </label>
     </div>
 
-    @if (!Teams.Any())
+    @if (!eligibleTeams.Any())
     {
         <div class="wec-empty">No active teams available.</div>
     }
@@ -55,6 +55,7 @@
 </div>
 
 @code {
+    private List<TeamModel> eligibleTeams = new();
     private List<TeamModel> visibleTeams = new();
     private bool allVisibleSelected;
 
@@ -81,13 +82,14 @@
     {
         get
         {
-            return Filter.ClassLabels(Teams).Select(c => new SelectOption(c, c));
+            return Filter.ClassLabels(eligibleTeams).Select(c => new SelectOption(c, c));
         }
     }
 
     protected override void OnParametersSet()
     {
-        visibleTeams = Filter.Filter(Teams, ClassFilter);
+        eligibleTeams = Filter.Eligible(Teams, SelectedTeamIds);
+        visibleTeams = Filter.Filter(eligibleTeams, ClassFilter);
         allVisibleSelected = visibleTeams.Count > 0 && visibleTeams.All(t => SelectedTeamIds.Contains(t.TeamId));
     }
 }

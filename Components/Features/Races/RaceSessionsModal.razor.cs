@@ -238,7 +238,7 @@ public partial class RaceSessionsModal : IDisposable
 
     private async Task ToggleAllVisibleAsync()
     {
-        var visible = TeamFilter.Filter(availableTeams, teamClassFilter);
+        var visible = TeamFilter.Filter(TeamFilter.Eligible(availableTeams, selectedTeamIds), teamClassFilter);
 
         if (isSavingTeams || visible.Count == 0)
         {
