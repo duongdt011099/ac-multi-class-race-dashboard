@@ -967,10 +967,11 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 
 /* ---------- Dropdown with pictures (ImageSelect) ---------- */
 
-.wec-imgselect { position: relative; }
+.wec-imgselect { position: relative; min-width: 0; max-width: 100%; }
 
 /* The real <select> stays for ids, labels and assistive tech, but is not drawn. */
-.wec-imgselect__native {
+.wec-imgselect .wec-imgselect__native {
+    visibility: hidden;
     position: absolute;
     inset: 0;
     width: 100%;
@@ -984,6 +985,8 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
     align-items: center;
     gap: 0.65rem;
     width: 100%;
+    min-width: 0;
+    overflow: hidden;
     min-height: 2.9rem;
     padding: 0.3rem 0.75rem 0.3rem 0.35rem;
     border: 1px solid var(--wec-border);
@@ -1107,7 +1110,6 @@ img.wec-imgselect__img {
     animation: wec-shimmer 1.3s linear infinite;
 }
 img.wec-imgselect__img.is-loaded { background-image: none; animation: wec-img-reveal 0.4s var(--wec-ease) backwards; }
-img.wec-imgselect__img.is-error { visibility: hidden; }
 
 
 /* ---------- Team logo library ---------- */
@@ -1289,3 +1291,11 @@ input[type="checkbox"]:focus-visible {
 input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 .wec-form-field--checkbox label { cursor: pointer; user-select: none; color: var(--wec-text-2); }
+
+/* A picture that failed to load shows the "not found" placeholder the image loader puts in its place. */
+img.is-error {
+    object-fit: contain;
+    background: var(--wec-surface-3, #1d1d24) !important;
+    border-color: var(--wec-border, #2a2a33) !important;
+    padding: 0 !important;
+}

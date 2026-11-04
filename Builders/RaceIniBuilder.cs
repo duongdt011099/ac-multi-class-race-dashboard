@@ -15,11 +15,18 @@ public sealed class RaceIniBuilder
         double sunAngle,
         int playerStartPosition = 1,
         bool penalties = true,
-        bool rollingStartLapCompensation = false)
+        bool rollingStartLapCompensation = false,
+        Func<string?, string?, string?>? resolveSkin = null)
     {
+        string? ResolveSkin(string? car, string? skin)
+        {
+            var trimmed = skin?.Trim();
+            return resolveSkin is null ? trimmed : resolveSkin(car?.Trim(), trimmed);
+        }
+
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
-        var playerSkin = human?.Skin?.Trim();
+        var playerSkin = ResolveSkin(playerCar, human?.Skin);
 
         var model = "[BENCHMARK]\r\nACTIVE=0\r\n\r\n" +
             "[REPLAY]\r\nACTIVE=0\r\n\r\n" +
@@ -85,7 +92,7 @@ public sealed class RaceIniBuilder
             var driver = opponents[i];
             builder.Append($"[CAR_{i + 1}]\r\n");
             builder.Append("MODEL=").AppendLine(driver.Car?.Trim());
-            builder.Append("SKIN=").AppendLine(driver.Skin?.Trim());
+            builder.Append("SKIN=").AppendLine(ResolveSkin(driver.Car, driver.Skin));
             builder.Append("BALLAST=0\r\n");
             builder.Append("RESTRICTOR=0\r\n");
             builder.Append("DRIVER_NAME=").AppendLine(driver.DriverName?.Trim());

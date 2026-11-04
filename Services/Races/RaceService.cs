@@ -70,11 +70,20 @@ public class RaceService : IRaceService
             throw new InvalidOperationException("A point setting must be selected.");
         }
 
-        var classSetting = await _classSettingRepository.GetByIdWithItemsAsync(model.ClassSettingId);
+        // The season owns the class system: a new race always uses it. A season without one (created
+        // before this rule) adopts the first class setting chosen for one of its races.
+        var classSettingId = season.ClassSettingId ?? model.ClassSettingId;
+        var classSetting = await _classSettingRepository.GetByIdWithItemsAsync(classSettingId);
 
         if (classSetting is null || classSetting.Items.Count == 0)
         {
             throw new InvalidOperationException("A class setting with at least one class must be selected.");
+        }
+
+        if (season.ClassSettingId is null)
+        {
+            season.ClassSettingId = classSetting.ClassSettingId;
+            await _seasonRepository.UpdateAsync(season);
         }
 
         await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
@@ -134,7 +143,12 @@ public class RaceService : IRaceService
             }
         }
 
-        if (model.ClassSettingId != Guid.Empty && race.ClassSettingId != model.ClassSettingId)
+        // A race that follows its season's class system cannot be moved off it; races from before the
+        // season owned the class system (a different setting) can still be edited.
+        var season = await _seasonRepository.GetByIdAsync(model.SeasonId);
+        var followsSeason = season?.ClassSettingId is { } seasonClass && seasonClass == race.ClassSettingId;
+
+        if (!followsSeason && model.ClassSettingId != Guid.Empty && race.ClassSettingId != model.ClassSettingId)
         {
             var classSetting = await _classSettingRepository.GetByIdWithItemsAsync(model.ClassSettingId);
 

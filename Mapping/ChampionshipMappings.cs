@@ -32,7 +32,9 @@ public static class ChampionshipMappings
         {
             SeasonId = season.SeasonId,
             SeasonName = season.SeasonName,
-            RaceCount = season.Races.Count
+            RaceCount = season.Races.Count,
+            ClassSettingId = season.ClassSettingId,
+            ClassSettingName = season.ClassSetting?.ClassSettingName
         };
     }
 }

@@ -5,11 +5,10 @@ local U = require("src/util")
 local Writer = {}
 
 function Writer.ResultDefaultFolder()
-  -- Matches the dashboard default (Services/LuaResultPaths.cs) so the common case
-  -- needs no configuration on either side.
-  local okDocs, docs = pcall(function() return ac.getFolder(ac.FolderID.Documents) end)
-  if okDocs and type(docs) == "string" and docs ~= "" then
-    return U.NormalizePath(docs .. "/Assetto Corsa/mcr-results")
+  -- Defaults to the app's own folder, which is always writable.
+  local okApps, apps = pcall(function() return ac.getFolder(ac.FolderID.ACApps) end)
+  if okApps and type(apps) == "string" and apps ~= "" then
+    return U.NormalizePath(apps .. "/lua/Multi_Class")
   end
 
   local candidates = {}

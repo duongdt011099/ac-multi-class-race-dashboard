@@ -118,7 +118,7 @@ public class DriversPageTests : PageTestContext
         cut.Find("#driver-car").Change("ferrari_499p");
 
         cut.WaitForAssertion(() => Assert.False(cut.Find("#driver-skin").HasAttribute("disabled")));
-        Assert.Equal(new[] { "Select skin...", "red", "yellow" }, cut.FindAll("#driver-skin option").Select(o => o.TextContent));
+        Assert.Equal(new[] { "Random skin", "red", "yellow" }, cut.FindAll("#driver-skin option").Select(o => o.TextContent));
     }
 
     [Fact]

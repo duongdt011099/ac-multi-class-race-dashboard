@@ -120,14 +120,23 @@ local function LockPhase2Position(state, group)
   state.lockedPhase2Position = pos
 end
 
+-- Spline position where the double file starts: a percentage of the lap, except on long tracks
+-- where the double file is capped to a fixed length before the line.
+local function FormationPoint(trackLength)
+  if type(trackLength) == "number" and trackLength > C.ROLLING_START_LONG_TRACK_METERS then
+    return 1.0 - C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS / trackLength
+  end
+  return C.ROLLING_START_FORMATION_POINT
+end
+
 -- Track the start-line crossing so a car only double-files on its flying lap.
-local function TrackLineCrossing(state, car, group)
+local function TrackLineCrossing(state, car, group, trackLength)
   if not (car and type(car.splinePosition) == "number") then return end
   if not state.hasRolledOver and car.splinePosition < C.ROLLING_START_ROLLED_OVER_SPLINE then
     state.hasRolledOver = true
   end
 
-  if state.hasRolledOver and car.splinePosition >= C.ROLLING_START_FORMATION_POINT
+  if state.hasRolledOver and car.splinePosition >= FormationPoint(trackLength)
       and not state.enteredPhase2 then
     LockPhase2Position(state, group)
   end
@@ -425,14 +434,14 @@ local function MaintainCar(carIndex, state, trackLength, moves)
     return
   end
 
-  TrackLineCrossing(state, car, group)
+  TrackLineCrossing(state, car, group, trackLength)
   if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
   -- The autopilot only covers the single-file run-up: hand the human car back at double file.
   local autopiloted = carIndex == 0 and S.playerAutopilotOn == true
   if autopiloted and S.autopilotEnabled and not state.autopilotWarned and not state.enteredPhase2
       and state.hasRolledOver and car and type(car.splinePosition) == "number" then
     local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
-    local secondsLeft = (C.ROLLING_START_FORMATION_POINT - car.splinePosition) * trackLength / speed
+    local secondsLeft = (FormationPoint(trackLength) - car.splinePosition) * trackLength / speed
     if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
       state.autopilotWarned = true
       Audio.PlayAutopilotOff()

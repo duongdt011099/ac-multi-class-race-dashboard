@@ -15,6 +15,7 @@ public class SeasonRepository : GenericRepository<Season>, ISeasonRepository
     {
         return await _context.Seasons
             .Include(s => s.Races)
+            .Include(s => s.ClassSetting)
             .Where(s => s.Championship.ChampionshipId == championshipId)
             .OrderBy(s => s.SeasonName)
             .ToListAsync();

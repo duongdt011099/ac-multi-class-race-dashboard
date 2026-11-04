@@ -178,12 +178,13 @@ internal sealed class DashboardTray : IDisposable
             _logger.LogInformation("Exit requested from the tray icon; shutting down.");
             _lifetime.StopApplication();
 
-            // The open dashboard window holds a live Blazor connection, which can keep the graceful
-            // shutdown waiting. If the process is still here after a few seconds, end it.
+            // The open dashboard window holds a live Blazor connection, which keeps the graceful
+            // shutdown waiting, and the user expects Exit to mean gone. Give the host a moment to stop
+            // its workers, then end the process; all data is written as it changes.
             _ = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromSeconds(5));
-                _logger.LogWarning("Shutdown did not finish in time; forcing exit.");
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+                _logger.LogInformation("Forcing exit after tray shutdown request.");
                 Environment.Exit(0);
             });
         }

@@ -305,6 +305,14 @@ function Frame.Update(dt)
   local sim = ac.getSim()
   S.driverCount = sim.carsCount or 0
 
+  -- Paused from the in-game menu: the whole app stands still (no session tracking, rolling start,
+  -- flags, timers or exports) with its audio held, and carries on from the same spot on resume.
+  if sim.isPaused == true and sim.isInMainMenu ~= true then
+    pcall(Audio.Suspend)
+    return
+  end
+  pcall(Audio.Resume)
+
   -- Replay: the app is fully disabled while a replay is being watched, and no session
   -- result may be auto-saved from replay data. The auto-save preference itself is left
   -- untouched, so it comes back as soon as the replay ends.

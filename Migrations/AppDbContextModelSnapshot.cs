@@ -418,6 +418,9 @@ namespace multi_class_race_dashboard.Migrations
                     b.Property<Guid>("ChampionshipId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ClassSettingId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SeasonName")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -425,6 +428,8 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasKey("SeasonId");
 
                     b.HasIndex("ChampionshipId");
+
+                    b.HasIndex("ClassSettingId");
 
                     b.ToTable("Seasons");
                 });
@@ -580,7 +585,14 @@ namespace multi_class_race_dashboard.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MulticlassRace.Models.ClassSetting", "ClassSetting")
+                        .WithMany()
+                        .HasForeignKey("ClassSettingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Championship");
+
+                    b.Navigation("ClassSetting");
                 });
 
             modelBuilder.Entity("MulticlassRace.Models.Session", b =>

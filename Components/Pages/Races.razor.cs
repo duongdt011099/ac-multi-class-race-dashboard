@@ -243,12 +243,27 @@ public partial class Races
         isOpeningStandings = true;
     }
 
-    private void OpenRaceCreate()
+    // Tracks may have been added to the game since the list was read, so each popup rereads it.
+    private async Task RefreshTracksAsync()
+    {
+        try
+        {
+            availableTracks = (await TrackService.GetTrackOptionsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not read track list: {ex.Message}", isError: true);
+        }
+    }
+
+    private async Task OpenRaceCreate()
     {
         if (selectedSeason is null)
         {
             return;
         }
+
+        await RefreshTracksAsync();
 
         isCreatingRace = true;
         editingLayouts = new List<TrackLayoutOptionModel>();
@@ -259,7 +274,8 @@ public partial class Races
             RaceName = string.Empty,
             SeasonId = selectedSeason.SeasonId,
             PointSettingId = pointSettings.FirstOrDefault(p => p.IsDefault)?.SettingId ?? Guid.Empty,
-            ClassSettingId = classSettings.FirstOrDefault(c => c.IsDefault)?.ClassSettingId ?? Guid.Empty,
+            ClassSettingId = selectedSeason.ClassSettingId
+                ?? classSettings.FirstOrDefault(c => c.IsDefault)?.ClassSettingId ?? Guid.Empty,
             NumberOfLaps = 10,
             PracticeSessionMinutes = 20,
             QualifyingSessionMinutes = 20
@@ -272,6 +288,8 @@ public partial class Races
         {
             return;
         }
+
+        await RefreshTracksAsync();
 
         var form = new RaceFormModel
         {

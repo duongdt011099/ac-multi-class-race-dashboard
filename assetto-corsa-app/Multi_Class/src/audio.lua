@@ -312,6 +312,33 @@ local function updateFlagSounds(dt)
   end
 end
 
+-- Game pause: every clip that is playing is held and carried on from the same spot on resume, so
+-- the callouts neither keep sounding behind the pause menu nor lose their place.
+local suspended = {}
+
+local function allPlayers()
+  local list = { player, doubleFilePlayer, autopilotOffPlayer }
+  for _, p in pairs(flagPlayers) do list[#list + 1] = p end
+  return list
+end
+
+function M.Suspend()
+  if next(suspended) ~= nil then return end
+  for _, p in ipairs(allPlayers()) do
+    local ok, playing = pcall(function() return p:playing() end)
+    if ok and playing == true then
+      pcall(function() p:pause() end)
+      suspended[#suspended + 1] = p
+    end
+  end
+end
+
+function M.Resume()
+  if #suspended == 0 then return end
+  for _, p in ipairs(suspended) do pcall(function() p:play() end) end
+  suspended = {}
+end
+
 function M.Update(dt)
   updateFlagSounds(dt)
   if not player then return end

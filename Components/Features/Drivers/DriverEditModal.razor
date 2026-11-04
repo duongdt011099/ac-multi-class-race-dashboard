@@ -29,7 +29,7 @@
 
             <FormField For="driver-skin" Label="Skin" Hint="@(NoSkinsFound ? "No skins found for this car." : null)">
                 <ImageSelect Id="driver-skin" @bind-Value="Driver.Skin" Options="SkinSelectOptions"
-                           EmptyLabel="@SkinPlaceholder"
+                           EmptyLabel="@SkinPlaceholder" EmptyIcon="bi-question-lg"
                            OrphanLabel="@($"{Driver.Skin} (not found on disk)")"
                            Disabled="@(string.IsNullOrWhiteSpace(Driver.Car) || isLoadingSkins || skinOptions.Count == 0)" />
             </FormField>
@@ -38,8 +38,7 @@
         @if (!string.IsNullOrWhiteSpace(SkinPreviewUrl))
         {
             <div class="wec-skin-preview">
-                <img src="@SkinPreviewUrl" class="wec-skin-preview__img" alt="@(Driver.Skin) preview"
-                     onerror="this.parentElement.style.display='none'" />
+                <img src="@SkinPreviewUrl" class="wec-skin-preview__img" alt="@(Driver.Skin) preview" />
             </div>
         }
 
@@ -149,7 +148,7 @@
                 return "Loading skins...";
             }
 
-            return skinOptions.Count == 0 ? "No skins" : "Select skin...";
+            return skinOptions.Count == 0 ? "No skins" : "Random skin";
         }
     }
 

@@ -255,29 +255,33 @@ local function loadPerCarClasses()
   return anyLoaded
 end
 
-local function redetectClass(name)
-  local lower = string.lower(name)
-  local matched = 0
-  for i = 0, S.driverCount - 1 do
-    if carMatches(i, lower) then
-      S.manualDriverClass[i] = name
-      ClsStore.SaveCarClass(U.SafeCarID(i), name, i)
-      matched = matched + 1
-    end
+local function hasRelease(name)
+  for _, n in ipairs(S.releaseClasses) do
+    if n == name then return true end
   end
-  if matched > 0 then
-    S.releaseClasses[#S.releaseClasses + 1] = name
-  end
-  U.Log(sFormat("LoadManualClassesFromStorage: re-detected class '%s' matched %d cars", name, matched))
+  return false
 end
 
-local function redetectFromSavedNames()
+-- Runs on every game load: cars added to the content folder (or to a tag) after the class was saved
+-- have no per-car entry, so every saved class name is matched again against the cars still unassigned.
+local function rescanUnassignedCars()
   local savedNames = ClsStore.LoadClassNames()
-  if savedNames and savedNames ~= "" then
-    U.Log(sFormat("LoadManualClassesFromStorage: per-car storage empty, re-detecting from saved class names: %s", savedNames))
-    for name in savedNames:gmatch("[^|]+") do
-      redetectClass(name)
+  if not savedNames or savedNames == "" then return end
+  for name in savedNames:gmatch("[^|]+") do
+    local lower = string.lower(name)
+    local matched = 0
+    for i = 0, S.driverCount - 1 do
+      local cur = S.manualDriverClass[i]
+      if (not cur or cur == "") and carMatches(i, lower) then
+        S.manualDriverClass[i] = name
+        ClsStore.SaveCarClass(U.SafeCarID(i), name, i)
+        matched = matched + 1
+      end
     end
+    if matched > 0 and not hasRelease(name) then
+      S.releaseClasses[#S.releaseClasses + 1] = name
+    end
+    U.Log(sFormat("LoadManualClassesFromStorage: re-verified class '%s', newly matched %d cars", name, matched))
   end
 end
 
@@ -286,9 +290,7 @@ function Classes.LoadManualClassesFromStorage()
   S.releaseClasses = {}
   local anyLoaded = loadPerCarClasses()
   U.Log(sFormat("LoadManualClassesFromStorage: DONE anyLoaded=%s releaseClasses=%d classes={%s}", tostring(anyLoaded), #S.releaseClasses, table.concat(S.releaseClasses, ",")))
-  if not anyLoaded then
-    redetectFromSavedNames()
-  end
+  rescanUnassignedCars()
   Settings.RestoreStoredSettings()
 
   local okBuild, buildErr = pcall(Classes.BuildClassInfo)

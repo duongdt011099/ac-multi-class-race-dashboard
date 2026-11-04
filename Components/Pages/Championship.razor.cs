@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using MulticlassRace.Common;
 using MulticlassRace.ViewModels;
 using MulticlassRace.Services.Championships;
+using MulticlassRace.Services.Settings;
 
 namespace multi_class_race_dashboard.Components.Pages;
 
@@ -17,6 +18,8 @@ public partial class Championship
     [Inject] private IChampionshipService ChampionshipService { get; set; } = default!;
 
     [Inject] private ISeasonService SeasonService { get; set; } = default!;
+
+    [Inject] private IClassSettingService ClassSettingService { get; set; } = default!;
 
     [Inject] private NavigationManager Nav { get; set; } = default!;
 
@@ -33,6 +36,8 @@ public partial class Championship
     private bool isSavingDetails;
     private List<SeasonModel>? seasons;
     private string? newSeasonName;
+    private List<ClassSettingModel> classSettings = new();
+    private Guid newSeasonClassSettingId;
     private bool isAddingSeason;
     private SeasonModel? confirmDeleteSeason;
     private bool isDeletingSeason;
@@ -169,7 +174,28 @@ public partial class Championship
         newSeasonName = null;
         seasons = null;
 
+        classSettings = (await ClassSettingService.GetAllAsync()).ToList();
+        newSeasonClassSettingId = classSettings.FirstOrDefault(c => c.IsDefault)?.ClassSettingId ?? Guid.Empty;
+
         await LoadSeasonsAsync();
+    }
+
+    private IEnumerable<ClassSettingModel> OrderedClassSettings =>
+        classSettings.OrderBy(c => c.ClassSettingName, StringComparer.OrdinalIgnoreCase);
+
+    private async Task SeasonClassSettingChanged(SeasonModel season, ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var parsed) || parsed == Guid.Empty)
+        {
+            return;
+        }
+
+        await TryAsync(async () =>
+        {
+            await SeasonService.SetSeasonClassSettingAsync(season.SeasonId, parsed);
+            await LoadSeasonsAsync();
+            Toast.Show($"'{season.SeasonName}' class system updated. New races will use it.");
+        }, "Could not change the class system");
     }
 
     private async Task LoadSeasonsAsync()
@@ -251,6 +277,12 @@ public partial class Championship
             return;
         }
 
+        if (newSeasonClassSettingId == Guid.Empty)
+        {
+            Toast.Show("Select a class system for the season.", isError: true);
+            return;
+        }
+
         isAddingSeason = true;
 
         try
@@ -258,7 +290,7 @@ public partial class Championship
             var championship = selectedChampionship;
             await TryAsync(async () =>
             {
-                await SeasonService.CreateSeasonAsync(championship.ChampionshipId, newSeasonName!);
+                await SeasonService.CreateSeasonAsync(championship.ChampionshipId, newSeasonName!, newSeasonClassSettingId);
                 newSeasonName = null;
                 await LoadSeasonsAsync();
                 await LoadChampionshipsAsync();

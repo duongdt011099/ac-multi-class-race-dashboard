@@ -10,6 +10,10 @@ namespace multi_class_race_dashboard.Components.Pages;
 
 public partial class Drivers : IDisposable
 {
+    /// <summary>A driver with a car but no skin gets a random skin when a session starts.</summary>
+    private static bool IsRandomSkin(DriverModel driver) =>
+        !string.IsNullOrWhiteSpace(driver.Car) && string.IsNullOrWhiteSpace(driver.Skin);
+
     private const int PageSize = 10;
 
     [Inject] private IDriverService DriverService { get; set; } = default!;
@@ -264,6 +268,8 @@ public partial class Drivers : IDisposable
 
     private void OpenCreate()
     {
+        // New cars may have been added to the game since the list was read.
+        _ = LoadCarsInBackgroundAsync();
         isCreating = true;
         editingDriver = new DriverFormModel
         {
@@ -290,6 +296,7 @@ public partial class Drivers : IDisposable
 
     private void OpenEdit(DriverModel driver)
     {
+        _ = LoadCarsInBackgroundAsync();
         isCreating = false;
         editingDriver = new DriverFormModel
         {

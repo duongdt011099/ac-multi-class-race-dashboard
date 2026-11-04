@@ -18,8 +18,11 @@ public static class GameContentImageEndpoints
             string? car,
             string? skin,
             string? type,
+            HttpContext context,
             AssettoCorsaPathResolver pathResolver) =>
         {
+            NoCache(context);
+
             var fileName = type switch
             {
                 "livery" => "livery.png",
@@ -49,8 +52,10 @@ public static class GameContentImageEndpoints
         });
 
         // One representative picture per car for dropdowns: the first skin (alphabetically) that has a preview.
-        app.MapGet("/car-thumb", async (string? car, AssettoCorsaPathResolver pathResolver) =>
+        app.MapGet("/car-thumb", async (string? car, HttpContext context, AssettoCorsaPathResolver pathResolver) =>
         {
+            NoCache(context);
+
             if (!IsSafeFolderName(car))
             {
                 return Results.NotFound();
@@ -123,6 +128,15 @@ public static class GameContentImageEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Skins can be added, replaced or removed while the dashboard is open, so the browser must
+    /// revalidate (a cheap Last-Modified check) instead of reusing a stale copy.
+    /// </summary>
+    private static void NoCache(HttpContext context)
+    {
+        context.Response.Headers.CacheControl = "no-cache";
     }
 
     /// <summary>

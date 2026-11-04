@@ -133,7 +133,8 @@ public class RaceSessionLauncher : IRaceSessionLauncher
             sunAngle,
             playerStartPosition,
             penalties,
-            rollingStartLapCompensation);
+            rollingStartLapCompensation,
+            (car, skin) => ResolveSkin(gamePath, car, skin));
 
         var executable = Path.Combine(gamePath, "acs.exe");
 
@@ -226,5 +227,34 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         return candidate.StartsWith(
             root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The skin to race with: the driver's own when it is on disk, otherwise (none chosen, or the folder
+    /// was removed) a random skin of the car. Null only when the car has no skins at all.
+    /// </summary>
+    private static string? ResolveSkin(string gamePath, string? car, string? skin)
+    {
+        if (string.IsNullOrWhiteSpace(car) || car.Contains('/') || car.Contains('\\'))
+        {
+            return skin;
+        }
+
+        var skinsRoot = Path.Combine(gamePath, "content", "cars", car, "skins");
+
+        if (!Directory.Exists(skinsRoot))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(skin) && !skin.Contains('/') && !skin.Contains('\\')
+            && Directory.Exists(Path.Combine(skinsRoot, skin)))
+        {
+            return skin;
+        }
+
+        var skins = Directory.GetDirectories(skinsRoot).Select(Path.GetFileName).ToArray();
+
+        return skins.Length == 0 ? null : skins[Random.Shared.Next(skins.Length)];
     }
 }

@@ -71,7 +71,7 @@ local function drawResultFolderLabel()
   if resolved ~= "" then
     ui.textColored("Result folder: " .. resolved .. " (default)", MUTED)
     if ui.itemHovered() then
-      ui.setTooltip("Documents\\Assetto Corsa\\mcr-results, which is also the dashboard default. Click 'Choose result folder...' to change it.")
+      ui.setTooltip("the Multi_Class app folder (apps\\lua\\Multi_Class). Point the dashboard's 'Lua App Result Path' there, or click 'Choose result folder...' to change it.")
     end
   else
     ui.textColored("Result folder: not resolved - please choose a folder", rgbm(1.0, 0.7, 0.35, 1))

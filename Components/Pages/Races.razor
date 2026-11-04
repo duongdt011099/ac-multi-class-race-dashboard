@@ -105,7 +105,7 @@
 @if (editingRace is not null)
 {
     <RaceEditModal Race="editingRace" IsCreating="isCreatingRace" IsSaving="isSavingRace"
-                   ChampionshipName="@selectedChampionship?.ChampionshipName" SeasonName="@selectedSeason?.SeasonName"
+                   ChampionshipName="@selectedChampionship?.ChampionshipName" SeasonName="@selectedSeason?.SeasonName" SeasonClassSettingId="selectedSeason?.ClassSettingId"
                    Tracks="availableTracks" PointSettings="pointSettings" ClassSettings="classSettings"
                    InitialLayouts="editingLayouts" InitialLapTimeMs="editingLapTimeMs"
                    OnSave="SaveRaceAsync" OnCancel="CancelRaceEdit" />

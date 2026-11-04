@@ -76,8 +76,15 @@
 
         <div class="wec-form-field">
             <label for="race-class-setting">Class Setting</label>
-            <AppSelect Id="race-class-setting" Value="@Race.ClassSettingId.ToString()"
-                       ValueChanged="value => Race.ClassSettingId = Guid.Parse(value)" Options="ClassSettingOptions" />
+            @if (ClassSettingLocked)
+            {
+                <div id="race-class-setting" class="wec-form-field__static">@(SelectedClassSetting?.ClassSettingName)</div>
+            }
+            else
+            {
+                <AppSelect Id="race-class-setting" Value="@Race.ClassSettingId.ToString()"
+                           ValueChanged="value => Race.ClassSettingId = Guid.Parse(value)" Options="ClassSettingOptions" />
+            }
 
             <div class="wec-text-muted">
                 @if (SelectedClassSetting is { } classSetting)
@@ -138,6 +145,12 @@
     [Parameter] public string? ChampionshipName { get; set; }
 
     [Parameter] public string? SeasonName { get; set; }
+
+    /// <summary>The season's class system. New races, and races already using it, show it read-only.</summary>
+    [Parameter] public Guid? SeasonClassSettingId { get; set; }
+
+    private bool ClassSettingLocked => SeasonClassSettingId is { } seasonClass
+        && (IsCreating || Race.ClassSettingId == seasonClass);
 
     [Parameter] public IReadOnlyList<TrackOptionModel> Tracks { get; set; } = Array.Empty<TrackOptionModel>();
 

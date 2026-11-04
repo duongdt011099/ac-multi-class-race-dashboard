@@ -78,8 +78,11 @@ else
                     <td>
                         @if (!string.IsNullOrEmpty(driver.LiveryImageUrl))
                         {
-                            <img src="@driver.LiveryImageUrl" class="wec-drivers__livery" alt="@driver.Car livery"
-                                 onerror="this.style.display='none'" />
+                            <img src="@driver.LiveryImageUrl" class="wec-drivers__livery" alt="@driver.Car livery" />
+                        }
+                        else if (IsRandomSkin(driver))
+                        {
+                            <span class="wec-drivers__random wec-drivers__random--livery" title="Random skin"><i class="bi bi-question-lg"></i></span>
                         }
                     </td>
                     <td>
@@ -87,9 +90,12 @@ else
                         {
                             <button type="button" class="wec-drivers__car-btn" title="View bigger"
                                     @onclick="() => OpenCarImageAsync(driver)" @onclick:stopPropagation="true">
-                                <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car"
-                                     onerror="this.style.display='none'" />
+                                <img src="@driver.CarImageUrl" class="wec-drivers__car-img" alt="@driver.Car" />
                             </button>
+                        }
+                        else if (IsRandomSkin(driver))
+                        {
+                            <span class="wec-drivers__random" title="Random skin"><i class="bi bi-question-lg"></i></span>
                         }
                     </td>
                     <td>@driver.DriverName</td>

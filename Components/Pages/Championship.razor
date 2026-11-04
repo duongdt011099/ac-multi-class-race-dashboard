@@ -92,6 +92,14 @@ else
         <div class="wec-seasons__add">
             <input type="text" placeholder="Season name..." @bind="newSeasonName" @bind:event="oninput"
                    @onkeydown="HandleNewSeasonEnter" />
+            <select class="wec-seasons__class" title="Class system for every race of this season"
+                    @bind="newSeasonClassSettingId">
+                <option value="@Guid.Empty">Select class system...</option>
+                @foreach (var classSetting in OrderedClassSettings)
+                {
+                    <option value="@classSetting.ClassSettingId">@classSetting.ClassSettingName</option>
+                }
+            </select>
             <ToolbarButton OnClick="AddSeasonAsync" Disabled="isAddingSeason">
                 @(isAddingSeason ? "Adding..." : "Add Season")
             </ToolbarButton>
@@ -113,6 +121,23 @@ else
                 <div class="wec-seasons__row wec-row-clickable" title="@($"View races for {season.SeasonName}")"
                      @onclick="() => NavigateToRaces(current)">
                     <span class="wec-seasons__name">@season.SeasonName</span>
+                    @if (season.ClassSettingId is not null)
+                    {
+                        <span class="wec-seasons__races" title="The class system is fixed once a season is added">@season.ClassSettingName</span>
+                    }
+                    else
+                    {
+                    @* Seasons from before classes belonged to the season: the class system can be set once. *@
+                    <select class="wec-seasons__class" title="Set the class system for this season's races (cannot be changed afterwards)"
+                            value="@Guid.Empty" @onclick:stopPropagation="true"
+                            @onchange="e => SeasonClassSettingChanged(current, e)">
+                        <option value="@Guid.Empty">Mixed / not set</option>
+                        @foreach (var classSetting in OrderedClassSettings)
+                        {
+                            <option value="@classSetting.ClassSettingId">@classSetting.ClassSettingName</option>
+                        }
+                    </select>
+                    }
                     <span class="wec-seasons__races">@season.RaceCount race@(season.RaceCount == 1 ? "" : "s")</span>
                     <IconButton Icon="bi-files" Title="@($"Clone {season.SeasonName}")" StopPropagation="true"
                                 OnClick="() => OpenCloneDialog(current)" />

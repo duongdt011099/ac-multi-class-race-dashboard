@@ -21,6 +21,10 @@ C.ROLLING_START_SPEED_KMH           = 70
 -- Percentage of track progress where a car that has already crossed the line stacks into two
 -- columns (double file) for the rolling start.
 C.ROLLING_START_FORMATION_POINT     = 0.67
+-- On long tracks (e.g. Le Mans, 13 km) 67% would leave the double file running for kilometres, so
+-- above this length the double file runs a fixed distance before the line instead.
+C.ROLLING_START_LONG_TRACK_METERS   = 7000
+C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS = 2000
 C.AUTOPILOT_OFF_WARNING_SECONDS     = 10.0
 -- A car is considered to have rolled over the start line once its spline position drops below this.
 C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3

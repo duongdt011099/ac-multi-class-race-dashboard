@@ -28,8 +28,38 @@ public class SeasonService : ISeasonService
         return seasons.Select(s => s.ToModel());
     }
 
-    public async Task CreateSeasonAsync(Guid championshipId, string seasonName)
+    public async Task SetSeasonClassSettingAsync(Guid seasonId, Guid classSettingId)
     {
+        if (classSettingId == Guid.Empty)
+        {
+            throw new InvalidOperationException("A class system is required.");
+        }
+
+        var season = await _seasonRepository.GetByIdAsync(seasonId);
+
+        if (season is null)
+        {
+            throw new InvalidOperationException("Season not found.");
+        }
+
+        if (season.ClassSettingId is not null)
+        {
+            throw new InvalidOperationException("The class system of a season cannot be changed.");
+        }
+
+        // Races already created keep the class setting they were made with; only new races follow.
+        season.ClassSettingId = classSettingId;
+
+        await _seasonRepository.UpdateAsync(season);
+    }
+
+    public async Task CreateSeasonAsync(Guid championshipId, string seasonName, Guid classSettingId)
+    {
+        if (classSettingId == Guid.Empty)
+        {
+            throw new InvalidOperationException("A class system is required.");
+        }
+
         var championship = await _championshipRepository.GetByIdAsync(championshipId);
 
         if (championship is null)
@@ -41,7 +71,8 @@ public class SeasonService : ISeasonService
         {
             SeasonId = Guid.NewGuid(),
             SeasonName = seasonName.Trim(),
-            Championship = championship
+            Championship = championship,
+            ClassSettingId = classSettingId
         };
 
         await _seasonRepository.AddAsync(season);
@@ -65,7 +96,8 @@ public class SeasonService : ISeasonService
         {
             SeasonId = Guid.NewGuid(),
             SeasonName = newSeasonName.Trim(),
-            Championship = source.Championship
+            Championship = source.Championship,
+            ClassSettingId = source.ClassSettingId
         };
 
         foreach (var race in source.Races)

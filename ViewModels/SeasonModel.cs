@@ -7,4 +7,8 @@ public class SeasonModel
     public required string SeasonName { get; set; }
 
     public int RaceCount { get; set; }
+
+    public Guid? ClassSettingId { get; set; }
+
+    public string? ClassSettingName { get; set; }
 }
