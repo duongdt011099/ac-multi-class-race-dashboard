@@ -147,6 +147,7 @@ local pendingFlags = { yellow_flag = false, green_flag = false }
 local flagClock = 0.0
 local yellowStartedAt = nil
 local greenStartedAt = nil
+local pendingSince = {}
 
 local function flagPath(name)
   return ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/sounds/" .. name .. ".mp3"
@@ -235,9 +236,16 @@ end
 -- true once the clip has really finished, false while it is still playing, nil when it has not
 -- started (pending, disabled or never requested).
 local function flagDone(name, startedAt)
-  if not startedAt then return nil end
+  -- Requested but the player is not ready yet: the clip has not played, so it is not done.
+  if not startedAt then
+    if pendingFlags[name] then return false end
+    return nil
+  end
   local p = flagPlayers[name]
   if not p then return nil end
+  local elapsed = flagClock - startedAt
+  -- Right after play() the player can still report a stale "ended" / time; never trust it early.
+  if elapsed < 2.0 then return false end
   local okEnded, ended = pcall(function() return p:ended() end)
   if okEnded and ended == true then return true end
   local t = flagTime(p)
@@ -245,7 +253,7 @@ local function flagDone(name, startedAt)
   if t and okDur and type(duration) == "number" and duration > 1.0 then
     return t >= duration - 0.15
   end
-  return (flagClock - startedAt) >= FLAG_CLIP_SECONDS
+  return elapsed >= FLAG_CLIP_SECONDS
 end
 
 function M.YellowDone() return flagDone("yellow_flag", yellowStartedAt) end
@@ -280,6 +288,7 @@ function M.ResetFlags()
   pendingFlags.green_flag = false
   yellowStartedAt = nil
   greenStartedAt = nil
+  pendingSince = {}
 end
 
 local function tryStartFlag(name)
@@ -303,7 +312,16 @@ local function updateFlagSounds(dt)
   flagClock = flagClock + (dt or 0)
   pcall(watchFlags)
   if pendingFlags.yellow_flag then
-    if tryStartFlag("yellow_flag") then yellowStartedAt = flagClock end
+    pendingSince.yellow_flag = pendingSince.yellow_flag or flagClock
+    if tryStartFlag("yellow_flag") then
+      yellowStartedAt = flagClock
+      pendingSince.yellow_flag = nil
+    elseif flagClock - pendingSince.yellow_flag > 4.0 then
+      -- The clip never became ready: give up so the state machine falls back to its timer.
+      pendingFlags.yellow_flag = false
+      pendingSince.yellow_flag = nil
+      U.Log("AUDIO: yellow_flag never became ready; giving up")
+    end
     return
   end
   if pendingFlags.green_flag then
