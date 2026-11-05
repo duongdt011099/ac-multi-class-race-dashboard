@@ -17,13 +17,13 @@
         </FormField>
 
         <FormField For="race-country" Label="Country">
-            <AppSelect Id="race-country" @bind-Value="Race.Country" Options="CountryOptions"
+            <ImageSelect ShowImages="false" Id="race-country" @bind-Value="Race.Country" Options="CountryOptions"
                        EmptyLabel="Select country..." OrphanLabel="@Race.Country" />
         </FormField>
 
         <div class="wec-form-field">
             <label for="race-track">Track <span class="wec-required" aria-hidden="true">*</span></label>
-            <AppSelect Id="race-track" Value="@Race.TrackName" ValueChanged="HandleTrackChangedAsync" required
+            <ImageSelect ShowImages="false" Id="race-track" Value="@Race.TrackName" ValueChanged="HandleTrackChangedAsync" required
                        Options="TrackSelectOptions" EmptyLabel="Select track..."
                        OrphanLabel="@($"{Race.TrackName} (not found on disk)")" />
         </div>
@@ -36,7 +36,7 @@
                     <span class="wec-required" aria-hidden="true">*</span>
                 }
             </label>
-            <AppSelect Id="race-track-layout" Value="@Race.TrackLayout" ValueChanged="HandleLayoutChangedAsync"
+            <ImageSelect ShowImages="false" Id="race-track-layout" Value="@Race.TrackLayout" ValueChanged="HandleLayoutChangedAsync"
                        required="@RequiresLayout" Disabled="@(string.IsNullOrWhiteSpace(Race.TrackName))"
                        Options="LayoutSelectOptions" EmptyLabel="@LayoutEmptyLabel" />
         </div>
@@ -63,7 +63,7 @@
 
         <div class="wec-form-field">
             <label for="race-point-setting">Point Setting</label>
-            <AppSelect Id="race-point-setting" Value="@Race.PointSettingId.ToString()"
+            <ImageSelect ShowImages="false" Id="race-point-setting" Value="@Race.PointSettingId.ToString()"
                        ValueChanged="value => Race.PointSettingId = Guid.Parse(value)" Options="PointSettingOptions" />
 
             <div class="wec-text-muted">
@@ -82,7 +82,7 @@
             }
             else
             {
-                <AppSelect Id="race-class-setting" Value="@Race.ClassSettingId.ToString()"
+                <ImageSelect ShowImages="false" Id="race-class-setting" Value="@Race.ClassSettingId.ToString()"
                            ValueChanged="value => Race.ClassSettingId = Guid.Parse(value)" Options="ClassSettingOptions" />
             }
 

@@ -24,7 +24,10 @@
 
     <button type="button" class="wec-imgselect__trigger" disabled="@Disabled" aria-haspopup="listbox"
             aria-expanded="@(open ? "true" : "false")" @onclick="Toggle">
-        @if (Selected?.ImageUrl is { Length: > 0 } selectedImage)
+        @if (!ShowImages)
+        {
+        }
+        else if (Selected?.ImageUrl is { Length: > 0 } selectedImage)
         {
             <img src="@selectedImage" class="wec-imgselect__img" alt="" loading="lazy" />
         }
@@ -53,7 +56,10 @@
                 {
                     <button type="button" role="option" class="wec-imgselect__option wec-imgselect__option--none @(!HasValue ? "wec-imgselect__option--selected" : null)"
                             @onclick="() => Pick(EmptyValue)">
-                        <span class="wec-imgselect__img wec-imgselect__img--empty" aria-hidden="true"><i class="bi @(EmptyIcon ?? "bi-slash-circle")"></i></span>
+                        @if (ShowImages)
+                        {
+                            <span class="wec-imgselect__img wec-imgselect__img--empty" aria-hidden="true"><i class="bi @(EmptyIcon ?? "bi-slash-circle")"></i></span>
+                        }
                         <span class="wec-imgselect__text">@EmptyLabel</span>
                     </button>
                 }
@@ -63,7 +69,10 @@
                     <button type="button" role="option" aria-selected="@(current.Value == Value ? "true" : "false")"
                             class="wec-imgselect__option @(current.Value == Value ? "wec-imgselect__option--selected" : null)"
                             @onclick="() => Pick(current.Value)">
-                        @if (current.ImageUrl is { Length: > 0 } image)
+                        @if (!ShowImages)
+                        {
+                        }
+                        else if (current.ImageUrl is { Length: > 0 } image)
                         {
                             <img src="@image" class="wec-imgselect__img" alt="" loading="lazy" />
                         }
@@ -116,6 +125,9 @@
     [Parameter] public string? OrphanLabel { get; set; }
 
     [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>False for a text-only dropdown (no picture slot); styling and search stay the same.</summary>
+    [Parameter] public bool ShowImages { get; set; } = true;
 
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
 

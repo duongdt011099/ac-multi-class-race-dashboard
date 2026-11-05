@@ -1539,7 +1539,10 @@ a.wec-modal__btn {
 .wec-toast {
     position: fixed;
     top: 4.25rem;
-    right: 1.25rem;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: fit-content;
     z-index: 1100;
     display: flex;
     align-items: center;
@@ -1577,11 +1580,11 @@ a.wec-modal__btn {
 @keyframes wec-toast-in {
     from {
         opacity: 0;
-        transform: translateX(1rem);
+        transform: translateY(-1rem);
     }
     to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateY(0);
     }
 }
 

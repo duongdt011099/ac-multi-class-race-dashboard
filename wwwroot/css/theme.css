@@ -687,8 +687,8 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 }
 .wec-toast--error::after { background: linear-gradient(90deg, var(--wec-red-deep), var(--wec-red-hot)); }
 @keyframes wec-toast-bounce {
-    from { opacity: 0; transform: translateX(120%) scale(0.9); }
-    to   { opacity: 1; transform: translateX(0) scale(1); }
+    from { opacity: 0; transform: translateY(-120%) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes wec-toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
@@ -829,7 +829,8 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 }
 
 /* While an image is still on its way, a dark shimmer with a red glint sweeps across its box. */
-.wec-table__logo, .wec-podium__logo, .wec-drivers__livery, .wec-drivers__car-img,
+.wec-table__logo:not(.wec-table__logo--fallback), .wec-podium__logo:not(.wec-podium__logo--fallback),
+.wec-drivers__livery, .wec-drivers__car-img,
 .wec-race-track__thumb, .wec-nav-human__car-img, .wec-nav-human__logo,
 .wec-image-viewer__img, .wec-track-preview__img, .wec-form-field__preview,
 .wec-skin-preview__img {
@@ -840,8 +841,8 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 }
 
 /* The pictures themselves are invisible until loaded, so the shimmer shows through the alt text box. */
-.wec-table__logo:not(.is-loaded):not(.is-error),
-.wec-podium__logo:not(.is-loaded):not(.is-error),
+.wec-table__logo:not(.wec-table__logo--fallback):not(.is-loaded):not(.is-error),
+.wec-podium__logo:not(.wec-podium__logo--fallback):not(.is-loaded):not(.is-error),
 .wec-drivers__livery:not(.is-loaded):not(.is-error),
 .wec-drivers__car-img:not(.is-loaded):not(.is-error),
 .wec-race-track__thumb:not(.is-loaded):not(.is-error),

@@ -44,12 +44,12 @@
 
         <div class="wec-form-row">
             <FormField For="driver-nationality" Label="Nationality">
-                <AppSelect Id="driver-nationality" @bind-Value="Driver.Nationality" Options="CountryOptions"
+                <ImageSelect ShowImages="false" Id="driver-nationality" @bind-Value="Driver.Nationality" Options="CountryOptions"
                            EmptyLabel="Select nationality..." OrphanLabel="@Driver.Nationality" />
             </FormField>
 
             <FormField For="driver-team" Label="Team">
-                <AppSelect Id="driver-team" Value="@(Driver.TeamId?.ToString())" ValueChanged="HandleTeamChanged"
+                <ImageSelect ShowImages="false" Id="driver-team" Value="@(Driver.TeamId?.ToString())" ValueChanged="HandleTeamChanged"
                            Options="TeamSelectOptions" EmptyLabel="No team" OrphanLabel="@Driver.TeamName" />
             </FormField>
         </div>
