@@ -52,7 +52,8 @@ public static class RaceMappings
             BestLapTimeMs = standing.BestLapTimeMs,
             Points = standing.Points,
             LapCount = standing.LapCount,
-            ClassPosition = standing.ClassPosition
+            ClassPosition = standing.ClassPosition,
+            IsHuman = standing.Driver?.IsHuman ?? false
         };
     }
 }

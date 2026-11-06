@@ -73,6 +73,11 @@
         <NavItem Href="gameconfig" Icon="bi-controller-nav-menu" Text="Game Config" />
         <NavItem Href="class-settings" Icon="bi-diagram-3-fill-nav-menu" Text="Class Settings" Enabled="isConfigured" />
         <NavItem Href="pointsettings" Icon="bi-scoreboard-nav-menu" Text="Point Settings" Enabled="isConfigured" />
+        <div class="nav-item px-3">
+            <button type="button" class="nav-link wec-nav-guide" @onclick="OpenGuide">
+                <span class="bi bi-book-nav-menu" aria-hidden="true"></span> User Guide
+            </button>
+        </div>
     </nav>
 
     <div class="wec-nav-copyright">Copyrights @DateTime.Now.Year @@duongdt011099</div>

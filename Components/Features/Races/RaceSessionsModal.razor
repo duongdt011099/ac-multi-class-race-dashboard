@@ -76,7 +76,7 @@
         <div class="wec-session-toolbar">
             <label for="standing-class-filter" class="wec-session-toolbar__label">Class</label>
             <AppSelect Id="standing-class-filter" CssClass="wec-result-file-select wec-session-toolbar__select"
-                       @bind-Value="standingClassFilter" EmptyLabel="All classes"
+                       @bind-Value="StandingClassFilter"
                        Options="@(StandingClassNames.Select(c => new SelectOption(c, c)))" />
         </div>
     }
@@ -90,7 +90,7 @@
     else
     {
         <SessionResultsList Sessions="DisplaySessions" SessionType="selectedSessionType"
-                            ClassFilter="@standingClassFilter" Colors="Colors" />
+                            ClassFilter="@StandingClassFilter" Colors="Colors" />
     }
 
     @if (isLoading)
@@ -103,3 +103,8 @@
         </div>
     }
 </Modal>
+
+@if (celebration is not null)
+{
+    <ResultCelebrationPopup Celebration="celebration" Colors="Colors" OnClose="CloseCelebration" />
+}

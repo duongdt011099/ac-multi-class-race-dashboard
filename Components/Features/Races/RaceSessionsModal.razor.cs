@@ -69,6 +69,19 @@ public partial class RaceSessionsModal : IDisposable
     private bool isStarting;
     private int? trackPitCount;
     private int enteredCarCount;
+    private ResultCelebration? celebration;
+
+    private void ShowCelebration(SessionType sessionType)
+    {
+        var session = sessionsCache?
+            .Where(s => s.SessionType == sessionType)
+            .OrderByDescending(s => s.SessionDate)
+            .FirstOrDefault();
+
+        celebration = ResultCelebration.Evaluate(session);
+    }
+
+    private void CloseCelebration() => celebration = null;
 
     private RaceSessionContext Context => new(
         selectedTeamIds.Count > 0,
@@ -88,6 +101,23 @@ public partial class RaceSessionsModal : IDisposable
 
     private IReadOnlyList<string> StandingClassNames =>
         StandingsFilter.SessionClassNames(DisplaySessions ?? new List<SessionModel>());
+
+    /// <summary>The class shown in the results; falls back to the first class like the Standings popup.</summary>
+    private string StandingClassFilter
+    {
+        get
+        {
+            if (RaceClassSetting is null)
+            {
+                return "";
+            }
+
+            var names = StandingClassNames;
+
+            return names.Contains(standingClassFilter) ? standingClassFilter : names.FirstOrDefault() ?? "";
+        }
+        set => standingClassFilter = value;
+    }
 
     private bool CanImportRaceResult =>
         !isImportingRaceResult && !string.IsNullOrWhiteSpace(selectedRaceResultFile);
@@ -149,6 +179,7 @@ public partial class RaceSessionsModal : IDisposable
             try
             {
                 sessionsCache = (await RaceService.GetRaceSessionsAsync(raceId)).ToList();
+                ShowCelebration(sessionType);
 
                 if (sessionType == SessionType.Race)
                 {
@@ -351,6 +382,7 @@ public partial class RaceSessionsModal : IDisposable
             selectedSessionType = SessionType.Race;
             selectedTab = RacePopupTab.Race;
             sessionsCache = (await RaceService.GetRaceSessionsAsync(Race.RaceId)).ToList();
+            ShowCelebration(SessionType.Race);
         }
         catch (Exception ex)
         {
@@ -379,6 +411,7 @@ public partial class RaceSessionsModal : IDisposable
             Toast.Show($"Imported {result.Imported} result(s) (skipped {result.Skipped}).", result.Skipped > 0);
 
             sessionsCache = (await RaceService.GetRaceSessionsAsync(Race.RaceId)).ToList();
+            ShowCelebration(selectedSessionType);
         }
         catch (Exception ex)
         {

@@ -17,4 +17,7 @@ public class DriverStandingModel
     public int LapCount { get; set; }
 
     public int ClassPosition { get; set; }
+
+    /// <summary>True when the standing belongs to the driver flagged as the human player.</summary>
+    public bool IsHuman { get; set; }
 }

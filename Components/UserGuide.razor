@@ -1,0 +1,121 @@
+@rendermode Interactive
+@implements IDisposable
+@using MulticlassRace.Services.Browser
+@using MulticlassRace.Services.Championships
+@using MulticlassRace.Services.Notifications
+
+@if (isOpen)
+{
+    <Modal Title="How to use the dashboard" Size="ModalSize.Wider" OverlayClass="wec-modal-overlay--top"
+           BodyClass="wec-guide" OnClose="CloseAsync">
+        <p class="wec-guide__lead">
+            Welcome! This is a quick tour of the Multi-Class Race Dashboard. You can reopen it any time from
+            <strong>User Guide</strong> in the sidebar.
+        </p>
+
+        <h3>What you can do</h3>
+        <ul>
+            <li><strong>Manage your series</strong> — create championships, add seasons, create races, and watch each race move through its status: not started, in progress (after practice/qualifying results are loaded), and finished (after the race is done). Clone a season to reuse its full race calendar.</li>
+            <li><strong>Define your classes</strong> — build class settings on the <strong>Class Settings</strong> page: a named set of classes (for example Hypercar, LMP2, GT3), each with its own color, reorderable, with one set marked as the default.</li>
+            <li><strong>Manage teams and drivers</strong> — assign each team its classes, set each driver's car and skin, AI strength and aggression, nationality, and flag who is driving for real (human driver).</li>
+            <li><strong>Set up and run race sessions</strong> — choose which teams race in which event, then run Practice, Qualifying and Race sessions.</li>
+            <li><strong>Import results automatically</strong> — load practice/qualifying results and the final race result, and the dashboard handles standings and points for you.</li>
+            <li><strong>Create ready-to-load grids</strong> — generate grid and race preset files you can open directly in Content Manager.</li>
+            <li><strong>Score the championship your way</strong> — set up your own point systems and apply them per race.</li>
+        </ul>
+
+        <h3>Before you start</h3>
+        <ul>
+            <li>Assetto Corsa installed</li>
+            <li>Content Manager installed</li>
+            <li>The dashboard installed</li>
+        </ul>
+
+        <h3>First-time setup</h3>
+        <p><strong>Game Path</strong> — choose the correct Assetto Corsa game root folder in the installation wizard. You can change it later on the <strong>Game Config</strong> page.</p>
+
+        <h3>Running a race — step by step</h3>
+        <ol>
+            <li><strong>Create your championship.</strong> From the <strong>Championship</strong> page, add a championship, then add a season to it. Use the clone action on a season to copy it.</li>
+            <li><strong>Set up your classes.</strong> On the <strong>Class Settings</strong> page, create a class setting — add each class with a name and color, reorder them, and mark one as the default.</li>
+            <li><strong>Create the races.</strong> Open the season and add each race event (name, country and a point system — create one on the <strong>Point Settings</strong> page first).</li>
+            <li><strong>Add teams and drivers.</strong> Use the <strong>Teams</strong> and <strong>Drivers</strong> pages. Assign each team its classes; create drivers one by one or add a whole batch from a preset file.</li>
+            <li><strong>Set up the event.</strong> Open the race and use the <strong>Teams</strong> tab to choose which teams are taking part.</li>
+            <li><strong>Practice and Qualifying.</strong> After the session, import its result file. The race moves to <strong>in progress</strong>. You can then export the qualifying grid and the race preset, ready to open in Content Manager.</li>
+            <li><strong>The race.</strong> After the race finishes, import its result file. The dashboard builds the standings, applies the points, and marks the race as <strong>finished</strong>.</li>
+        </ol>
+
+        <h3>Lua App — Multiclass Leaderboard (driver position)</h3>
+        <ol>
+            <li>Configure the car tags in Content Manager so the leaderboard works correctly.</li>
+            <li>In the in-game class-leaderboard config, choose the car tag so the leaderboard orders itself by class, for example Hypercar.</li>
+        </ol>
+
+        <h3>Rolling start</h3>
+        <p><strong>Rolling start is a must</strong> and cannot be turned off. During the formation lap the human driver can accelerate freely with no speed limit, but you must respect the AI drivers in the single or double file formation.</p>
+
+        <h3>Tips</h3>
+        <ul>
+            <li>Round status updates as you go: no data means "not started", practice/qualifying loaded means "in progress", race loaded means "finished".</li>
+            <li>A team can have one class per class setting. If you add a new class setting, go back to the <strong>Teams</strong> page and assign each team's class for it.</li>
+            <li>One class setting is always the default and cannot be unset; open another class setting and mark it as the default instead.</li>
+            <li>If two drivers use the same car and skin combo, load their results once with the right driver selected so they are not mixed up.</li>
+            <li>If a result needs correcting, import the file again in place of the old one.</li>
+            <li>Results come from the Multi_Class output; make sure the folder you enter in Game Config is the one those files are saved to.</li>
+        </ul>
+    </Modal>
+}
+
+@code {
+    private const string SeenKey = "wec.guide.seen";
+
+    [Inject] private UserGuideRequest GuideRequest { get; set; } = default!;
+
+    [Inject] private IChampionshipService ChampionshipService { get; set; } = default!;
+
+    [Inject] private BrowserStorage Storage { get; set; } = default!;
+
+    private bool isOpen;
+
+    protected override void OnInitialized()
+    {
+        GuideRequest.Requested += OnRequested;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // First run: an empty database and a guide that was never shown on this machine.
+        try
+        {
+            if (await Storage.GetAsync(SeenKey) is null
+                && !(await ChampionshipService.GetActiveChampionshipsAsync()).Any())
+            {
+                isOpen = true;
+                await Storage.SetAsync(SeenKey, "1");
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // The guide is a nicety; never let it break the layout.
+        }
+    }
+
+    private void OnRequested() => InvokeAsync(() =>
+    {
+        isOpen = true;
+        StateHasChanged();
+    });
+
+    private void CloseAsync() => isOpen = false;
+
+    public void Dispose()
+    {
+        GuideRequest.Requested -= OnRequested;
+    }
+}

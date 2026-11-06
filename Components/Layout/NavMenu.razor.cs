@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Routing;
 using MulticlassRace.ViewModels;
 using MulticlassRace.Services.AssettoCorsa;
 using MulticlassRace.Services.Drivers;
+using MulticlassRace.Services.Notifications;
 using MulticlassRace.Services.Updates;
 
 namespace multi_class_race_dashboard.Components.Layout;
@@ -24,6 +25,8 @@ public partial class NavMenu : IDisposable
     [Inject] private UpdateStateService UpdateState { get; set; } = default!;
 
     [Inject] private UpdateNotificationRequest UpdateRequest { get; set; } = default!;
+
+    [Inject] private UserGuideRequest GuideRequest { get; set; } = default!;
 
     private bool isConfigured;
     private bool hasUpdate;
@@ -88,6 +91,8 @@ public partial class NavMenu : IDisposable
             Nav.NavigateTo($"drivers?edit={humanDriver.DriverId}");
         }
     }
+
+    private void OpenGuide() => GuideRequest.Request();
 
     private void OpenUpdateDialog()
     {

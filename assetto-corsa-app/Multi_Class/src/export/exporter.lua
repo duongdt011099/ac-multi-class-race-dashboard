@@ -321,7 +321,7 @@ local function hasEndSignal(sim, sessionSwitched)
 
   if S.liveSessionType ~= nil and S.liveSessionHadCountdown then
     local sessionTimeLeft = readSessionTimeLeft(sim)
-    if sessionTimeLeft ~= nil and sessionTimeLeft <= 0 and Snap.IsPlayerInPit() == true then
+    if sessionTimeLeft ~= nil and sessionTimeLeft <= 0 and Snap.AllCarsFinishedAfterExpiry() then
       return true
     end
   end

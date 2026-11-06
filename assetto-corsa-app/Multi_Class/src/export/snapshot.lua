@@ -238,6 +238,7 @@ function Snap.ClearLiveSession()
   identityCache = {}
   lastCaptureAt = -1000.0
   leaderFinished = false
+  expiryLapCounts = nil
   S.liveSessionType     = nil
   S.liveSessionKey      = nil
   S.liveTrackName       = ""
@@ -258,6 +259,38 @@ local function snapshotPitState()
     if playerSnapshot.inPit == false and playerSnapshot.inPitlane == false then return false end
   end
   return nil
+end
+
+-- Timed sessions (qualifying/practice): once the clock runs out every car still gets to
+-- finish the lap it is on. The result is only final when ALL cars have done that - crossed
+-- the line again after the expiry or parked in the pits - not as soon as the player pits.
+-- Lap counts are recorded the first time this is called with the clock at zero.
+local expiryLapCounts = nil
+
+local function carFinishedAfterExpiry(i)
+  local okCar, car = pcall(getCar, i)
+  if not okCar or not car then return true end -- gone from the grid: nothing to wait for
+
+  local okL, lc = pcall(function() return car.lapCount end)
+  lc = (okL and type(lc) == "number") and lc or 0
+  if expiryLapCounts[i] == nil then expiryLapCounts[i] = lc end
+  if lc > expiryLapCounts[i] then return true end
+
+  local okPit, inPit = pcall(function() return car.isInPit end)
+  if okPit and inPit == true then return true end
+  local okLane, inPitlane = pcall(function() return car.isInPitlane end)
+  return okLane and inPitlane == true
+end
+
+function Snap.AllCarsFinishedAfterExpiry()
+  if S.driverCount <= 0 then return false end
+  expiryLapCounts = expiryLapCounts or {}
+  local allDone = true
+  for i = 0, S.driverCount - 1 do
+    -- no early exit: every car's expiry lap count must be recorded on the first call
+    if not carFinishedAfterExpiry(i) then allDone = false end
+  end
+  return allDone
 end
 
 function Snap.IsPlayerInPit()

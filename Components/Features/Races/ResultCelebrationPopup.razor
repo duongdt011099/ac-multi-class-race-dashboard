@@ -1,0 +1,104 @@
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+
+<div class="wec-celebrate" role="dialog" aria-modal="true" aria-label="@Celebration.Message" @onclick="OnClose">
+    <div class="wec-celebrate__rain" aria-hidden="true">
+        @foreach (var piece in pieces)
+        {
+            <span class="wec-celebrate__piece wec-celebrate__piece--@piece.Shape"
+                  style="left:@(piece.Left)%;width:@(piece.Size)px;height:@(piece.Size * piece.Ratio)px;background:@piece.Color;animation-duration:@(piece.Duration)s;animation-delay:@(piece.Delay)s;--wec-sway:@(piece.Sway)px"></span>
+        }
+    </div>
+
+    <div class="wec-celebrate__card" @onclick:stopPropagation="true">
+        <button type="button" class="wec-modal__close wec-celebrate__close" aria-label="Close" @onclick="OnClose">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <div class="wec-celebrate__kicker">@RaceFormat.SessionTypeLabel(Celebration.SessionType) result</div>
+        <h2 class="wec-celebrate__title">@Celebration.Message</h2>
+        <div class="wec-celebrate__subtitle">@Celebration.Driver.DriverName · @Celebration.Driver.TeamClassName</div>
+
+        <div class="wec-podium">
+            @foreach (var slot in PodiumSlots)
+            {
+                var standing = Celebration.Podium.Count > slot.Index ? Celebration.Podium[slot.Index] : null;
+                <div class="wec-podium__slot @slot.Style">
+                    @if (standing is not null)
+                    {
+                        <div class="wec-podium__card wec-podium__card--@(slot.Style) @(standing.IsHuman ? "wec-podium__card--you" : "")">
+                            <div class="wec-podium__pos">@slot.Position</div>
+                            <div class="wec-podium__logo-wrap">
+                                <span class="wec-podium__logo wec-podium__logo--fallback">
+                                    @standing.TeamName[..Math.Min(2, standing.TeamName.Length)].ToUpper()
+                                </span>
+                            </div>
+                            <div class="wec-podium__name">@standing.DriverName</div>
+                            <div class="wec-podium__points">
+                                @if (Celebration.SessionType == SessionType.Race)
+                                {
+                                    @standing.Points<span class="wec-podium__points-label"> pts</span>
+                                }
+                                else
+                                {
+                                    @RaceFormat.FormatLap(standing.BestLapTimeMs)
+                                }
+                            </div>
+                            <div>
+                                <span class="wec-badge" style="background-color: @Colors.ColorFor(standing.TeamClassName)">@standing.TeamClassName</span>
+                            </div>
+                        </div>
+                    }
+                    <div class="wec-podium__step wec-podium__step--@(slot.Style)"></div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly string[] Palette =
+    {
+        "#ffc83d", "#ff2e24", "#ffffff", "#3fb950", "#58a6ff", "#d2a8ff", "#ff7b72", "#e0914f"
+    };
+
+    private static readonly string[] Shapes = { "rect", "rect", "round", "strip" };
+
+    /// <summary>Podium order left to right: second, first, third.</summary>
+    private static readonly (int Index, int Position, string Style)[] PodiumSlots =
+    {
+        (1, 2, "second"),
+        (0, 1, "first"),
+        (2, 3, "third")
+    };
+
+    private sealed record Piece(double Left, int Size, double Ratio, string Color, string Shape, double Duration, double Delay, int Sway);
+
+    private List<Piece> pieces = new();
+
+    [Parameter, EditorRequired] public ResultCelebration Celebration { get; set; } = default!;
+
+    [Parameter] public ClassColorMap Colors { get; set; } = ClassColorMap.Empty;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var random = new Random();
+
+        pieces = Enumerable.Range(0, 90).Select(_ =>
+        {
+            var shape = Shapes[random.Next(Shapes.Length)];
+
+            return new Piece(
+                Left: Math.Round(random.NextDouble() * 100, 1),
+                Size: random.Next(7, 14),
+                Ratio: shape == "strip" ? 2.4 : shape == "round" ? 1 : 0.6,
+                Color: Palette[random.Next(Palette.Length)],
+                Shape: shape,
+                Duration: Math.Round(3.2 + random.NextDouble() * 3.2, 2),
+                Delay: Math.Round(random.NextDouble() * 3, 2),
+                Sway: random.Next(-90, 90));
+        }).ToList();
+    }
+}

@@ -358,13 +358,14 @@ public class RacesPageTests : PageTestContext
         cut.FindAll(".wec-tab")[2].Click();
 
         cut.WaitForElement(".wec-session-block table");
-        Assert.Equal(new[] { "Alonso", "Button" }, cut.FindAll(".wec-session-block tbody tr td:nth-child(2)").Select(td => td.TextContent));
-        Assert.Contains("1:23.456", cut.Find(".wec-session-block tbody").TextContent);
-
-        cut.Find("#standing-class-filter").Change("GT3");
-
+        Assert.DoesNotContain("All classes", cut.Find("#standing-class-filter").InnerHtml);
         Assert.Equal(new[] { "Button" }, cut.FindAll(".wec-session-block tbody tr td:nth-child(2)").Select(td => td.TextContent));
         Assert.Contains("—", cut.Find(".wec-session-block tbody").TextContent);
+
+        cut.Find("#standing-class-filter").Change("Hypercar");
+
+        Assert.Equal(new[] { "Alonso" }, cut.FindAll(".wec-session-block tbody tr td:nth-child(2)").Select(td => td.TextContent));
+        Assert.Contains("1:23.456", cut.Find(".wec-session-block tbody").TextContent);
     }
 
     [Fact]
