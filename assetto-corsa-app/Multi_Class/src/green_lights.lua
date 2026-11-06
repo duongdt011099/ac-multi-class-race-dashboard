@@ -1,5 +1,6 @@
 -- "Five green lights" banner shown at the top of the screen whenever the player is given green
--- (rolling start green, or the green after a yellow flag).
+-- (rolling start green only, not the green after a yellow flag).
+local S = require("src/state")
 local Draw = require("src/leaderboard/draw")
 
 local M = {}
@@ -13,7 +14,9 @@ local alpha = 0.0
 function M.Draw(dt)
   local sim = ac.getSim()
   local text = Draw.GetRollingStartDisplay(sim)
-  local showing = type(text) == "string" and text:sub(1, 5) == "GREEN"
+  -- Race-start green only: the green shown after a yellow flag is excluded.
+  local yellowGreen = (S.yellowGreenUntil or 0) > (S.yellowClock or 0)
+  local showing = type(text) == "string" and text:sub(1, 5) == "GREEN" and not yellowGreen
 
   local step = (dt or 0.016) / FADE_SECONDS
   if showing then alpha = math.min(1.0, alpha + step) else alpha = math.max(0.0, alpha - step) end
