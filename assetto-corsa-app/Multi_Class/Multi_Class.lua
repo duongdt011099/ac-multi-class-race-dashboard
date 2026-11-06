@@ -4,6 +4,7 @@ local U = require("src/util")
 local Frame = require("src/frame")
 local Draw = require("src/leaderboard/draw")
 local Config = require("src/config_window")
+local GreenLights = require("src/green_lights")
 local RCtl = require("src/rolling/control")
 local Exporter = require("src/export/exporter")
 
@@ -13,6 +14,10 @@ end
 
 function script.clLeaderboard(dt)
   Draw.Leaderboard(dt)
+end
+
+function script.clGreenLights(dt)
+  GreenLights.Draw(dt)
 end
 
 function script.clConfig()

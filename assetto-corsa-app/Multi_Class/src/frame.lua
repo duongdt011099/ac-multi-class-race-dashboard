@@ -299,6 +299,7 @@ local function stopAllFeatures(sim)
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
   ac.setWindowOpen("cl_leaderboard", false)
+  ac.setWindowOpen("cl_greenlights", false)
 end
 
 function Frame.Update(dt)
@@ -328,6 +329,7 @@ function Frame.Update(dt)
       pcall(Yellow.Reset)
       pcall(Blue.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
+      ac.setWindowOpen("cl_greenlights", false)
     else
       if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
         S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
@@ -384,6 +386,7 @@ function Frame.Update(dt)
 
   if not S.leaderboardOpened and sim.isInMainMenu ~= true then
     ac.setWindowOpen("cl_leaderboard", true)
+    ac.setWindowOpen("cl_greenlights", true)
     S.leaderboardOpened = true
   end
 
