@@ -17,9 +17,8 @@ namespace multi_class_race_dashboard.Migrations
                 nullable: true,
                 oldClrType: typeof(int),
                 oldType: "INTEGER");
-
-            // Seasons that existed before rounds were configurable have no real limit: the user has to set it.
-            migrationBuilder.Sql("UPDATE Seasons SET NumberOfRounds = NULL WHERE IsFinished = 0;");
+            // The data fix lives in the next migration: SQLite rebuilds the table after all operations
+            // in this one, so an UPDATE here would run while the column is still NOT NULL.
         }
 
         /// <inheritdoc />
