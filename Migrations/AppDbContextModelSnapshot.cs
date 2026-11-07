@@ -32,6 +32,65 @@ namespace multi_class_race_dashboard.Migrations
                     b.ToTable("TeamClassSettingItem", (string)null);
                 });
 
+            modelBuilder.Entity("MulticlassRace.Models.Achievement", b =>
+                {
+                    b.Property<Guid>("AchievementId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChampionshipName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClassName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DriverId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DriverName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EarnedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("RaceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RaceName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeasonName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TrackName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("AchievementId");
+
+                    b.HasIndex("DriverId");
+
+                    b.HasIndex("RaceId");
+
+                    b.HasIndex("SeasonId");
+
+                    b.ToTable("Achievements");
+                });
+
             modelBuilder.Entity("MulticlassRace.Models.AppUpdateState", b =>
                 {
                     b.Property<Guid>("AppUpdateStateId")
@@ -421,6 +480,15 @@ namespace multi_class_race_dashboard.Migrations
                     b.Property<Guid?>("ClassSettingId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsFinished")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("NumberOfRounds")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("SeasonName")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -503,6 +571,20 @@ namespace multi_class_race_dashboard.Migrations
                     b.HasOne("MulticlassRace.Models.Team", null)
                         .WithMany()
                         .HasForeignKey("TeamsTeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MulticlassRace.Models.Achievement", b =>
+                {
+                    b.HasOne("MulticlassRace.Models.Race", null)
+                        .WithMany()
+                        .HasForeignKey("RaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MulticlassRace.Models.Season", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

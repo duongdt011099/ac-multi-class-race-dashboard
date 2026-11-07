@@ -33,6 +33,8 @@ public class AppDbContext : DbContext
 
     public DbSet<ImportedLuaResult> ImportedLuaResults => Set<ImportedLuaResult>();
 
+    public DbSet<Achievement> Achievements => Set<Achievement>();
+
     /// <summary>Relationships, indexes, converters and seed data live in <c>Data/Configurations</c>, one class per entity.</summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

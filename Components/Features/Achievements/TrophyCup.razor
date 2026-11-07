@@ -1,0 +1,15 @@
+@using MulticlassRace.ViewModels
+
+@* A trophy picture with the season or race engraved on the cup body. *@
+<div class="wec-cup wec-cup--@(Achievement.Tier.ToString().ToLowerInvariant())">
+    <img class="wec-cup__img" src="@Achievement.TierImageUrl" alt="@Achievement.Badge trophy" draggable="false" />
+    <div class="wec-cup__plaque">
+        <span class="wec-cup__badge">@Achievement.Badge</span>
+        <span class="wec-cup__text">@Achievement.Engraving</span>
+        <span class="wec-cup__year">@Achievement.EarnedAt.Year</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AchievementModel Achievement { get; set; } = default!;
+}

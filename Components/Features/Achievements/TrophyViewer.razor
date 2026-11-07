@@ -1,0 +1,62 @@
+@using MulticlassRace.ViewModels
+
+<div class="wec-celebrate wec-viewer wec-viewer--@(Achievement.Tier.ToString().ToLowerInvariant())" role="dialog" aria-modal="true"
+     aria-label="@Achievement.Description" @onclick="OnClose">
+    <ConfettiRain Palette="Palette" Count="@(Achievement.IsChampion ? 140 : 80)" />
+
+    <div class="wec-celebrate__card wec-viewer__card" @onclick:stopPropagation="true">
+        <button type="button" class="wec-modal__close wec-celebrate__close" aria-label="Close" @onclick="OnClose">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <div class="wec-celebrate__kicker">@Achievement.Badge</div>
+        <h2 class="wec-celebrate__title wec-viewer__title">@Achievement.Engraving</h2>
+        <div class="wec-celebrate__subtitle">@Achievement.ChampionshipName · @Achievement.SeasonName</div>
+
+        <div class="wec-viewer__stage" aria-hidden="true">
+            <div class="wec-viewer__spot"></div>
+            @foreach (var step in Steps)
+            {
+                <div class="wec-viewer__slot">
+                    @if (step.Position == Podium)
+                    {
+                        <div class="wec-viewer__cup"><TrophyCup Achievement="Achievement" /></div>
+                    }
+                    <div class="wec-viewer__step wec-viewer__step--@step.Style @(step.Position == Podium ? "wec-viewer__step--lit" : "")">@step.Position</div>
+                </div>
+            }
+        </div>
+
+        <dl class="wec-viewer__facts">
+            <div><dt>Driver</dt><dd>@Achievement.DriverName</dd></div>
+            @if (!string.IsNullOrWhiteSpace(Achievement.ClassName))
+            {
+                <div><dt>Class</dt><dd>@Achievement.ClassName</dd></div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Achievement.TrackName))
+            {
+                <div><dt>Track</dt><dd>@Achievement.TrackName</dd></div>
+            }
+            <div><dt>Points</dt><dd>@Achievement.Points</dd></div>
+            <div><dt>Earned</dt><dd>@Achievement.EarnedAt.ToString("d MMM yyyy")</dd></div>
+        </dl>
+    </div>
+</div>
+
+@code {
+    private static readonly (int Position, string Style)[] Steps = { (2, "second"), (1, "first"), (3, "third") };
+
+    [Parameter, EditorRequired] public AchievementModel Achievement { get; set; } = default!;
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private int Podium => Math.Clamp(Achievement.Position, 1, 3);
+
+    private string[] Palette => Achievement.Tier switch
+    {
+        TrophyTier.Diamond => new[] { "#74e0ff", "#ffffff", "#3d86ee", "#d2a8ff", "#a8f0ff", "#ffc83d" },
+        TrophyTier.Silver => new[] { "#ffffff", "#cdd4dd", "#9aa4b2", "#58a6ff" },
+        TrophyTier.Bronze => new[] { "#cd7f32", "#f6c9a0", "#ffffff", "#e0914f" },
+        _ => new[] { "#ffc83d", "#ff2e24", "#ffffff", "#3fb950", "#58a6ff", "#d2a8ff", "#ff7b72", "#e0914f" }
+    };
+}

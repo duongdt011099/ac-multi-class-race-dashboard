@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 322" role="img" aria-label="diamond trophy">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3d86ee"/><stop offset="0.28" stop-color="#74e0ff"/><stop offset="0.5" stop-color="#f2ffff"/><stop offset="0.72" stop-color="#74e0ff"/><stop offset="1" stop-color="#3d86ee"/>
+    </linearGradient>
+    <linearGradient id="vert" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2ffff"/><stop offset="0.5" stop-color="#74e0ff"/><stop offset="1" stop-color="#3d86ee"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f2ffff" stop-opacity="0.5"/><stop offset="1" stop-color="#f2ffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="120" cy="165" rx="118" ry="158" fill="url(#glow)"/>
+  <!-- slender handles -->
+  <path d="M50 58 C-2 54 4 142 68 152" fill="none" stroke="#173f94" stroke-width="9" stroke-linecap="round"/>
+  <path d="M50 58 C-2 54 4 142 68 152" fill="none" stroke="url(#vert)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M190 58 C242 54 236 142 172 152" fill="none" stroke="#173f94" stroke-width="9" stroke-linecap="round"/>
+  <path d="M190 58 C242 54 236 142 172 152" fill="none" stroke="url(#vert)" stroke-width="5" stroke-linecap="round"/>
+  <!-- tall stem with two knops -->
+  <path d="M107 198 H133 L138 262 H102 Z" fill="url(#body)" stroke="#173f94" stroke-width="2"/>
+  <ellipse cx="120" cy="222" rx="20" ry="6" fill="url(#vert)" stroke="#173f94" stroke-width="1.5"/>
+  <ellipse cx="120" cy="246" rx="16" ry="5" fill="url(#vert)" stroke="#173f94" stroke-width="1.5"/>
+  <!-- base -->
+  <rect x="74" y="259" width="92" height="14" rx="5" fill="url(#body)" stroke="#173f94" stroke-width="2"/>
+  <rect x="54" y="271" width="132" height="42" rx="6" fill="url(#body)" stroke="#173f94" stroke-width="2"/>
+  <rect x="66" y="281" width="108" height="20" rx="3" fill="#173f94" opacity="0.28"/>
+  <!-- long bowl -->
+  <path d="M46 34 H194 C194 140 164 198 120 204 C76 198 46 140 46 34 Z" fill="url(#body)" stroke="#173f94" stroke-width="2.5"/>
+  <ellipse cx="120" cy="34" rx="74" ry="11" fill="#f2ffff" stroke="#173f94" stroke-width="2.5"/>
+  <ellipse cx="120" cy="35" rx="66" ry="8" fill="#3d86ee" opacity="0.55"/>
+  <!-- engraved plaque area (text is laid over this by the page) -->
+  <path d="M66 56 H174 C173 112 152 150 120 158 C88 150 67 112 66 56 Z" fill="#173f94" opacity="0.16"/>
+  <!-- shine -->
+  <path d="M62 52 C62 110 76 150 98 176" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="5" stroke-linecap="round"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.4"><path d="M46 34 L120 204 L194 34"/><path d="M82 34 L120 204 L158 34"/><path d="M62 100 H178"/></g><g fill="#ffffff"><path d="M214 24 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z"/><path d="M26 190 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/><path d="M206 214 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/></g>
+</svg>

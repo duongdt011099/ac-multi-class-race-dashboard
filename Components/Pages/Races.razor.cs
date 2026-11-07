@@ -67,6 +67,10 @@ public partial class Races
 
     private bool HasSeason => selectedSeason is not null;
 
+    private bool SeasonFinished => selectedSeason?.IsFinished == true;
+
+    private bool CanAddRace => selectedSeason is { IsFinished: false } season && races is not null && season.NumberOfRounds is { } rounds && races.Count < rounds;
+
     private IEnumerable<SelectOption> ChampionshipOptions =>
         (championships ?? new()).Select(c => new SelectOption(c.ChampionshipId.ToString(), c.ChampionshipName));
 
@@ -230,6 +234,14 @@ public partial class Races
         races = selectedSeason is null
             ? null
             : (await RaceService.GetRacesBySeasonAsync(selectedSeason.SeasonId)).ToList();
+
+        // A result can finish the last round, which closes the season; pick that up so the page turns read-only.
+        if (selectedSeason is not null)
+        {
+            var seasonId = selectedSeason.SeasonId;
+            await LoadSeasonsAsync();
+            selectedSeason = seasons.FirstOrDefault(s => s.SeasonId == seasonId) ?? selectedSeason;
+        }
     }
 
     private async Task OpenStandings()

@@ -7,6 +7,7 @@ using MulticlassRace.Models;
 using MulticlassRace.Repositories;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services.AssettoCorsa;
+using MulticlassRace.Services.Championships;
 using MulticlassRace.Services.Races;
 
 namespace MulticlassRace.Tests.Support;
@@ -85,7 +86,13 @@ public sealed class RaceServiceFixture : IDisposable
             new ClassSettingRepository(Context),
             Tracks);
         SessionLauncher = new RaceSessionLauncher(raceRepository, Tracks, Launcher, LaunchTracker, resolver);
-        Results = new RaceResultService(raceRepository, configRepository, pointRepository);
+        SeasonCompletionNotifier = new SeasonCompletionNotifier();
+        SeasonCompletion = new SeasonCompletionService(
+            new SeasonRepository(Context),
+            raceRepository,
+            new AchievementRepository(Context),
+            SeasonCompletionNotifier);
+        Results = new RaceResultService(raceRepository, configRepository, pointRepository, SeasonCompletion);
         Presets = new GridPresetService(raceRepository, configRepository);
     }
 
@@ -109,6 +116,10 @@ public sealed class RaceServiceFixture : IDisposable
 
     public SessionLaunchTracker LaunchTracker { get; }
 
+    public SeasonCompletionNotifier SeasonCompletionNotifier { get; }
+
+    public ISeasonCompletionService SeasonCompletion { get; }
+
     public IRaceService Race { get; }
 
     public IRaceSessionLauncher SessionLauncher { get; }
@@ -120,7 +131,7 @@ public sealed class RaceServiceFixture : IDisposable
     public Season AddSeason(string name = "Season 1")
     {
         var championship = new Championship { ChampionshipId = Guid.NewGuid(), ChampionshipName = "WEC" };
-        var season = new Season { SeasonId = Guid.NewGuid(), SeasonName = name, Championship = championship };
+        var season = new Season { SeasonId = Guid.NewGuid(), SeasonName = name, Championship = championship, NumberOfRounds = Season.DefaultNumberOfRounds };
         Context.Seasons.Add(season);
         Context.SaveChanges();
         return season;

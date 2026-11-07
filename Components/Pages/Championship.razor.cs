@@ -38,6 +38,7 @@ public partial class Championship
     private string? newSeasonName;
     private List<ClassSettingModel> classSettings = new();
     private Guid newSeasonClassSettingId;
+    private int newSeasonRounds = MulticlassRace.Models.Season.DefaultNumberOfRounds;
     private bool isAddingSeason;
     private SeasonModel? confirmDeleteSeason;
     private bool isDeletingSeason;
@@ -198,6 +199,24 @@ public partial class Championship
         }, "Could not change the class system");
     }
 
+    private async Task SeasonRoundsChanged(SeasonModel season, ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var rounds))
+        {
+            await LoadSeasonsAsync();
+            return;
+        }
+
+        await TryAsync(async () =>
+        {
+            await SeasonService.SetSeasonRoundsAsync(season.SeasonId, rounds);
+            Toast.Show($"'{season.SeasonName}' now has {rounds} rounds.");
+        }, "Could not change the number of rounds");
+
+        // Reload either way so a rejected value snaps back and a season that just finished shows as finished.
+        await LoadSeasonsAsync();
+    }
+
     private async Task LoadSeasonsAsync()
     {
         if (selectedChampionship is null)
@@ -290,7 +309,8 @@ public partial class Championship
             var championship = selectedChampionship;
             await TryAsync(async () =>
             {
-                await SeasonService.CreateSeasonAsync(championship.ChampionshipId, newSeasonName!, newSeasonClassSettingId);
+                await SeasonService.CreateSeasonAsync(
+                    championship.ChampionshipId, newSeasonName!, newSeasonClassSettingId, newSeasonRounds);
                 newSeasonName = null;
                 await LoadSeasonsAsync();
                 await LoadChampionshipsAsync();

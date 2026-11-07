@@ -10,15 +10,18 @@ public class SeasonService : ISeasonService
     private readonly ISeasonRepository _seasonRepository;
     private readonly IRaceRepository _raceRepository;
     private readonly IChampionshipRepository _championshipRepository;
+    private readonly ISeasonCompletionService _completionService;
 
     public SeasonService(
         ISeasonRepository seasonRepository,
         IRaceRepository raceRepository,
-        IChampionshipRepository championshipRepository)
+        IChampionshipRepository championshipRepository,
+        ISeasonCompletionService completionService)
     {
         _seasonRepository = seasonRepository;
         _raceRepository = raceRepository;
         _championshipRepository = championshipRepository;
+        _completionService = completionService;
     }
 
     public async Task<IEnumerable<SeasonModel>> GetSeasonsByChampionshipAsync(Guid championshipId)
@@ -53,7 +56,11 @@ public class SeasonService : ISeasonService
         await _seasonRepository.UpdateAsync(season);
     }
 
-    public async Task CreateSeasonAsync(Guid championshipId, string seasonName, Guid classSettingId)
+    public async Task CreateSeasonAsync(
+        Guid championshipId,
+        string seasonName,
+        Guid classSettingId,
+        int numberOfRounds = Season.DefaultNumberOfRounds)
     {
         if (classSettingId == Guid.Empty)
         {
@@ -72,7 +79,8 @@ public class SeasonService : ISeasonService
             SeasonId = Guid.NewGuid(),
             SeasonName = seasonName.Trim(),
             Championship = championship,
-            ClassSettingId = classSettingId
+            ClassSettingId = classSettingId,
+            NumberOfRounds = ValidateRounds(numberOfRounds)
         };
 
         await _seasonRepository.AddAsync(season);
@@ -97,7 +105,8 @@ public class SeasonService : ISeasonService
             SeasonId = Guid.NewGuid(),
             SeasonName = newSeasonName.Trim(),
             Championship = source.Championship,
-            ClassSettingId = source.ClassSettingId
+            ClassSettingId = source.ClassSettingId,
+            NumberOfRounds = source.NumberOfRounds
         };
 
         foreach (var race in source.Races)
@@ -129,9 +138,56 @@ public class SeasonService : ISeasonService
         return clone.ToModel();
     }
 
+    public async Task SetSeasonRoundsAsync(Guid seasonId, int numberOfRounds)
+    {
+        ValidateRounds(numberOfRounds);
+
+        var season = await _seasonRepository.GetSeasonWithRacesAsync(seasonId);
+
+        if (season is null)
+        {
+            throw new InvalidOperationException("Season not found.");
+        }
+
+        if (season.IsFinished)
+        {
+            throw new InvalidOperationException(SeasonRules.FinishedMessage);
+        }
+
+        if (numberOfRounds < season.Races.Count)
+        {
+            throw new InvalidOperationException(
+                $"The season already has {season.Races.Count} races. Delete races first to go below that.");
+        }
+
+        season.NumberOfRounds = numberOfRounds;
+        await _seasonRepository.UpdateAsync(season);
+
+        // Lowering the rounds to what is already raced ends the season right away.
+        await _completionService.TryFinishSeasonAsync(seasonId);
+    }
+
     public async Task DeleteSeasonAsync(Guid seasonId)
     {
+        var season = await _seasonRepository.GetByIdAsync(seasonId);
+
+        if (season?.IsFinished == true)
+        {
+            throw new InvalidOperationException(SeasonRules.FinishedMessage);
+        }
+
         await _seasonRepository.DeleteAsync(seasonId);
+    }
+
+    private static int ValidateRounds(int numberOfRounds)
+    {
+        if (numberOfRounds < Season.MinRounds || numberOfRounds > Season.MaxRounds)
+        {
+            throw new InvalidOperationException(
+                $"The number of rounds must be between {Season.MinRounds} and {Season.MaxRounds}.");
+        }
+
+        return numberOfRounds;
     }
 
     public async Task<IEnumerable<DriverStandingsModel>> GetDriverStandingsAsync(Guid seasonId)

@@ -1,0 +1,44 @@
+<div class="wec-celebrate__rain" aria-hidden="true">
+    @foreach (var piece in pieces)
+    {
+        <span class="wec-celebrate__piece wec-celebrate__piece--@piece.Shape"
+              style="left:@(piece.Left)%;width:@(piece.Size)px;height:@(piece.Size * piece.Ratio)px;background:@piece.Color;animation-duration:@(piece.Duration)s;animation-delay:@(piece.Delay)s;--wec-sway:@(piece.Sway)px"></span>
+    }
+</div>
+
+@code {
+    private static readonly string[] Shapes = { "rect", "rect", "round", "strip" };
+
+    private sealed record Piece(double Left, int Size, double Ratio, string Color, string Shape, double Duration, double Delay, int Sway);
+
+    private List<Piece> pieces = new();
+
+    /// <summary>Colours the pieces are drawn in.</summary>
+    [Parameter]
+    public string[] Palette { get; set; } =
+    {
+        "#ffc83d", "#ff2e24", "#ffffff", "#3fb950", "#58a6ff", "#d2a8ff", "#ff7b72", "#e0914f"
+    };
+
+    [Parameter] public int Count { get; set; } = 90;
+
+    protected override void OnInitialized()
+    {
+        var random = new Random();
+
+        pieces = Enumerable.Range(0, Count).Select(_ =>
+        {
+            var shape = Shapes[random.Next(Shapes.Length)];
+
+            return new Piece(
+                Left: Math.Round(random.NextDouble() * 100, 1),
+                Size: random.Next(7, 14),
+                Ratio: shape == "strip" ? 2.4 : shape == "round" ? 1 : 0.6,
+                Color: Palette[random.Next(Palette.Length)],
+                Shape: shape,
+                Duration: Math.Round(3.2 + random.NextDouble() * 3.2, 2),
+                Delay: Math.Round(random.NextDouble() * 3, 2),
+                Sway: random.Next(-90, 90));
+        }).ToList();
+    }
+}

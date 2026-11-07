@@ -21,6 +21,19 @@ public class SeasonRepository : GenericRepository<Season>, ISeasonRepository
             .ToListAsync();
     }
 
+    /// <summary>The season with everything needed to total its championship: races, their sessions and driver standings.</summary>
+    public async Task<Season?> GetSeasonForCompletionAsync(Guid seasonId)
+    {
+        return await _context.Seasons
+            .Include(s => s.Championship)
+            .Include(s => s.Races)
+                .ThenInclude(r => r.Sessions)
+                .ThenInclude(s => s.DriverStandings)
+                .ThenInclude(d => d.Driver)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(s => s.SeasonId == seasonId);
+    }
+
     public async Task<Season?> GetSeasonWithRacesAsync(Guid seasonId)
     {
         return await _context.Seasons

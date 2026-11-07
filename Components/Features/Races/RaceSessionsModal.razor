@@ -9,6 +9,14 @@
         var context = Context;
     }
 
+    @if (IsReadOnly)
+    {
+        <div class="wec-season-banner" role="status">
+            <i class="bi bi-lock-fill"></i>
+            <span>This season is finished, so its races are read-only.</span>
+        </div>
+    }
+
     <div class="wec-tabs">
         <button type="button"
                 class="wec-tab @(selectedTab == RacePopupTab.Teams ? "wec-tab--active" : "") @(context.HasSessionData ? "wec-tab--disabled" : "")"
@@ -30,14 +38,14 @@
     {
         <SessionControls Conditions="conditions.Get(selectedSessionType)"
                          IdSuffix="@(selectedTab == RacePopupTab.Race ? "-race" : "")"
-                         CanStart="context.CanStartSession" IsStarting="isStarting" StartTitle="@context.StartSessionTitle"
+                         CanStart="@(context.CanStartSession && !IsReadOnly)" IsStarting="isStarting" StartTitle="@context.StartSessionTitle"
                          OnWeatherChanged="weather => conditions.SetWeather(selectedSessionType, weather)"
                          OnTimeOfDayChanged="label => conditions.SetTimeOfDay(selectedSessionType, label)"
                          OnPenaltiesChanged="penalties => conditions.SetPenalties(selectedSessionType, penalties)"
                          OnStart="StartSessionAsync">
             @if (selectedTab == RacePopupTab.Race)
             {
-                @if (availability.CanImportResults)
+                @if (availability.CanImportResults && !IsReadOnly)
                 {
                     <div class="wec-preset-export wec-preset-export--nowrap">
                         <span class="wec-preset-export__label">Import Result</span>
@@ -53,13 +61,15 @@
             }
             else
             {
-                @if (availability.CanExportPresets)
+                @if (availability.CanExportPresets && !IsReadOnly)
                 {
                     <ContentManagerActions ExportGridHandler="@(async human => await ExportGridPresetAsync(human))"
                                            ExportRaceHandler="@ExportRacePresetAsync"
                                            ShowRaceExport="@(selectedTab == RacePopupTab.Qualifying)" />
                 }
 
+                @if (!IsReadOnly)
+                {
                 <div class="wec-preset-export">
                     <label for="session-result-file"
                            class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
@@ -67,6 +77,7 @@
                     </label>
                     <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport" class="d-none" />
                 </div>
+                }
             }
         </SessionControls>
     }
@@ -85,7 +96,7 @@
     {
         <RaceTeamsTab Teams="availableTeams" SelectedTeamIds="selectedTeamIds" Filter="TeamFilter"
                       HasClassSetting="@(RaceClassSetting is not null)" @bind-ClassFilter="teamClassFilter"
-                      IsSaving="isSavingTeams" OnToggleTeam="ToggleTeamAsync" OnToggleAllVisible="ToggleAllVisibleAsync" />
+                      IsSaving="@(isSavingTeams || IsReadOnly)" OnToggleTeam="ToggleTeamAsync" OnToggleAllVisible="ToggleAllVisibleAsync" />
     }
     else
     {

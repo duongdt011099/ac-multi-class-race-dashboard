@@ -100,6 +100,9 @@ else
                     <option value="@classSetting.ClassSettingId">@classSetting.ClassSettingName</option>
                 }
             </select>
+            <input type="number" class="wec-seasons__rounds" min="@MulticlassRace.Models.Season.MinRounds" max="@MulticlassRace.Models.Season.MaxRounds"
+                   title="Number of rounds (races) in this season" aria-label="Number of rounds"
+                   @bind="newSeasonRounds" />
             <ToolbarButton OnClick="AddSeasonAsync" Disabled="isAddingSeason">
                 @(isAddingSeason ? "Adding..." : "Add Season")
             </ToolbarButton>
@@ -138,11 +141,35 @@ else
                         }
                     </select>
                     }
-                    <span class="wec-seasons__races">@season.RaceCount race@(season.RaceCount == 1 ? "" : "s")</span>
+                    @if (season.IsFinished)
+                    {
+                        <span class="wec-seasons__finished" title="All rounds are finished, so the season is read-only">
+                            <i class="bi bi-flag-fill"></i> Finished
+                        </span>
+                        <span class="wec-seasons__races">@season.FinishedRaceCount / @season.NumberOfRounds rounds</span>
+                    }
+                    else
+                    {
+                        @if (!season.HasRounds)
+                        {
+                            <span class="wec-seasons__unset" title="This season was created before rounds existed. Set the number of rounds to add races or let it finish.">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Rounds not set
+                            </span>
+                        }
+                        <span class="wec-seasons__races">@season.RaceCount race@(season.RaceCount == 1 ? "" : "s"), @season.FinishedRaceCount finished, of</span>
+                        <input type="number" class="wec-seasons__rounds" min="@Math.Max(MulticlassRace.Models.Season.MinRounds, season.RaceCount)" max="@MulticlassRace.Models.Season.MaxRounds"
+                               title="Number of rounds. The season finishes when this many races are finished."
+                               aria-label="Number of rounds" placeholder="set" value="@season.NumberOfRounds"
+                               @onclick:stopPropagation="true" @onchange="e => SeasonRoundsChanged(current, e)" />
+                        <span class="wec-seasons__races">rounds</span>
+                    }
                     <IconButton Icon="bi-files" Title="@($"Clone {season.SeasonName}")" StopPropagation="true"
                                 OnClick="() => OpenCloneDialog(current)" />
-                    <IconButton Icon="bi-trash" Title="@($"Delete {season.SeasonName}")" StopPropagation="true"
-                                OnClick="() => confirmDeleteSeason = current" />
+                    @if (!season.IsFinished)
+                    {
+                        <IconButton Icon="bi-trash" Title="@($"Delete {season.SeasonName}")" StopPropagation="true"
+                                    OnClick="() => confirmDeleteSeason = current" />
+                    }
                 </div>
             }
         }

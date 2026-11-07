@@ -1411,3 +1411,322 @@ img.is-error {
 .wec-guide__lead { color: var(--wec-muted); margin-bottom: 0.5rem; }
 .wec-guide ul, .wec-guide ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
 .wec-guide li { margin-bottom: 0.4rem; }
+
+/* ---------- Achievements: trophy cups, cabinet and viewer ---------- */
+
+/* The cup picture is a fixed 240x280 drawing; the text sits on its bowl and scales with the card. */
+.wec-cup {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 240 / 322;
+    container-type: inline-size;
+    --wec-cup-ink: #4a2f00;
+}
+.wec-cup--silver { --wec-cup-ink: #1d232c; }
+.wec-cup--bronze { --wec-cup-ink: #2b1405; }
+.wec-cup--diamond { --wec-cup-ink: #04204d; }
+
+.wec-cup__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
+}
+.wec-cup--diamond .wec-cup__img { filter: drop-shadow(0 0 16px rgba(116, 224, 255, 0.55)); }
+
+.wec-cup__plaque {
+    position: absolute;
+    left: 28%;
+    width: 44%;
+    top: 17.5%;
+    height: 29%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2cqw;
+    text-align: center;
+    color: var(--wec-cup-ink);
+    line-height: 1.1;
+    overflow: hidden;
+}
+
+.wec-cup__badge {
+    font-size: 3.8cqw;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+.wec-cup__text {
+    font-size: 6.4cqw;
+    font-weight: 800;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.wec-cup__year {
+    font-size: 4cqw;
+    font-weight: 700;
+    opacity: 0.75;
+}
+
+.wec-trophy-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin: 0.5rem 0 1.25rem;
+}
+
+.wec-trophy-summary__driver {
+    flex: 1 1 14rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    background: var(--wec-surface-2);
+    border: 1px solid var(--wec-border);
+    border-radius: 10px;
+}
+.wec-trophy-summary__label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--wec-muted); }
+.wec-trophy-summary__name { font-size: 1.25rem; font-weight: 800; }
+
+.wec-trophy-summary__stat {
+    min-width: 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 1rem;
+    background: var(--wec-surface-2);
+    border: 1px solid var(--wec-border);
+    border-bottom: 3px solid #ffc83d;
+    border-radius: 10px;
+}
+.wec-trophy-summary__stat strong { font-size: 1.6rem; line-height: 1.1; }
+.wec-trophy-summary__stat span { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--wec-muted); }
+.wec-trophy-summary__stat--diamond { border-bottom-color: #74e0ff; }
+.wec-trophy-summary__stat--silver { border-bottom-color: #cdd4dd; }
+
+.wec-trophy-heading {
+    margin: 1.25rem 0 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--wec-text-2);
+}
+
+.wec-trophy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 1rem;
+}
+
+.wec-trophy-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 1rem 0.9rem 0.85rem;
+    color: var(--wec-text);
+    text-align: center;
+    background: linear-gradient(180deg, var(--wec-surface-3), var(--wec-surface));
+    border: 1px solid var(--wec-border);
+    border-radius: 16px;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    transition: transform 0.25s var(--wec-spring), box-shadow 0.25s var(--wec-ease), border-color 0.25s var(--wec-ease);
+}
+.wec-trophy-card:hover,
+.wec-trophy-card:focus-visible {
+    transform: translateY(-4px) scale(1.03);
+    border-color: #ffc83d;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5), 0 0 28px rgba(255, 200, 61, 0.25);
+}
+.wec-trophy-card--silver:hover { border-color: #cdd4dd; box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5), 0 0 28px rgba(205, 212, 221, 0.25); }
+.wec-trophy-card--bronze:hover { border-color: #cd7f32; box-shadow: 0 16px 34px rgba(0, 0, 0, 0.5), 0 0 28px rgba(205, 127, 50, 0.25); }
+
+/* The season title is the big one: twice the size, diamond styling. */
+.wec-trophy-card--champion {
+    grid-column: span 2;
+    grid-row: span 2;
+    padding: 1.4rem 1.2rem 1.1rem;
+    border-color: #74e0ff;
+    background:
+        radial-gradient(circle at 50% 28%, rgba(116, 224, 255, 0.28), transparent 62%),
+        linear-gradient(180deg, #16263a, #0e131c);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 40px rgba(116, 224, 255, 0.22);
+}
+.wec-trophy-card--champion:hover { border-color: #b5f1ff; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 56px rgba(116, 224, 255, 0.45); }
+.wec-trophy-card--champion .wec-trophy-card__title { font-size: 1.05rem; color: #b5f1ff; }
+.wec-trophy-card--champion .wec-cup { max-width: 17rem; }
+
+.wec-trophy-card__title { font-weight: 800; font-size: 0.9rem; overflow-wrap: anywhere; }
+.wec-trophy-card__meta { font-size: 0.75rem; color: var(--wec-muted); overflow-wrap: anywhere; }
+
+@media (max-width: 575.98px) {
+    .wec-trophy-card--champion { grid-column: span 1; grid-row: span 1; }
+}
+
+/* Viewer / champion popup: a big cup on a podium, lit by a spotlight, under falling confetti. */
+.wec-viewer__card { width: min(38rem, 100%); max-height: 94vh; overflow-y: auto; }
+.wec-viewer--silver .wec-celebrate__card { border-top-color: #cdd4dd; }
+.wec-viewer--bronze .wec-celebrate__card { border-top-color: #cd7f32; }
+.wec-viewer--diamond { background: radial-gradient(circle at 50% 38%, rgba(116, 224, 255, 0.2), rgba(0, 0, 0, 0.85) 70%); }
+.wec-viewer--diamond .wec-celebrate__card {
+    border-top-color: #74e0ff;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75), 0 0 90px rgba(116, 224, 255, 0.35);
+}
+.wec-viewer--diamond .wec-celebrate__title { color: #b5f1ff; animation-name: wec-diamond-glow; }
+.wec-viewer__title { font-size: 1.5rem; overflow-wrap: anywhere; }
+
+@keyframes wec-diamond-glow {
+    from { text-shadow: 0 0 12px rgba(116, 224, 255, 0.4); }
+    to   { text-shadow: 0 0 30px rgba(116, 224, 255, 0.95); }
+}
+
+.wec-viewer__stage {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 0.5rem auto 0;
+    max-width: 30rem;
+}
+
+.wec-viewer__spot {
+    position: absolute;
+    left: 50%;
+    top: -10%;
+    width: 80%;
+    height: 110%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.22), transparent 70%);
+    clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+    pointer-events: none;
+    animation: wec-spot 3s ease-in-out infinite alternate;
+}
+@keyframes wec-spot { from { opacity: 0.55; } to { opacity: 1; } }
+
+.wec-viewer__slot { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+
+.wec-viewer__cup {
+    width: 100%;
+    max-width: 11rem;
+    margin-bottom: -0.4rem;
+    animation: wec-cup-rise 0.9s var(--wec-spring) both, wec-cup-float 3.2s ease-in-out 0.9s infinite alternate;
+}
+.wec-viewer__cup--hero { max-width: 14rem; margin: 0.5rem auto 0; }
+.wec-viewer__hero { position: relative; margin-bottom: 0.25rem; }
+
+@keyframes wec-cup-rise {
+    from { opacity: 0; transform: translateY(40px) scale(0.6) rotate(-8deg); }
+    to   { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+@keyframes wec-cup-float {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-8px); }
+}
+
+.wec-viewer__step {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 0.5rem;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.85);
+    background: linear-gradient(180deg, #3a3a45, #1a1a20);
+    border-radius: 6px 6px 0 0;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.12);
+}
+.wec-viewer__step--first  { height: 6rem; }
+.wec-viewer__step--second { height: 4.2rem; }
+.wec-viewer__step--third  { height: 3rem; }
+.wec-viewer__step--lit.wec-viewer__step--first  { background: linear-gradient(180deg, #ffd96b, #8a5d05); color: #3a2400; }
+.wec-viewer__step--lit.wec-viewer__step--second { background: linear-gradient(180deg, #e7ecf2, #6c7684); color: #1d232c; }
+.wec-viewer__step--lit.wec-viewer__step--third  { background: linear-gradient(180deg, #e0a470, #6d3a10); color: #2b1405; }
+.wec-viewer--diamond .wec-viewer__step--lit.wec-viewer__step--first { background: linear-gradient(180deg, #b5f1ff, #2f6fd0); color: #04204d; }
+
+.wec-viewer__facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.25rem;
+    margin: 0.9rem 0 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--wec-border);
+}
+.wec-viewer__facts dt { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--wec-muted); }
+.wec-viewer__facts dd { margin: 0; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+    .wec-viewer__cup, .wec-viewer__spot, .wec-trophy-card { animation: none; transition: none; }
+}
+
+/* ---------- Seasons: rounds and finished state ---------- */
+
+.wec-seasons__rounds {
+    width: 4.2rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--wec-border, #d4d4d8);
+    border-radius: 4px;
+    background: var(--wec-surface-2, #ffffff);
+    color: var(--wec-text, #111111);
+    font-size: 0.85rem;
+}
+.wec-seasons__add .wec-seasons__rounds { flex: 0 0 auto; width: 5.2rem; }
+
+.wec-seasons__finished {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #04204d;
+    background: linear-gradient(135deg, #b5f1ff, #74e0ff 55%, #3d86ee);
+}
+
+.wec-season-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid rgba(116, 224, 255, 0.45);
+    border-radius: 8px;
+    background: rgba(116, 224, 255, 0.08);
+    color: #b5f1ff;
+    font-size: 0.88rem;
+}
+.wec-season-banner--progress { border-color: var(--wec-border); background: var(--wec-surface-2); color: var(--wec-text-2); }
+
+.wec-seasons__unset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #3a2400;
+    background: #ffc83d;
+}
+.wec-season-banner--warn { border-color: rgba(255, 200, 61, 0.55); background: rgba(255, 200, 61, 0.1); color: #ffd96b; }

@@ -26,6 +26,7 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
     public async Task<Race?> GetRaceWithClassSettingAsync(Guid raceId)
     {
         return await _context.Races
+            .Include(r => r.Season)
             .Include(r => r.ClassSetting)
                 .ThenInclude(c => c.Items)
             .FirstOrDefaultAsync(r => r.RaceId == raceId);
@@ -57,6 +58,9 @@ public class RaceRepository : GenericRepository<Race>, IRaceRepository
         {
             query = query.Where(r => r.Status != RaceStatus.Finished);
         }
+
+        // Races of a finished season are read-only, so they are never offered as an import target.
+        query = query.Where(r => !r.Season.IsFinished);
 
         if (!string.IsNullOrWhiteSpace(trackName))
         {

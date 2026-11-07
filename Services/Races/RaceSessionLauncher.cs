@@ -1,3 +1,4 @@
+using MulticlassRace.Services.Championships;
 using MulticlassRace.Builders;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
@@ -41,6 +42,8 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         {
             throw new InvalidOperationException("Race not found.");
         }
+
+        SeasonRules.EnsureOpen(race.Season);
 
         if (string.IsNullOrWhiteSpace(race.TrackName))
         {

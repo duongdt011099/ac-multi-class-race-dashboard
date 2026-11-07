@@ -33,8 +33,32 @@ public static class ChampionshipMappings
             SeasonId = season.SeasonId,
             SeasonName = season.SeasonName,
             RaceCount = season.Races.Count,
+            NumberOfRounds = season.NumberOfRounds,
+            FinishedRaceCount = season.Races.Count(r => r.Status == RaceStatus.Finished),
+            IsFinished = season.IsFinished,
             ClassSettingId = season.ClassSettingId,
             ClassSettingName = season.ClassSetting?.ClassSettingName
+        };
+    }
+}
+
+public static class AchievementMappings
+{
+    public static AchievementModel ToModel(this Achievement achievement)
+    {
+        return new AchievementModel
+        {
+            AchievementId = achievement.AchievementId,
+            Type = achievement.Type,
+            DriverName = achievement.DriverName,
+            ChampionshipName = achievement.ChampionshipName,
+            SeasonName = achievement.SeasonName,
+            RaceName = achievement.RaceName,
+            TrackName = achievement.TrackName,
+            ClassName = achievement.ClassName,
+            Points = achievement.Points,
+            Position = achievement.Position,
+            EarnedAt = achievement.EarnedAt
         };
     }
 }

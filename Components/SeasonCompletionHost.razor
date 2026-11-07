@@ -1,0 +1,62 @@
+@rendermode Interactive
+@using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Features.Achievements
+@using MulticlassRace.Services.Championships
+@using MulticlassRace.Services.Notifications
+@using MulticlassRace.Services.Settings
+@inject SeasonCompletionNotifier Notifier
+@inject IClassSettingService ClassSettingService
+@inject ToastService Toast
+@implements IDisposable
+
+@* Lives in the layout so the end of a season is announced on whichever page is open, including after a background import. *@
+@if (champion is not null)
+{
+    <SeasonChampionPopup Completion="champion" Colors="colors" OnClose="Close" />
+}
+
+@code {
+    private SeasonCompletion? champion;
+    private ClassColorMap colors = ClassColorMap.Empty;
+
+    protected override void OnInitialized()
+    {
+        Notifier.Completed += OnCompleted;
+    }
+
+    private void OnCompleted(SeasonCompletion completion)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                if (completion.IsWorldChampion)
+                {
+                    colors = ClassColorMap.From(await ClassSettingService.GetAllAsync());
+                    champion = completion;
+                }
+                else if (completion.HumanPosition is { } position)
+                {
+                    Toast.Show($"{completion.SeasonName} is complete: you finished P{position} in {completion.ClassName} with {completion.HumanPoints} pts.");
+                }
+                else
+                {
+                    Toast.Show($"{completion.SeasonName} is complete. The season is now read-only.");
+                }
+
+                StateHasChanged();
+            }
+            catch
+            {
+                // The season is already saved; failing to announce it must not surface as an error.
+            }
+        });
+    }
+
+    private void Close() => champion = null;
+
+    public void Dispose()
+    {
+        Notifier.Completed -= OnCompleted;
+    }
+}

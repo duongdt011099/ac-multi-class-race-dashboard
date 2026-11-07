@@ -5,7 +5,8 @@ namespace MulticlassRace.Services.Championships;
 public interface ISeasonService
 {
     Task<IEnumerable<SeasonModel>> GetSeasonsByChampionshipAsync(Guid championshipId);
-    Task CreateSeasonAsync(Guid championshipId, string seasonName, Guid classSettingId);
+    Task CreateSeasonAsync(Guid championshipId, string seasonName, Guid classSettingId, int numberOfRounds = Models.Season.DefaultNumberOfRounds);
+    Task SetSeasonRoundsAsync(Guid seasonId, int numberOfRounds);
     Task SetSeasonClassSettingAsync(Guid seasonId, Guid classSettingId);
     Task<SeasonModel> CloneSeasonAsync(Guid sourceSeasonId, string newSeasonName);
     Task DeleteSeasonAsync(Guid seasonId);

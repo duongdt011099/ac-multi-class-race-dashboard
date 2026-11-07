@@ -29,6 +29,9 @@ public class PageTestContext : TestContext
         Services.RegisterRepositories();
         Services.AddScoped<IChampionshipService, ChampionshipService>();
         Services.AddScoped<ISeasonService, SeasonService>();
+        Services.AddScoped<ISeasonCompletionService, SeasonCompletionService>();
+        Services.AddScoped<IAchievementService, AchievementService>();
+        Services.AddSingleton<SeasonCompletionNotifier>();
         Services.AddScoped<IClassSettingService, ClassSettingService>();
         Services.AddScoped<IPointSettingService, PointSettingService>();
         Services.AddScoped<ITeamService, TeamService>();

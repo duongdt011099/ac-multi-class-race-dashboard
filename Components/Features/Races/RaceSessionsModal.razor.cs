@@ -42,6 +42,9 @@ public partial class RaceSessionsModal : IDisposable
 
     [Parameter] public string? SeasonName { get; set; }
 
+    /// <summary>The season is finished: results can be read but nothing can be imported, started or changed.</summary>
+    [Parameter] public bool IsReadOnly { get; set; }
+
     [Parameter] public EventCallback OnClose { get; set; }
 
     /// <summary>Raised when the race could not be loaded at all and the dialog should go away.</summary>

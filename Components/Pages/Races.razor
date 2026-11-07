@@ -1,3 +1,26 @@
+@if (selectedSeason is { IsFinished: true })
+{
+    <div class="wec-season-banner" role="status">
+        <i class="bi bi-flag-fill"></i>
+        <span>This season is finished: all @selectedSeason.NumberOfRounds rounds are done, so its races are read-only.</span>
+    </div>
+}
+else if (selectedSeason is { HasRounds: false })
+{
+    <div class="wec-season-banner wec-season-banner--warn" role="status">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>This season has no number of rounds configured, so races cannot be added and it will not finish on its own.
+            Set the rounds for this season on the <a href="">Championship</a> page.</span>
+    </div>
+}
+else if (selectedSeason is not null)
+{
+    <div class="wec-season-banner wec-season-banner--progress" role="status">
+        <i class="bi bi-flag"></i>
+        <span>Round @selectedSeason.FinishedRaceCount of @selectedSeason.NumberOfRounds finished@(selectedSeason.IsFull ? ". All rounds are scheduled; the season ends when the last one finishes." : ".")</span>
+    </div>
+}
+
 @page "/races"
 @rendermode Interactive
 @using MulticlassRace.Models
@@ -28,7 +51,7 @@
 {
     <div class="wec-toolbar">
         <ToolbarButton Icon="bi-trophy-fill" Disabled="!HasSeason" OnClick="OpenStandings">Standings</ToolbarButton>
-        <ToolbarButton Icon="bi-plus-lg" Disabled="!HasSeason" OnClick="OpenRaceCreate">Add Race</ToolbarButton>
+        <ToolbarButton Icon="bi-plus-lg" Disabled="!CanAddRace" OnClick="OpenRaceCreate">Add Race</ToolbarButton>
     </div>
 }
 
@@ -87,13 +110,16 @@
                     </span>
                 </td>
                 <td class="wec-table__actions">
-                    @if (race.Status != RaceStatus.Finished)
+                    @if (race.Status != RaceStatus.Finished && !SeasonFinished)
                     {
                         <IconButton Icon="bi-pencil" Title="@($"Edit {race.RaceName}")" StopPropagation="true"
                                     OnClick="() => OpenRaceEdit(race)" />
                     }
-                    <IconButton Icon="bi-trash" Title="@($"Delete {race.RaceName}")" StopPropagation="true"
+                    @if (!SeasonFinished)
+                    {
+                        <IconButton Icon="bi-trash" Title="@($"Delete {race.RaceName}")" StopPropagation="true"
                                 OnClick="() => confirmDeleteRace = race" />
+                    }
                 </td>
             </tr>
         }
@@ -126,6 +152,6 @@
 {
     <RaceSessionsModal @key="viewingSessionsFor.RaceId" Race="viewingSessionsFor" ClassSettings="classSettings" Colors="classColors"
                        ChampionshipName="@selectedChampionship?.ChampionshipName" SeasonName="@selectedSeason?.SeasonName"
-                       OnClose="CloseSessionsAsync" OnLoadFailed="() => viewingSessionsFor = null"
+                       IsReadOnly="SeasonFinished" OnClose="CloseSessionsAsync" OnLoadFailed="() => viewingSessionsFor = null"
                        OnRaceResultChanged="LoadRacesAsync" />
 }

@@ -4,6 +4,7 @@ using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.ViewModels;
 using MulticlassRace.Services.AssettoCorsa;
+using MulticlassRace.Services.Championships;
 using MulticlassRace.Services.Races.ImportModels;
 using MulticlassRace.Services.Results;
 
@@ -23,15 +24,18 @@ public class RaceResultService : IRaceResultService
     private readonly IRaceRepository _raceRepository;
     private readonly IAssettoCorsaGameConfigRepository _configRepository;
     private readonly IPointSettingRepository _pointSettingRepository;
+    private readonly ISeasonCompletionService _seasonCompletion;
 
     public RaceResultService(
         IRaceRepository raceRepository,
         IAssettoCorsaGameConfigRepository configRepository,
-        IPointSettingRepository pointSettingRepository)
+        IPointSettingRepository pointSettingRepository,
+        ISeasonCompletionService seasonCompletion)
     {
         _raceRepository = raceRepository;
         _configRepository = configRepository;
         _pointSettingRepository = pointSettingRepository;
+        _seasonCompletion = seasonCompletion;
     }
 
     public async Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync()
@@ -165,6 +169,9 @@ public class RaceResultService : IRaceResultService
         race.Status = RaceStatus.Finished;
         await _raceRepository.UpdateAsync(race);
 
+        // Records the race win and, when this was the last round, closes the season and crowns the champion.
+        await _seasonCompletion.OnRaceFinishedAsync(raceId);
+
         return new RaceResultImportResult
         {
             Imported = session.DriverStandings.Count,
@@ -270,8 +277,12 @@ public class RaceResultService : IRaceResultService
 
     private async Task<Race> LoadRaceAsync(Guid raceId)
     {
-        return await _raceRepository.GetRaceWithClassSettingAsync(raceId)
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId)
                ?? throw new InvalidOperationException("Race not found.");
+
+        SeasonRules.EnsureOpen(race.Season);
+
+        return race;
     }
 
     private static async Task<CmSessionFile?> ReadSessionFileAsync(string fullPath, string displayName)

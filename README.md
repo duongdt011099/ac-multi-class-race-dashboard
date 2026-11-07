@@ -17,6 +17,9 @@ The Multi-Class Race Dashboard helps you run and manage a multi-class racing cha
 - **Create ready-to-load grids** — generate grid and race preset files you can open directly in Content Manager, ordered by class and qualifying position.
 - **See the cars** — preview each car's livery right from your game installation.
 - **Score the championship your way** — set up your own point systems (who earns points for finishing where) and apply them per race.
+- **Run full seasons with a fixed number of rounds** — each season has a set number of rounds (8 by default). When every round is finished the season ends and becomes read-only: its races can no longer be added, edited or deleted, and the season cannot be deleted. Seasons created before rounds existed show **Rounds not set**; set the rounds on the **Championship** page before adding races to them.
+- **Become World Champion** — when the last round of a season finishes and you are first in your class, a celebration popup shows the diamond cup and the class podium. Otherwise a toast tells you where you finished.
+- **Collect trophies** — the **Achievements** page is your trophy cabinet. You earn a gold cup for every race you win, silver and bronze cups for finishing second or third in a season, and a large diamond cup for a world title, each with the race or season engraved on it. Click a cup to see it on a podium with confetti.
 - **Check for updates** — the sidebar shows the app version and lets you check for a newer release.
 
 ## Installing the app
@@ -49,6 +52,8 @@ To use the dashboard you need:
 5. **Set up the event.** Open the race and use the **Teams** tab to choose which teams are taking part.
 6. **Practice and Qualifying.** After the session, import its result file. The race status moves to **in progress**. You can then export the qualifying grid and the race preset, ready to open in Content Manager.
 7. **The race.** After the race finishes, import its result file from the race results folder. The dashboard builds the standings, applies the points, and marks the race as **finished**.
+8. **Finish the season.** Each season has a fixed number of rounds, set when you add it and editable on the **Championship** page until it ends. You cannot add more races than that. When the last round is finished the season closes and goes read-only, trophies are awarded, and if you are first in your class you are crowned World Champion. Seasons from older versions show **Rounds not set**: enter the number of rounds there before adding races.
+9. **Admire your trophies.** Open **Achievements** (below your human driver in the sidebar) to see your cups. Winning a race adds a gold cup; the season result adds a silver, bronze or diamond cup.
 
 ## Lua App - Multiclass Leaderboard (Driver posittion)
 
@@ -64,6 +69,7 @@ To use the dashboard you need:
 
 ## Tips
 
+- A finished season is read-only. To reuse its calendar, clone it; the clone starts fresh with the same number of rounds.
 - Round status updates as you go: no data means "not started", practice/qualifying loaded means "in progress", race loaded means "finished".
 - A team can have one class per class setting. If you add a new class setting, go back to the **Teams** page and assign each team's class for it.
 - One class setting is always the default and cannot be unset; to change it, open another class setting and mark it as the default instead.
@@ -83,7 +89,7 @@ dotnet test tests/MulticlassRace.Tests
 | Folder | What lives there |
 | --- | --- |
 | `Components/Pages` | One page per route. Each page is a thin `.razor` file (markup) plus a `.razor.cs` code-behind. |
-| `Components/Features/<Feature>` | Dialogs and panels that belong to one feature (Teams, Drivers, Races). |
+| `Components/Features/<Feature>` | Dialogs and panels that belong to one feature (Teams, Drivers, Races, Achievements). |
 | `Components/Shared` | Reusable pieces: `Modal`, `ConfirmDialog`, `FormField`, `AppSelect`, `DataTable`, `SortableHeader`, `Pagination`, `StatusBadge`, `PageBase`, ... Use these instead of writing new markup for dialogs, tables, or dropdowns. |
 | `ViewModels` | What the UI binds to, plus plain classes holding UI rules (list queries, form validation, session rules) that can be unit tested without rendering anything. |
 | `Common` | Small generic helpers such as `PagedList<T>` and `SortState<T>`. |

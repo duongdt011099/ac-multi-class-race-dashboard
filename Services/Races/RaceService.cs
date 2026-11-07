@@ -3,6 +3,7 @@ using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.ViewModels;
 using MulticlassRace.Services.AssettoCorsa;
+using MulticlassRace.Services.Championships;
 
 namespace MulticlassRace.Services.Races;
 
@@ -56,11 +57,25 @@ public class RaceService : IRaceService
 
     public async Task CreateRaceAsync(RaceFormModel model)
     {
-        var season = await _seasonRepository.GetByIdAsync(model.SeasonId);
+        var season = await _seasonRepository.GetSeasonWithRacesAsync(model.SeasonId);
 
         if (season is null)
         {
             throw new InvalidOperationException("Season not found.");
+        }
+
+        SeasonRules.EnsureOpen(season);
+
+        if (season.NumberOfRounds is not { } rounds)
+        {
+            throw new InvalidOperationException(
+                "This season has no number of rounds configured yet. Set it on the Championship page before adding races.");
+        }
+
+        if (season.Races.Count >= rounds)
+        {
+            throw new InvalidOperationException(
+                $"This season has all {rounds} rounds. Raise the number of rounds to add another race.");
         }
 
         var pointSetting = await _pointSettingRepository.GetByIdAsync(model.PointSettingId);
@@ -121,6 +136,8 @@ public class RaceService : IRaceService
             return;
         }
 
+        SeasonRules.EnsureOpen(race.Season);
+
         await ValidateRaceTrackAsync(model.TrackName, model.TrackLayout);
 
         race.RaceName = model.RaceName.Trim();
@@ -164,6 +181,13 @@ public class RaceService : IRaceService
 
     public async Task DeleteRaceAsync(Guid raceId)
     {
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
+
+        if (race is not null)
+        {
+            SeasonRules.EnsureOpen(race.Season);
+        }
+
         await _raceRepository.DeleteAsync(raceId);
     }
 
@@ -192,6 +216,13 @@ public class RaceService : IRaceService
 
     public async Task SaveRaceTeamsAsync(Guid raceId, IReadOnlyCollection<Guid> teamIds)
     {
+        var race = await _raceRepository.GetRaceWithClassSettingAsync(raceId);
+
+        if (race is not null)
+        {
+            SeasonRules.EnsureOpen(race.Season);
+        }
+
         await _raceRepository.UpdateRaceTeamsAsync(raceId, teamIds);
     }
 

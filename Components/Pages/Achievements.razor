@@ -1,0 +1,121 @@
+@page "/achievements"
+@rendermode Interactive
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Features.Achievements
+@inherits PageBase
+
+<PageHeader Title="Achievements" />
+
+@if (!isLoaded)
+{
+    <p>Loading...</p>
+}
+else if (humanDriver is null)
+{
+    <div class="wec-empty">No human driver selected. Mark a driver as the human driver to start collecting trophies.</div>
+}
+else
+{
+    <div class="wec-trophy-summary">
+        <div class="wec-trophy-summary__driver">
+            <span class="wec-trophy-summary__label">Trophy cabinet of</span>
+            <span class="wec-trophy-summary__name">@humanDriver.DriverName</span>
+        </div>
+        <div class="wec-trophy-summary__stat wec-trophy-summary__stat--diamond">
+            <strong>@Count(AchievementType.SeasonChampion)</strong><span>World titles</span>
+        </div>
+        <div class="wec-trophy-summary__stat wec-trophy-summary__stat--silver">
+            <strong>@(Count(AchievementType.SeasonRunnerUp) + Count(AchievementType.SeasonThird))</strong><span>Season podiums</span>
+        </div>
+        <div class="wec-trophy-summary__stat wec-trophy-summary__stat--gold">
+            <strong>@Count(AchievementType.RaceWin)</strong><span>Race wins</span>
+        </div>
+    </div>
+
+    @if (achievements.Count == 0)
+    {
+        <div class="wec-empty">
+            No trophies yet. Win a race, or finish a season on the podium, and the cup is added here.
+        </div>
+    }
+    else
+    {
+        @if (SeasonTrophies.Any())
+        {
+            <h2 class="wec-trophy-heading">Season honours</h2>
+            <div class="wec-trophy-grid">
+                @foreach (var trophy in SeasonTrophies)
+                {
+                    var current = trophy;
+                    <button type="button" class="wec-trophy-card wec-trophy-card--@(current.Tier.ToString().ToLowerInvariant()) @(current.IsChampion ? "wec-trophy-card--champion" : "")"
+                            title="@current.Description" @onclick="() => viewing = current">
+                        <TrophyCup Achievement="current" />
+                        <span class="wec-trophy-card__title">@current.ChampionshipName</span>
+                        <span class="wec-trophy-card__meta">@current.SeasonName · @current.ClassName · @current.Points pts</span>
+                    </button>
+                }
+            </div>
+        }
+
+        @if (RaceWins.Any())
+        {
+            <h2 class="wec-trophy-heading">Race wins</h2>
+            <div class="wec-trophy-grid">
+                @foreach (var trophy in RaceWins)
+                {
+                    var current = trophy;
+                    <button type="button" class="wec-trophy-card wec-trophy-card--gold" title="@current.Description"
+                            @onclick="() => viewing = current">
+                        <TrophyCup Achievement="current" />
+                        <span class="wec-trophy-card__title">@(current.TrackName ?? current.ChampionshipName)</span>
+                        <span class="wec-trophy-card__meta">@current.SeasonName · @current.ClassName · @current.EarnedAt.ToString("d MMM yyyy")</span>
+                    </button>
+                }
+            </div>
+        }
+    }
+}
+
+@if (viewing is not null)
+{
+    <TrophyViewer Achievement="viewing" OnClose="() => viewing = null" />
+}
+
+@code {
+    [Inject] private MulticlassRace.Services.Drivers.IDriverService DriverService { get; set; } = default!;
+
+    [Inject] private MulticlassRace.Services.Championships.IAchievementService AchievementService { get; set; } = default!;
+
+    private bool isLoaded;
+    private DriverModel? humanDriver;
+    private IReadOnlyList<AchievementModel> achievements = Array.Empty<AchievementModel>();
+    private AchievementModel? viewing;
+
+    private IEnumerable<AchievementModel> SeasonTrophies => achievements.Where(a => a.IsSeasonTrophy);
+
+    private IEnumerable<AchievementModel> RaceWins => achievements.Where(a => !a.IsSeasonTrophy);
+
+    private int Count(AchievementType type) => achievements.Count(a => a.Type == type);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            humanDriver = (await DriverService.GetActiveDriversAsync()).FirstOrDefault(d => d.IsHuman);
+
+            if (humanDriver is not null)
+            {
+                achievements = await AchievementService.GetForDriverAsync(humanDriver.DriverId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not load achievements: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isLoaded = true;
+        }
+    }
+}
