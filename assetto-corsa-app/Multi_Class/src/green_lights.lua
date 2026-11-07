@@ -21,7 +21,13 @@ local WAIT_IMAGE = "wait_for_others.png"       -- "Wait for other cars" (finishe
 local LANE_LEFT_IMAGE = "lane_left.png"        -- "Your Lane: LEFT" (autopilot off, double file)
 local LANE_RIGHT_IMAGE = "lane_right.png"      -- "Your Lane: RIGHT"
 
+local LAST_LAP_IMAGE = "last_lap.png"          -- "Last Lap" (human car on the final lap of a race)
+local LAST_LAP_SECONDS = 6.0
+
 local alpha = 0.0
+local lastLapAlpha = 0.0
+local lastLapSeen = nil
+local lastLapUntil = 0
 local laneAlpha = 0.0
 local laneShown = nil
 local waitAlpha = 0.0
@@ -63,6 +69,27 @@ function M.Draw(dt)
     local side = Draw.GetPlayerLaneSide()
     if side == "LEFT" then laneImage = LANE_LEFT_IMAGE elseif side == "RIGHT" then laneImage = LANE_RIGHT_IMAGE end
   end
+  -- Last-lap notice: shown for a few seconds when the human car starts the final lap of a race.
+  local lastLap = false
+  local totalLaps = S.liveTotalLaps or 0
+  if S.liveSessionType == "race" and totalLaps > 0 and not startLive then
+    local okCar, car = pcall(ac.getCar, 0)
+    local lc = okCar and car and car.lapCount or nil
+    if type(lc) == "number" then
+      if lc == totalLaps - 1 and lastLapSeen ~= lc then
+        lastLapSeen = lc
+        lastLapUntil = os.clock() + LAST_LAP_SECONDS
+      elseif lc < totalLaps - 1 then
+        lastLapSeen = nil
+      end
+    end
+  else
+    lastLapSeen = nil
+    lastLapUntil = 0
+  end
+  lastLap = os.clock() < lastLapUntil and not showing and not manual
+  lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
+
   laneAlpha = fade(laneAlpha, laneImage ~= nil, dt)
   if laneImage then laneShown = laneImage end
 
@@ -92,6 +119,9 @@ function M.Draw(dt)
   end
   if manualAlpha > 0.0 then
     ui.drawImage(MANUAL_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, manualAlpha))
+  end
+  if lastLapAlpha > 0.0 then
+    ui.drawImage(LAST_LAP_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, lastLapAlpha))
   end
   if laneAlpha > 0.0 and laneShown then
     ui.drawImage(laneShown, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, laneAlpha))
