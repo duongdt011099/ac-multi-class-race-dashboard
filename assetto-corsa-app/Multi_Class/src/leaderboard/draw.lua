@@ -11,9 +11,20 @@ local sFormat = string.format
 
 local hasDWrite = (type(ui.pushDWriteFont) == "function" and type(ui.dwriteText) == "function")
 
-function M.MeasureBoldText(text, fontSize)
+-- Bahnschrift (shipped with Windows 10+) gives the numbers a clean, modern DIN look; labels use
+-- Segoe UI Semibold. DirectWrite falls back to its default face if a family is missing.
+local FONTS = {
+  num = "Bahnschrift;Weight=SemiBold",
+  label = "Segoe UI;Weight=SemiBold",
+}
+
+local function fontFor(name)
+  return FONTS[name or "num"] or FONTS.num
+end
+
+function M.MeasureBoldText(text, fontSize, fontName)
   if hasDWrite then
-    ui.pushDWriteFont("Segoe UI;Weight=Bold")
+    ui.pushDWriteFont(fontFor(fontName))
     local s = ui.measureDWriteText(text, fontSize)
     ui.popDWriteFont()
     return s
@@ -21,7 +32,7 @@ function M.MeasureBoldText(text, fontSize)
   return ui.measureText(text)
 end
 
-function M.DrawBoldText(text, centerX, centerY, fontSize, color)
+function M.DrawBoldText(text, centerX, centerY, fontSize, color, fontName)
   if not hasDWrite then
     local size = ui.measureText(text)
     ui.setCursor(vec2(centerX - size.x / 2, centerY - size.y / 2))
@@ -32,7 +43,7 @@ function M.DrawBoldText(text, centerX, centerY, fontSize, color)
     end
     return size.y
   end
-  ui.pushDWriteFont("Segoe UI;Weight=Bold")
+  ui.pushDWriteFont(fontFor(fontName))
   local size = ui.measureDWriteText(text, fontSize)
   ui.setCursor(vec2(centerX - size.x / 2, centerY - size.y / 2))
   if color then
@@ -122,19 +133,17 @@ local function fitBigSize(layout, bigText)
   return bigSize
 end
 
--- Shared glass-card look: dark translucent body, soft top sheen and a hairline border.
-local CARD_FILL = rgbm(0.05, 0.06, 0.09, 0.80)
-local CARD_BORDER = rgbm(1, 1, 1, 0.10)
-local CARD_RADIUS = 12
-local DIM_TEXT = rgbm(0.62, 0.66, 0.76, 1)
+-- Shared flat-card look: solid dark body with small corner radius, no gradient, glow or border.
+local CARD_FILL = rgbm(0.09, 0.10, 0.12, 0.92)
+local CARD_RADIUS = 6
+local DIM_TEXT = rgbm(0.58, 0.62, 0.70, 1)
 
+-- An outline is drawn only when asked for (the blinking yellow flag).
 local function drawCard(x1, y1, x2, y2, fill, border)
   ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), fill or CARD_FILL, CARD_RADIUS)
-  local topFlag = ui.CornerFlags and ui.CornerFlags.Top
-  if topFlag then
-    ui.drawRectFilled(vec2(x1, y1), vec2(x2, y1 + (y2 - y1) * 0.5), rgbm(1, 1, 1, 0.04), CARD_RADIUS, topFlag)
+  if border then
+    ui.drawRect(vec2(x1, y1), vec2(x2, y2), border, CARD_RADIUS, nil, 2)
   end
-  ui.drawRect(vec2(x1, y1), vec2(x2, y2), border or CARD_BORDER, CARD_RADIUS, nil, 1)
 end
 
 local function withAlpha(color, a)
@@ -151,12 +160,11 @@ local function drawPanel(layout, x, title, bigText, totalText, color, accent)
   accent = accent or color
 
   drawCard(x, panelTop, x + panelW, columnBottom)
-  -- Accent bar hugging the top edge, plus a faint glow beneath it.
-  local barW = panelW * 0.36
-  ui.drawRectFilled(vec2(cx - barW / 2, panelTop + 1), vec2(cx + barW / 2, panelTop + 4), accent, 2)
-  ui.drawRectFilled(vec2(cx - barW / 2, panelTop + 4), vec2(cx + barW / 2, panelTop + 9), withAlpha(accent, 0.12), 2)
+  -- Flat accent strip across the top edge of the card.
+  local topFlag = ui.CornerFlags and ui.CornerFlags.Top
+  ui.drawRectFilled(vec2(x, panelTop), vec2(x + panelW, panelTop + 3), accent, CARD_RADIUS, topFlag)
 
-  DrawBoldText(title, cx, panelTop + 20 + MeasureBoldText(title, 12).y / 2, 12, withAlpha(accent, 0.9))
+  DrawBoldText(title, cx, panelTop + 20 + MeasureBoldText(title, 12, "label").y / 2, 12, accent, "label")
 
   local bigCy = panelTop + panelH * 0.50
   local bigSize = fitBigSize(layout, bigText)
@@ -164,9 +172,9 @@ local function drawPanel(layout, x, title, bigText, totalText, color, accent)
 
   if totalText then
     local label = totalText
-    local totalSize = MeasureBoldText(label, 15)
+    local totalSize = MeasureBoldText(label, 15, "label")
     local totalCy = math.min(bigCy + drawnBigH / 2 + 10 + totalSize.y / 2, columnBottom - totalSize.y / 2 - 8)
-    DrawBoldText(label, cx, totalCy, 15, DIM_TEXT)
+    DrawBoldText(label, cx, totalCy, 15, DIM_TEXT, "label")
   end
 end
 
@@ -219,19 +227,19 @@ local function drawBottomPanelBox(layout, flag)
   local fill, border = nil, nil
   if flag == "yellow" then
     if yellowBlinkOn() then
-      fill, border = YELLOW_FLAG_FILL, YELLOW_FLAG_BORDER
+      fill = YELLOW_FLAG_FILL
     else
       border = YELLOW_FLAG_FILL
     end
   elseif flag == "green" then
-    fill, border = GREEN_FLAG_FILL, GREEN_FLAG_BORDER
+    fill = GREEN_FLAG_FILL
   end
   local top, bottom = layout.gapPanelTop, layout.h - 8
   drawCard(layout.padX, top, gapPanelRight, bottom, fill, border)
   if not flag then
-    -- Slim accent pill on the left edge for the neutral state.
-    ui.drawRectFilled(vec2(layout.padX + 8, top + 10), vec2(layout.padX + 11, bottom - 10),
-        rgbm(0.40, 0.68, 1.0, 0.9), 2)
+    -- Flat accent strip on the left edge for the neutral state.
+    ui.drawRectFilled(vec2(layout.padX, top), vec2(layout.padX + 4, bottom), rgbm(0.40, 0.68, 1.0, 1),
+        CARD_RADIUS, ui.CornerFlags and ui.CornerFlags.Left)
   end
 end
 

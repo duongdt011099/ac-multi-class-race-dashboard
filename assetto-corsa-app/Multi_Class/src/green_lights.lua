@@ -4,6 +4,7 @@ local S = require("src/state")
 local Draw = require("src/leaderboard/draw")
 local Audio = require("src/audio")
 local Exporter = require("src/export/exporter")
+local U = require("src/util")
 
 local M = {}
 
@@ -22,12 +23,10 @@ local LANE_LEFT_IMAGE = "lane_left.png"        -- "Your Lane: LEFT" (autopilot o
 local LANE_RIGHT_IMAGE = "lane_right.png"      -- "Your Lane: RIGHT"
 
 local LAST_LAP_IMAGE = "last_lap.png"          -- "Last Lap" (human car on the final lap of a race)
-local LAST_LAP_SECONDS = 6.0
 
 local alpha = 0.0
 local lastLapAlpha = 0.0
-local lastLapSeen = nil
-local lastLapUntil = 0
+local lastLapLogged = nil
 local laneAlpha = 0.0
 local laneShown = nil
 local waitAlpha = 0.0
@@ -69,25 +68,22 @@ function M.Draw(dt)
     local side = Draw.GetPlayerLaneSide()
     if side == "LEFT" then laneImage = LANE_LEFT_IMAGE elseif side == "RIGHT" then laneImage = LANE_RIGHT_IMAGE end
   end
-  -- Last-lap notice: shown for a few seconds when the human car starts the final lap of a race.
+  -- Last-lap notice: stays up from the moment the human car starts the final lap of a race until
+  -- it takes the flag (lap count reaches the race length).
   local lastLap = false
   local totalLaps = S.liveTotalLaps or 0
   if S.liveSessionType == "race" and totalLaps > 0 and not startLive then
     local okCar, car = pcall(ac.getCar, 0)
     local lc = okCar and car and car.lapCount or nil
     if type(lc) == "number" then
-      if lc == totalLaps - 1 and lastLapSeen ~= lc then
-        lastLapSeen = lc
-        lastLapUntil = os.clock() + LAST_LAP_SECONDS
-      elseif lc < totalLaps - 1 then
-        lastLapSeen = nil
+      if lc ~= lastLapLogged then
+        lastLapLogged = lc
+        pcall(U.Log, string.format("LASTLAP: player lapCount=%d totalLaps=%d", lc, totalLaps))
       end
+      lastLap = lc >= totalLaps - 1 and lc < totalLaps
     end
-  else
-    lastLapSeen = nil
-    lastLapUntil = 0
   end
-  lastLap = os.clock() < lastLapUntil and not showing and not manual
+  lastLap = lastLap and not showing and not manual
   lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
 
   laneAlpha = fade(laneAlpha, laneImage ~= nil, dt)
