@@ -103,7 +103,8 @@ function M.MarkRollingStartUnavailable(message)
 end
 
 function M.HoldRollingCar(carIndex)
-  if carIndex == 0 then return end
+  -- The human car is only ever held while the autopilot is driving it.
+  if carIndex == 0 and S.playerAutopilotOn ~= true then return end
 
   setAITopSpeed(carIndex, 0.0)
   setAIThrottleLimit(carIndex, 0.0)
@@ -143,6 +144,7 @@ function M.ReleaseRollingCar(carIndex)
   state.releasedAt = S.rollingStartSessionTime
   if carIndex == 0 then
     if S.autopilotEnabled then M.SetPlayerAutopilot(true) end
+    if S.playerAutopilotOn then physics.setAIStopCounter(0, 0.0) end   -- lift the grid hold
     return
   end
 

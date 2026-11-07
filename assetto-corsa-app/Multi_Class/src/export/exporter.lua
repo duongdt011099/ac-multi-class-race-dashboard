@@ -69,7 +69,11 @@ local function onWriteSucceeded(sessionType, sessionKey, fileName, targetPath, s
     os.date("%H:%M:%S"),
     sessionType,
     fileName)
-  if not silent then ui.toast(ui.Icons.Play, "Session result saved") end
+  -- Shown as a banner image (see green_lights.lua) and as a toast.
+  if not silent then
+    S.resultSavedBannerUntil = os.clock() + 4.0
+    ui.toast(ui.Icons.Play, "Session result saved")
+  end
   U.Log("EXPORT: wrote " .. targetPath)
 end
 
@@ -405,6 +409,38 @@ function Exporter.UpdateResultExportFrame(sim)
   S.lastSessionIndex = sim.currentSessionIndex
   S.lastSessionStarted = sim.isSessionStarted
   return sessionChanged, sessionEnded, sessionBegan, sessionSwitched
+end
+
+-- True while the player has taken the flag and is back in the pits, but the session is not over
+-- yet because other cars are still on track (timed sessions: the clock is at zero; races: the
+-- player has completed the race distance).
+function Exporter.IsPlayerWaitingForOthers(sim)
+  if not S.enduranceEnabled or S.liveSessionType == nil then return false end
+  if U.IsReplayActive(sim) then return false end
+  if S.liveSessionType == C.SUBFOLDER_RACE then
+    -- In a race AC flags the session "over" as soon as the player takes the flag, while other
+    -- cars are still racing, so only the results screen means the wait is really over.
+    local okResults, showingResults = pcall(function() return sim.isLookingAtSessionResults end)
+    if okResults and showingResults == true then return false end
+  elseif Sess.IsSessionFinished(sim) then
+    return false
+  end
+  if not Snap.IsPlayerInPit() then return false end
+
+  if S.liveSessionHadCountdown then
+    local timeLeft = readSessionTimeLeft(sim)
+    if timeLeft ~= nil and timeLeft <= 0 then
+      return not Snap.AllCarsFinishedAfterExpiry()
+    end
+  end
+
+  if S.liveSessionType == C.SUBFOLDER_RACE then
+    local okSession, session = pcall(ac.getSession, sim.currentSessionIndex)
+    local laps = okSession and session and session.laps or 0
+    local okCar, car = pcall(ac.getCar, 0)
+    if laps > 0 and okCar and car and (car.lapCount or 0) >= laps then return true end
+  end
+  return false
 end
 
 return Exporter

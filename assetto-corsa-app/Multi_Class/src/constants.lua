@@ -26,6 +26,7 @@ C.ROLLING_START_FORMATION_POINT     = 0.67
 C.ROLLING_START_LONG_TRACK_METERS   = 7000
 C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS = 2000
 C.AUTOPILOT_OFF_WARNING_SECONDS     = 10.0
+C.AUTOPILOT_HANDOVER_METERS         = 300.0   -- autopilot hands the car back this far before the start line
 -- A car is considered to have rolled over the start line once its spline position drops below this.
 C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- Lateral distance of each column from the racing line, in metres. CSP keeps the AI on a lane with

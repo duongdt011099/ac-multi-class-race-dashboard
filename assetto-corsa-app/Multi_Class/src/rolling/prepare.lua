@@ -205,6 +205,13 @@ function M.BeginRollingStart(now)
     end
   end
 
+  -- The autopilot takes the human car right away, and holds it on the grid like the AI cars until
+  -- its release time, so the player cannot drive off early.
+  if S.autopilotEnabled then
+    RCtl.SetPlayerAutopilot(true)
+    if S.playerAutopilotOn then RCtl.HoldRollingCar(0) end
+  end
+
   U.Log(sFormat("ROLLING: formation beginning; %d cars in %d classes.", #S.rollingStartQueue, #S.rollingStartGroups))
 end
 

@@ -13,7 +13,7 @@ S.storedSettings = ac.storage({
   flagSoundEnabled = true,
   flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
-  autopilotEnabled = false,
+  autopilotEnabled = true,
   blueFlagEnabled = true,
 })
 
@@ -58,7 +58,7 @@ S.rollingMusicVolume  = C.AUDIO_VOLUME
 S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
 S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
-S.autopilotEnabled    = S.storedSettings.autopilotEnabled == true
+S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
 S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
 -- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
 S.blueCars            = {}

@@ -97,6 +97,13 @@ function M.PlayAutopilotOff()
   if not ok then U.Log("AUDIO: could not play auto_pilot_off: " .. tostring(err)) end
 end
 
+-- True while the "autopilot off" warning clip is audibly playing.
+function M.IsAutopilotOffPlaying()
+  if not autopilotOffPlayer then return false end
+  local ok, playing = pcall(function() return autopilotOffPlayer:playing() end)
+  return ok and playing == true
+end
+
 -- Called when the player's class goes green.
 function M.FadeOut()
   if not (player and started) or fadeLeft or finishing then return end

@@ -430,25 +430,31 @@ local function MaintainCar(carIndex, state, trackLength, moves)
       U.Log(sFormat("ROLLING: car %d ended up in the pit lane while still held (t=%.1fs)", carIndex,
           S.rollingStartSessionTime))
     end
-    if isAI then HoldUnreleasedAI(carIndex) end
+    if isAI or (carIndex == 0 and S.playerAutopilotOn == true) then HoldUnreleasedAI(carIndex) end
     return
   end
 
   TrackLineCrossing(state, car, group, trackLength)
   if not state.green then WatchForStalledCar(carIndex, state, car, moves.dt) end
-  -- The autopilot only covers the single-file run-up: hand the human car back at double file.
+  -- The autopilot drives the formation until the car is AUTOPILOT_HANDOVER_METERS short of the
+  -- start line, then hands the car back to the human.
   local autopiloted = carIndex == 0 and S.playerAutopilotOn == true
-  if autopiloted and S.autopilotEnabled and not state.autopilotWarned and not state.enteredPhase2
-      and state.hasRolledOver and car and type(car.splinePosition) == "number" then
-    local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
-    local secondsLeft = (FormationPoint(trackLength) - car.splinePosition) * trackLength / speed
-    if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
-      state.autopilotWarned = true
-      Audio.PlayAutopilotOff()
+  local handoverPoint = 1.0 - C.AUTOPILOT_HANDOVER_METERS / trackLength
+  local atHandover = false
+  if autopiloted and state.hasRolledOver and car and type(car.splinePosition) == "number" then
+    atHandover = car.splinePosition >= handoverPoint
+    if S.autopilotEnabled and not state.autopilotWarned and not atHandover then
+      local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
+      local secondsLeft = (handoverPoint - car.splinePosition) * trackLength / speed
+      if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
+        state.autopilotWarned = true
+        Audio.PlayAutopilotOff()
+      end
     end
   end
-  if autopiloted and (state.enteredPhase2 or state.green) then
+  if autopiloted and (atHandover or state.green) then
     RCtl.SetPlayerAutopilot(false)
+    S.manualBannerUntil = os.clock() + 4.0   -- keep the "Manual Control" banner up briefly
     ui.toast(ui.Icons.Warning, "Autopilot off: you have control")
     autopiloted = false
   end

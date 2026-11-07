@@ -629,10 +629,22 @@ function M.Reset()
   Audio.ResetFlags()
 end
 
+-- True once any car has started the final lap of a lap-limited race (no yellow flags then).
+local function leaderOnLastLap()
+  local laps = S.liveTotalLaps or 0
+  if laps <= 0 then return false end
+  for i = 0, S.driverCount - 1 do
+    local car = getCar(i)
+    if car and (car.lapCount or 0) >= laps - 1 then return true end
+  end
+  return false
+end
+
 local function shouldRun(sim)
   if not S.yellowFlagEnabled then return false end
   if sim.isSessionStarted ~= true or not Sess.IsRaceMode(sim) then return false end
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return false end
+  if leaderOnLastLap() then return false end
   return not Sess.IsSessionFinished(sim)
 end
 

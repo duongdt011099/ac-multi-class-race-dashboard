@@ -72,11 +72,7 @@ local function rollingFormationDisplay(sim)
     return nil, nil
   end
   local phaseText = player.enteredPhase2 and "DOUBLE FILE" or "SINGLE FILE"
-  local lane = M.GetPlayerLaneSide()
-  if lane then
-    return sFormat("%s — YOUR LANE: %s", phaseText, lane), rgbm(1.0, 0.75, 0.25, 1)
-  end
-  return phaseText .. " — FORMATION", rgbm(1.0, 0.75, 0.25, 1)
+  return phaseText, rgbm(1.0, 0.75, 0.25, 1)
 end
 
 function M.GetRollingStartDisplay(sim)
@@ -126,27 +122,51 @@ local function fitBigSize(layout, bigText)
   return bigSize
 end
 
-local function drawPanel(layout, x, title, bigText, totalText, color)
+-- Shared glass-card look: dark translucent body, soft top sheen and a hairline border.
+local CARD_FILL = rgbm(0.05, 0.06, 0.09, 0.80)
+local CARD_BORDER = rgbm(1, 1, 1, 0.10)
+local CARD_RADIUS = 12
+local DIM_TEXT = rgbm(0.62, 0.66, 0.76, 1)
+
+local function drawCard(x1, y1, x2, y2, fill, border)
+  ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), fill or CARD_FILL, CARD_RADIUS)
+  local topFlag = ui.CornerFlags and ui.CornerFlags.Top
+  if topFlag then
+    ui.drawRectFilled(vec2(x1, y1), vec2(x2, y1 + (y2 - y1) * 0.5), rgbm(1, 1, 1, 0.04), CARD_RADIUS, topFlag)
+  end
+  ui.drawRect(vec2(x1, y1), vec2(x2, y2), border or CARD_BORDER, CARD_RADIUS, nil, 1)
+end
+
+local function withAlpha(color, a)
+  return rgbm(color.r, color.g, color.b, a)
+end
+
+-- Shared with the configuration window so both use the same card styling.
+M.DrawCard = drawCard
+M.WithAlpha = withAlpha
+
+local function drawPanel(layout, x, title, bigText, totalText, color, accent)
   local panelW, panelTop, panelH, columnBottom = layout.panelW, layout.panelTop, layout.panelH, layout.columnBottom
   local cx = x + panelW / 2
+  accent = accent or color
 
-  ui.drawRectFilled(vec2(x, panelTop), vec2(x + panelW, columnBottom), rgbm(0.08, 0.10, 0.15, 0.6), 8)
-  ui.drawRect(vec2(x, panelTop), vec2(x + panelW, columnBottom), rgbm(0.3, 0.3, 0.36, 0.7), 8, nil, 1.5)
+  drawCard(x, panelTop, x + panelW, columnBottom)
+  -- Accent bar hugging the top edge, plus a faint glow beneath it.
+  local barW = panelW * 0.36
+  ui.drawRectFilled(vec2(cx - barW / 2, panelTop + 1), vec2(cx + barW / 2, panelTop + 4), accent, 2)
+  ui.drawRectFilled(vec2(cx - barW / 2, panelTop + 4), vec2(cx + barW / 2, panelTop + 9), withAlpha(accent, 0.12), 2)
 
-  DrawBoldText(title, cx, panelTop + 8 + MeasureBoldText(title, 13).y / 2, 13, rgbm(0.7, 0.7, 0.8, 1))
+  DrawBoldText(title, cx, panelTop + 20 + MeasureBoldText(title, 12).y / 2, 12, withAlpha(accent, 0.9))
 
-  local bigCy = panelTop + panelH * 0.42
+  local bigCy = panelTop + panelH * 0.50
   local bigSize = fitBigSize(layout, bigText)
   local drawnBigH = DrawBoldText(bigText, cx, bigCy, bigSize, color)
 
-  local sepW = panelW * 0.5
-  local sepY = bigCy + drawnBigH / 2 + 10
-  ui.drawRectFilled(vec2(cx - sepW / 2, sepY), vec2(cx + sepW / 2, sepY + 2), rgbm(0.5, 0.5, 0.6, 0.9))
-
   if totalText then
-    local totalSize = MeasureBoldText(totalText, 16)
-    local totalCy = math.min(sepY + 8 + totalSize.y / 2, columnBottom - totalSize.y / 2 - 8)
-    DrawBoldText(totalText, cx, totalCy, 16, rgbm(0.7, 0.7, 0.8, 1))
+    local label = totalText
+    local totalSize = MeasureBoldText(label, 15)
+    local totalCy = math.min(bigCy + drawnBigH / 2 + 10 + totalSize.y / 2, columnBottom - totalSize.y / 2 - 8)
+    DrawBoldText(label, cx, totalCy, 15, DIM_TEXT)
   end
 end
 
@@ -169,12 +189,15 @@ local function drawTopPanels(layout, data)
   -- The formation lap is not counted: the panel reads "-" until the player crosses the line for
   -- the first time, and the racing laps then start at 1.
   local lapText = data.formationLap and "-" or sFormat("%d", math.max(1, data.currentLap))
-  drawPanel(layout, padX, "LAP", lapText, lapTotalText, rgbm(0.95, 0.95, 1, 1))
-  drawPanel(layout, padX + panelW + gap, "OVERALL", overallText, sFormat("%d", data.totalCars), rgbm(0.95, 0.95, 1, 1))
+  drawPanel(layout, padX, "LAP", lapText, lapTotalText, rgbm(0.95, 0.96, 1, 1), rgbm(0.40, 0.68, 1.0, 1))
+  drawPanel(layout, padX + panelW + gap, "OVERALL", overallText, sFormat("%d", data.totalCars),
+      rgbm(0.95, 0.96, 1, 1), rgbm(1.0, 0.72, 0.28, 1))
   if data.classTotal > 0 then
-    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", classText, sFormat("%d", data.classTotal), rgbm(0.35, 0.95, 0.45, 1))
+    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", classText, sFormat("%d", data.classTotal),
+        rgbm(0.45, 1.0, 0.55, 1), rgbm(0.30, 0.90, 0.45, 1))
   else
-    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", "-", "add a class", rgbm(0.55, 0.55, 0.6, 1))
+    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", "-", "add a class",
+        rgbm(0.55, 0.55, 0.6, 1), rgbm(0.45, 0.47, 0.55, 1))
   end
 end
 
@@ -193,8 +216,7 @@ local GREEN_FLAG_TEXT = rgbm(1, 1, 1, 1)
 
 local function drawBottomPanelBox(layout, flag)
   local gapPanelRight = layout.w - layout.padX
-  local fill = rgbm(0.08, 0.10, 0.15, 0.6)
-  local border = rgbm(0.3, 0.3, 0.36, 0.7)
+  local fill, border = nil, nil
   if flag == "yellow" then
     if yellowBlinkOn() then
       fill, border = YELLOW_FLAG_FILL, YELLOW_FLAG_BORDER
@@ -204,8 +226,13 @@ local function drawBottomPanelBox(layout, flag)
   elseif flag == "green" then
     fill, border = GREEN_FLAG_FILL, GREEN_FLAG_BORDER
   end
-  ui.drawRectFilled(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), fill, 8)
-  ui.drawRect(vec2(layout.padX, layout.gapPanelTop), vec2(gapPanelRight, layout.h - 8), border, 8, nil, 1.5)
+  local top, bottom = layout.gapPanelTop, layout.h - 8
+  drawCard(layout.padX, top, gapPanelRight, bottom, fill, border)
+  if not flag then
+    -- Slim accent pill on the left edge for the neutral state.
+    ui.drawRectFilled(vec2(layout.padX + 8, top + 10), vec2(layout.padX + 11, bottom - 10),
+        rgbm(0.40, 0.68, 1.0, 0.9), 2)
+  end
 end
 
 local function drawRollingText(layout, text, color, flag)

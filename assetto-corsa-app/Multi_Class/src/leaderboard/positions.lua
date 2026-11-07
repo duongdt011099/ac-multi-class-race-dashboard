@@ -280,6 +280,10 @@ local function applyEnginePosition(allCars, classCars, overallPos, classPos, ret
   return overallPos, classPos
 end
 
+local LINE_SETTLE_SECONDS = 4.0
+local lastPlayerLapCount = nil
+local lapChangeTime = -1000000.0
+
 function M.GetPlayerPositions()
   local sim = ac.getSim()
   local currentLap, totalLaps, stopped, formationLap = M.GetCurrentLapInfo()
@@ -288,7 +292,25 @@ function M.GetPlayerPositions()
     now = sim.time / 1000
   end
 
-  if raceCache.valid and now - raceCache.lastTime < raceCache.interval then
+  -- Around the player's start/finish crossing the engine's lap counter and spline position are
+  -- briefly out of step, which makes the ranking read wrong. The ranking is only recomputed every
+  -- few seconds, so a sample taken in that window would stay on screen until the next refresh.
+  -- Keep the last good values until the crossing has settled.
+  local playerCar = getCar(0)
+  if playerCar then
+    local lapCount = playerCar.lapCount or 0
+    if lastPlayerLapCount ~= nil and lapCount ~= lastPlayerLapCount then
+      lapChangeTime = now
+    end
+    lastPlayerLapCount = lapCount
+  end
+  local nearLine = false
+  if playerCar then
+    local sp = playerCar.splinePosition or 0
+    nearLine = sp > 0.985 or sp < 0.015
+  end
+  local settling = nearLine or (now >= lapChangeTime and now - lapChangeTime < LINE_SETTLE_SECONDS)
+  if raceCache.valid and (settling or now - raceCache.lastTime < raceCache.interval) then
     local cachedGapsFront = raceCache.gapFront
     local cachedGapsBehind = raceCache.gapBehind
     if not sim.isSessionStarted or stopped then
