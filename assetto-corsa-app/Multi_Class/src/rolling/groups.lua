@@ -249,6 +249,9 @@ function M.IsRollingCarReleased(state)
   if late > C.ROLLING_START_GATE_RELAX_START_SECONDS then
     relax = 1.0 - (late - C.ROLLING_START_GATE_RELAX_START_SECONDS) /
         (C.ROLLING_START_GATE_RELAX_END_SECONDS - C.ROLLING_START_GATE_RELAX_START_SECONDS)
+    -- Never fully open: releasing a car onto one that is still at 0 km/h makes its AI refuse to
+    -- accelerate and the cars bunch up and collide.
+    relax = math.max(relax, 0.5)
   end
 
   local other, otherIndex = releaseReferenceState(state)

@@ -160,6 +160,14 @@ end
 -- Single-file run-up: cars released later start further back, so let the rear of the
 -- pack run faster (up to PHASE1_CATCHUP) to close on the car ahead before the
 -- formation point; otherwise the class reaches the double-file zone strung out.
+local function FieldStillLaunching()
+  for _, carIndex in ipairs(S.rollingStartQueue) do
+    local other = S.rollingStartCars[carIndex]
+    if other and not other.released and not other.dropped then return true end
+  end
+  return false
+end
+
 local function SingleFileTargets(state, group, car, trackLength)
   local formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH
   local aheadCar
@@ -175,6 +183,11 @@ local function SingleFileTargets(state, group, car, trackLength)
     end
   end
   local throttleLimit = 1.0
+  -- A leader with nobody ahead cruises at the rolling speed while the rest of the field is still
+  -- being released, so it does not run off at race pace and leave the field far behind.
+  if not aheadCar and FieldStillLaunching() then
+    formationSpeed = C.ROLLING_START_SPEED_KMH
+  end
   if aheadCar and car then
     local gap = Spacing.SignedGap(aheadCar, car, trackLength)
     if gap < C.ROLLING_START_PHASE1_MIN_GAP then
@@ -193,6 +206,27 @@ local function SingleFileTargets(state, group, car, trackLength)
       formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
           Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
               C.ROLLING_START_PHASE1_CATCHUP)
+    end
+  end
+  -- Wait for the car behind: nearest car further back in the class that is released, driving and
+  -- still in single file.
+  if group and group.cars and car then
+    for pos = (state.classPosition or 1) + 1, #group.cars do
+      local behindIndex = group.cars[pos]
+      local behindState = behindIndex and S.rollingStartCars[behindIndex]
+      if behindState and behindState.released and not behindState.dropped and not behindState.enteredPhase2 then
+        local behindCar = getCar(behindIndex)
+        if behindCar and type(behindCar.splinePosition) == "number" and (behindCar.speedKmh or 0) > 5.0 then
+          local behind = -Spacing.SignedGap(behindCar, car, trackLength)
+          if behind > C.ROLLING_START_PHASE1_BEHIND_START_GAP then
+            local t = math.min(1.0, (behind - C.ROLLING_START_PHASE1_BEHIND_START_GAP) /
+                (C.ROLLING_START_PHASE1_BEHIND_FULL_GAP - C.ROLLING_START_PHASE1_BEHIND_START_GAP))
+            local waitSpeed = formationSpeed + (C.ROLLING_START_PHASE1_BEHIND_MIN_SPEED - formationSpeed) * t
+            formationSpeed = math.min(formationSpeed, waitSpeed)
+          end
+          break
+        end
+      end
     end
   end
   return formationSpeed, 0.0, 1.0, throttleLimit
@@ -375,8 +409,11 @@ end
 -- A released AI car that sits still (or ends up in the pit lane) must not hold the rest of its
 -- class up: nudge it first, then drop it from the spacing chains until it moves again.
 local function WatchForStalledCar(carIndex, state, car, dt)
-  if carIndex == 0 or not car then return end
-  local inPit = car.isInPitlane == true or car.isInPit == true
+  -- The human car is only watched while the autopilot drives it; it gets the same kick-start as
+  -- the AI cars but is never dropped from the spacing.
+  local isPlayer = carIndex == 0
+  if not car or (isPlayer and S.playerAutopilotOn ~= true) then return end
+  local inPit = not isPlayer and (car.isInPitlane == true or car.isInPit == true)
   local launched = state.releasedAt and
       (S.rollingStartSessionTime - state.releasedAt) > C.ROLLING_START_STALL_GRACE_SECONDS
   local still = launched and (car.speedKmh or 0) < C.ROLLING_START_STALL_SPEED_KMH and not state.enteredPhase2
@@ -384,6 +421,7 @@ local function WatchForStalledCar(carIndex, state, car, dt)
     state.stillTime = (state.stillTime or 0.0) + dt
   else
     state.stillTime = 0.0
+    state.lastNudgeStill = 0.0
     state.recoveryTried = false
     state.recoveryStage = 0
     if state.dropped and (car.speedKmh or 0) > 10.0 then
@@ -405,10 +443,13 @@ local function WatchForStalledCar(carIndex, state, car, dt)
     state.recoveryStage = 2
     NudgeCarForward(carIndex, car, C.ROLLING_START_STALL_NUDGE_MPS)
     U.Log(sFormat("ROLLING: car %d recovery stage 2: forward velocity nudge", carIndex))
-  elseif state.stillTime > 7.5 and stage < 3 then
-    state.recoveryStage = 3
-    TeleportCarForward(carIndex, car, 12.0)
+  elseif state.stillTime - (state.lastNudgeStill or 0.0) > 2.0 then
+    -- Keep nudging every 2 s. No teleport: moving a wedged car 12 m along its heading dropped it
+    -- off the track / onto other cars and CSP then sent it to the pits.
+    state.lastNudgeStill = state.stillTime
+    NudgeCarForward(carIndex, car, C.ROLLING_START_STALL_NUDGE_MPS * 2)
   end
+  if isPlayer then return end
   if (state.stillTime > 17.5 or inPit) and not state.dropped then
     state.dropped = true
     U.Log(sFormat("ROLLING: car %d dropped from formation spacing (stalled/pit)", carIndex))

@@ -27,6 +27,10 @@ local LAST_LAP_IMAGE = "last_lap.png"          -- "Last Lap" (human car on the f
 local alpha = 0.0
 local lastLapAlpha = 0.0
 local lastLapLogged = nil
+local lastLeaderScanAt = 0
+local leaderLapCount = 0
+local leaderFinalLc = nil
+local leaderDoneLc = nil
 local laneAlpha = 0.0
 local laneShown = nil
 local waitAlpha = 0.0
@@ -68,19 +72,39 @@ function M.Draw(dt)
     local side = Draw.GetPlayerLaneSide()
     if side == "LEFT" then laneImage = LANE_LEFT_IMAGE elseif side == "RIGHT" then laneImage = LANE_RIGHT_IMAGE end
   end
-  -- Last-lap notice: stays up from the moment the human car starts the final lap of a race until
-  -- it takes the flag (lap count reaches the race length).
+  -- Last-lap notice: stays up from the moment the human car starts its final lap of a race until
+  -- it takes the flag. A car on the lead lap starts its final lap with lap count totalLaps-1. A
+  -- lapped car never gets there, so for it the final lap starts at its first line crossing after
+  -- the overall leader began the leader's own final lap, and ends at its first crossing after the
+  -- leader has finished.
   local lastLap = false
   local totalLaps = S.liveTotalLaps or 0
   if S.liveSessionType == "race" and totalLaps > 0 and not startLive then
     local okCar, car = pcall(ac.getCar, 0)
     local lc = okCar and car and car.lapCount or nil
     if type(lc) == "number" then
+      local nowClock = os.clock()
+      if nowClock - lastLeaderScanAt > 0.5 then
+        lastLeaderScanAt = nowClock
+        local best = 0
+        for i = 0, (S.driverCount or 1) - 1 do
+          local okOther, other = pcall(ac.getCar, i)
+          local olc = okOther and other and other.lapCount or nil
+          if type(olc) == "number" and olc > best then best = olc end
+        end
+        leaderLapCount = best
+      end
+      if lc < (lastLapLogged or 0) then leaderFinalLc, leaderDoneLc = nil, nil end   -- new session
+      if leaderLapCount < totalLaps - 1 then leaderFinalLc, leaderDoneLc = nil, nil end
+      if leaderLapCount >= totalLaps - 1 and leaderFinalLc == nil then leaderFinalLc = lc end
+      if leaderLapCount >= totalLaps and leaderDoneLc == nil then leaderDoneLc = lc end
       if lc ~= lastLapLogged then
         lastLapLogged = lc
-        pcall(U.Log, string.format("LASTLAP: player lapCount=%d totalLaps=%d", lc, totalLaps))
+        pcall(U.Log, string.format("LASTLAP: player lapCount=%d totalLaps=%d leaderLapCount=%d", lc, totalLaps, leaderLapCount))
       end
-      lastLap = lc >= totalLaps - 1 and lc < totalLaps
+      local onFinalLap = lc >= totalLaps - 1 or (leaderFinalLc ~= nil and lc > leaderFinalLc)
+      local finished = lc >= totalLaps or (leaderDoneLc ~= nil and lc > leaderDoneLc)
+      lastLap = onFinalLap and not finished
     end
   end
   lastLap = lastLap and not showing and not manual

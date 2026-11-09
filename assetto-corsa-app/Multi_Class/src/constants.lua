@@ -63,9 +63,14 @@ C.ROLLING_START_CATCHUP_LIMIT       = 1.5
 -- double-file zone, so the class is not still strung out when it stacks into columns. The boost
 -- starts only beyond MIN_GAP metres and eases back to 1.0 by FULL_GAP, keeping it gentle enough
 -- that a follower never overshoots into hard braking.
-C.ROLLING_START_PHASE1_CATCHUP      = 1.15
+C.ROLLING_START_PHASE1_CATCHUP      = 1.3
 C.ROLLING_START_PHASE1_MIN_GAP      = 10.0
-C.ROLLING_START_PHASE1_FULL_GAP     = 80.0
+-- Single-file leaders wait for the car behind: once the nearest moving car behind is further than
+-- BEHIND_START_GAP metres the car slows, down to BEHIND_MIN_SPEED at BEHIND_FULL_GAP metres.
+C.ROLLING_START_PHASE1_BEHIND_START_GAP = 40.0
+C.ROLLING_START_PHASE1_BEHIND_FULL_GAP  = 150.0
+C.ROLLING_START_PHASE1_BEHIND_MIN_SPEED = 35.0
+C.ROLLING_START_PHASE1_FULL_GAP     = 120.0
 -- Inside PHASE1_MIN_GAP the follower runs below the car ahead's speed, by GAP_GAIN km/h for every
 -- metre it is short of the gap (capped at YIELD_KMH once alongside or past). Aiming at the ahead
 -- car's speed or above let a slightly faster car creep alongside and pass, so the class reached
@@ -99,9 +104,9 @@ C.ROLLING_START_CAR_SECONDS         = 0.7
 -- playback-rate trim used to stay in sync.
 C.ROLLING_MUSIC_END_LEAD_SECONDS = 6.0
 C.ROLLING_MUSIC_RATE_RANGE       = 0.04
-C.ROLLING_START_RELEASE_MOVED_METERS     = 10
-C.ROLLING_START_RELEASE_MOVED_KMH        = 20
-C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 10.0
+C.ROLLING_START_RELEASE_MOVED_METERS     = 7
+C.ROLLING_START_RELEASE_MOVED_KMH        = 15
+C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 4.0
 -- A reference car that has been crawling this long (stall watcher time) is skipped by the release
 -- gate, so a stalled car does not hold the whole queue behind it.
 C.ROLLING_START_RELEASE_STALL_SKIP_SECONDS = 1.0
@@ -125,7 +130,7 @@ C.ROLLING_START_GATE_RELAX_END_SECONDS   = 14.0
 -- along at 5-15 km/h, and the next car (released 0.7 s later) is then let out on top of it, which
 -- makes its AI refuse to accelerate. That is how a single bad launch turns into a chain of stopped
 -- cars. Starting at 45 km/h and half throttle gets every car properly rolling within a second.
-C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 4.0
+C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 6.0
 C.ROLLING_START_LAUNCH_THROTTLE_START    = 0.45
 C.ROLLING_START_LAUNCH_SPEED_START_KMH   = 45
 C.ROLLING_START_LAUNCH_LANE_SCALE        = 0.5
