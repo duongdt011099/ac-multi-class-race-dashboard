@@ -2318,3 +2318,156 @@ a.wec-modal__btn {
 }
 
 .wec-drivers__random--livery { width: 44px; }
+
+/* Race length: Laps | Time cards. Dark panel inside the light form; spans the whole form width. */
+.wec-race-mode {
+    grid-column: 1 / -1;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+
+.wec-race-mode legend {
+    padding: 0;
+    margin-bottom: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #71717a;
+}
+
+.wec-race-mode__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+.wec-race-mode__opt {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #2a2a32;
+    border-radius: 8px;
+    background: #0c0c10;
+    color: #e4e4e7;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.wec-race-mode__opt--active {
+    border-color: #e10600;
+    box-shadow: 0 0 0 1px #e10600, 0 6px 18px rgba(225, 6, 0, 0.18);
+}
+
+.wec-race-mode__head {
+    display: flex !important;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 !important;
+    padding: 0.7rem 0.9rem;
+    background: #1b1b21;
+    border-bottom: 1px solid #2a2a32;
+    font-size: 0.8rem !important;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #a1a1aa !important;
+    cursor: pointer;
+}
+
+.wec-race-mode__opt--active .wec-race-mode__head {
+    background: #e10600;
+    border-bottom-color: #e10600;
+    color: #fff !important;
+}
+
+.wec-race-mode__head input[type="radio"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: #fff;
+}
+
+.wec-race-mode__body {
+    flex: 1;
+    padding: 0.9rem;
+}
+
+.wec-race-mode__body label {
+    color: #a1a1aa;
+}
+
+.wec-race-mode__body strong {
+    color: #fafafa;
+}
+
+.wec-race-mode__body .wec-text-muted {
+    color: #8b8b94;
+    margin-top: 0.4rem;
+}
+
+.wec-race-mode__opt:not(.wec-race-mode__opt--active) .wec-race-mode__body {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.wec-race-mode input[type="range"] {
+    width: 100%;
+    accent-color: #e10600;
+}
+
+.wec-timed-presets {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin: 0.4rem 0 0.7rem;
+}
+
+.wec-timed-chip {
+    padding: 0.4rem 0;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    background: #27272a;
+    color: #e4e4e7;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.wec-timed-chip:hover:not(:disabled) {
+    border-color: #e10600;
+}
+
+.wec-timed-chip--active {
+    background: #e10600;
+    border-color: #e10600;
+    color: #fff;
+}
+
+.wec-timed-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #a1a1aa;
+    font-size: 0.85rem;
+}
+
+.wec-race-mode select {
+    width: 4.5rem !important;
+    padding: 0.4rem 0.5rem !important;
+    border: 1px solid #3f3f46 !important;
+    border-radius: 6px;
+    background: #27272a !important;
+    color: #fafafa !important;
+}
+
+.wec-race-mode select:disabled {
+    opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+    .wec-race-mode__grid {
+        grid-template-columns: 1fr;
+    }
+}

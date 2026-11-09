@@ -15,6 +15,7 @@ S.storedSettings = ac.storage({
   yellowFlagEnabled = true,
   autopilotEnabled = true,
   blueFlagEnabled = true,
+  autoExitAfterRace = true,
 })
 
 -- Grid / session tracking
@@ -60,6 +61,9 @@ S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
 S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
 S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
+S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
+-- os.clock() time at which the game is shut down after a finished race (nil = not scheduled).
+S.raceExitAt          = nil
 -- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
 S.blueCars            = {}
 if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
@@ -106,6 +110,13 @@ S.liveSessionTimeLeft       = nil
 S.liveSessionHadCountdown   = false
 S.finishedRacePositions     = {}
 S.liveRollingStartLapOffset = 0
+
+-- Timed race (see timed_race.lua)
+S.timedRaceMinutes   = 0       -- 0 = ordinary lap-limited race
+S.timedRaceSeconds   = 0.0     -- race clock, running from the green flag
+S.timedRaceTimeUp    = false
+S.timedFinishLaps    = nil     -- AC lap count at which the race ends, known once the time is up
+S.timedRaceComplete  = false
 
 -- Rolling start
 S.rollingStartState          = "idle"

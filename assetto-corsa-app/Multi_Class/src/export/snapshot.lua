@@ -3,6 +3,7 @@ local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
+local TimedRace = require("src/timed_race")
 
 local Snap = {}
 
@@ -178,7 +179,8 @@ local function readSessionLaps(sim)
       if okLaps and type(sessionLaps) == "number" and sessionLaps > 0 then laps = sessionLaps end
     end
   end
-  return laps
+  -- A timed race is 999 laps for AC; the real distance is only known once the time is up.
+  return TimedRace.TotalLaps(laps)
 end
 
 local function captureTimeLeft(sim)

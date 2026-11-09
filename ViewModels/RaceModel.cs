@@ -28,6 +28,8 @@ public class RaceModel
 
     public int? RaceDuration { get; set; }
 
+    public int? TimedRaceMinutes { get; set; }
+
     public int? PracticeSessionMinutes { get; set; }
 
     public int? QualifyingSessionMinutes { get; set; }

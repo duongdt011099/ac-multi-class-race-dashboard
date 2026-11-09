@@ -41,25 +41,60 @@
                        Options="LayoutSelectOptions" EmptyLabel="@LayoutEmptyLabel" />
         </div>
 
-        <div class="wec-form-field">
-            <label for="race-laps">Laps: <strong>@(Race.NumberOfLaps ?? 0)</strong></label>
-            <input id="race-laps" type="range" min="1" max="120" step="1"
-                   title="Number of laps (1–120). The label and estimated time update live as you drag."
-                   value="@(Race.NumberOfLaps ?? 10)" @oninput="HandleLapsChanged" />
+        <fieldset class="wec-race-mode" title="Assetto Corsa only supports lap-limited races, so a timed race is run by the app: it ends on the leader's final lap once the time is up.">
+            <legend>Race length</legend>
+            <div class="wec-race-mode__grid">
+                <div class="wec-race-mode__opt @(IsTimedRace ? "" : "wec-race-mode__opt--active")">
+                    <label class="wec-race-mode__head" for="race-mode-laps">
+                        <input id="race-mode-laps" type="radio" name="race-mode" checked="@(!IsTimedRace)" @onchange="() => SetRaceMode(false)" />
+                        <span>Laps</span>
+                    </label>
+                    <div class="wec-race-mode__body">
+                        <label for="race-laps">Laps: <strong>@(Race.NumberOfLaps ?? 0)</strong></label>
+                        <input id="race-laps" type="range" min="1" max="120" step="1" disabled="@IsTimedRace"
+                               title="Number of laps (1–120). The label and estimated time update live as you drag."
+                               value="@(Race.NumberOfLaps ?? 10)" @oninput="HandleLapsChanged" />
+                        <div class="wec-text-muted">
+                            @if (EstimatedSeconds is { } seconds)
+                            {
+                                <span>Estimated race time: @RaceFormat.FormatDuration(seconds)</span>
+                            }
+                            else
+                            {
+                                <span>No lap data recorded for this track yet. Complete a lap in-game to enable the estimate.</span>
+                            }
+                        </div>
+                    </div>
+                </div>
 
-            <div class="wec-text-muted">
-                @if (EstimatedSeconds is { } seconds)
-                {
-                    <span>
-                        Estimated race time: @RaceFormat.FormatDuration(seconds)
-                    </span>
-                }
-                else
-                {
-                    <span>No lap data recorded for this track yet. Complete a lap in-game to enable the estimate.</span>
-                }
+                <div class="wec-race-mode__opt @(IsTimedRace ? "wec-race-mode__opt--active" : "")">
+                    <label class="wec-race-mode__head" for="race-mode-time">
+                        <input id="race-mode-time" type="radio" name="race-mode" checked="@IsTimedRace" @onchange="() => SetRaceMode(true)" />
+                        <span>Time</span>
+                    </label>
+                    <div class="wec-race-mode__body">
+                        <label>Race time: <strong>@(IsTimedRace ? RaceFormat.FormatDuration((Race.TimedRaceMinutes ?? 0) * 60) : "-")</strong></label>
+                        <div class="wec-timed-presets">
+                            @foreach (var preset in TimedPresetMinutes)
+                            {
+                                <button type="button" disabled="@(!IsTimedRace)"
+                                        class="wec-timed-chip @(Race.TimedRaceMinutes == preset ? "wec-timed-chip--active" : "")"
+                                        @onclick="() => SetTimedMinutes(preset)">@FormatPreset(preset)</button>
+                            }
+                        </div>
+                        <div class="wec-timed-custom">
+                            <AppSelect Id="race-timed-hours" Value="@TimedHours.ToString()" ValueChanged="HandleTimedHoursChanged"
+                                       Options="HourOptions" Disabled="@(!IsTimedRace)" />
+                            <span>h</span>
+                            <AppSelect Id="race-timed-minutes" Value="@TimedMinutePart.ToString()" ValueChanged="HandleTimedMinutePartChanged"
+                                       Options="MinuteOptions" Disabled="@(!IsTimedRace || TimedHours >= 24)" />
+                            <span>min</span>
+                        </div>
+                        <div class="wec-text-muted">Between 5 minutes and 24 hours.</div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </fieldset>
 
         <div class="wec-form-field">
             <label for="race-point-setting">Point Setting</label>
@@ -261,6 +296,44 @@
                 string.IsNullOrWhiteSpace(Race.TrackLayout) ? null : Race.TrackLayout);
     }
 
+    private static readonly int[] TimedPresetMinutes = { 30, 60, 120, 180, 360, 720, 1440 };
+
+    private static string FormatPreset(int minutes) => minutes < 60 ? $"{minutes} min" : $"{minutes / 60} h";
+
+    private static readonly IEnumerable<SelectOption> HourOptions =
+        Enumerable.Range(0, 25).Select(h => new SelectOption(h.ToString(), $"{h}")).ToList();
+
+    private static readonly IEnumerable<SelectOption> MinuteOptions =
+        Enumerable.Range(0, 12).Select(i => new SelectOption((i * 5).ToString(), $"{i * 5:00}")).ToList();
+
+    private int TimedHours => (Race.TimedRaceMinutes ?? 0) / 60;
+
+    private int TimedMinutePart => (Race.TimedRaceMinutes ?? 0) % 60;
+
+    private void SetTimedMinutes(int minutes)
+        => Race.TimedRaceMinutes = Math.Clamp(minutes, RaceFormRules.MinTimedRaceMinutes, RaceFormRules.MaxTimedRaceMinutes);
+
+    private void HandleTimedHoursChanged(string value)
+        => SetTimedMinutes((int.TryParse(value, out var h) ? h : 0) * 60 + TimedMinutePart);
+
+    private void HandleTimedMinutePartChanged(string value)
+        => SetTimedMinutes(TimedHours * 60 + (int.TryParse(value, out var m) ? m : 0));
+
+    private bool IsTimedRace => Race.TimedRaceMinutes is > 0;
+
+    private void SetRaceMode(bool timed)
+    {
+        if (timed)
+        {
+            Race.TimedRaceMinutes = Race.TimedRaceMinutes is > 0 ? Race.TimedRaceMinutes : 60;
+        }
+        else
+        {
+            Race.TimedRaceMinutes = null;
+            Race.NumberOfLaps ??= 10;
+        }
+    }
+
     private void HandleLapsChanged(ChangeEventArgs e)
     {
         Race.NumberOfLaps = int.TryParse(e.Value?.ToString(), out var laps) ? laps : null;
@@ -293,7 +366,7 @@
 
         Race.PracticeSessionMinutes = PracticeMinutes;
         Race.QualifyingSessionMinutes = QualifyingMinutes;
-        Race.RaceDuration = EstimatedSeconds;
+        Race.RaceDuration = IsTimedRace ? Race.TimedRaceMinutes * 60 : EstimatedSeconds;
 
         await OnSave.InvokeAsync();
     }

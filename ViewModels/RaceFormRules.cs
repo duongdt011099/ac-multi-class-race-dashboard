@@ -9,6 +9,14 @@ public static class RaceFormRules
 
     public const int MaxQualifyingMinutes = 90;
 
+    public const int MinTimedRaceMinutes = 5;
+
+    public const int MaxTimedRaceMinutes = 24 * 60;
+
+    /// <summary>Null (or zero) means a lap-limited race; otherwise the length is kept within 5 minutes – 24 hours.</summary>
+    public static int? NormalizeTimedRaceMinutes(int? minutes)
+        => minutes is > 0 ? Math.Clamp(minutes.Value, MinTimedRaceMinutes, MaxTimedRaceMinutes) : null;
+
     /// <summary>A blank layout id is the track's default configuration.</summary>
     public static bool HasDefaultLayout(IReadOnlyCollection<TrackLayoutOptionModel> layouts)
         => layouts.Any(layout => string.IsNullOrWhiteSpace(layout.LayoutId));
@@ -52,6 +60,11 @@ public static class RaceFormRules
         if (RequiresLayout(layouts) && string.IsNullOrWhiteSpace(form.TrackLayout))
         {
             return "Select a track layout.";
+        }
+
+        if (form.TimedRaceMinutes is { } timed && (timed < MinTimedRaceMinutes || timed > MaxTimedRaceMinutes))
+        {
+            return $"A timed race must last between {MinTimedRaceMinutes} minutes and 24 hours.";
         }
 
         if (form.PointSettingId == Guid.Empty)

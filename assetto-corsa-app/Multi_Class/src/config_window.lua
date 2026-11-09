@@ -20,12 +20,11 @@ local Draw = require("src/leaderboard/draw")
 
 local CARD_MARGIN = 24      -- gap between the window edge and the cards (the panel padding)
 local CARD_PAD_TOP = 34     -- room for the section title inside a card
-local ACCENT_BLUE = rgbm(0.40, 0.68, 1.0, 1)
-local ACCENT_GREEN = rgbm(0.30, 0.90, 0.45, 1)
-local ACCENT_AMBER = rgbm(1.0, 0.72, 0.28, 1)
-local ACCENT_PURPLE = rgbm(0.72, 0.55, 1.0, 1)
-local ACCENT_CYAN = rgbm(0.35, 0.90, 0.95, 1)
-local ACCENT_RED = rgbm(1.0, 0.45, 0.40, 1)
+-- Dashboard palette: near-black surfaces, hairline borders and a single red accent.
+local ACCENT_BLUE = rgbm(1.0, 0.18, 0.14, 1)   -- the dashboard red (name kept; it is the main accent)
+local SURFACE = rgbm(0.067, 0.067, 0.082, 1)
+local SURFACE_BORDER = rgbm(0.165, 0.165, 0.196, 1)
+local TITLE_TEXT = rgbm(0.78, 0.78, 0.81, 1)
 
 -- Card heights measured on the previous frame (a card is drawn before its content, so it needs
 -- last frame's height; the one-frame lag is not visible).
@@ -33,8 +32,8 @@ local sectionHeights = {}
 
 local function drawBackgroundAndTitle(w, h)
   -- Main panel: square, inset from the window edge, with a hairline border.
-  ui.drawRectFilled(vec2(6, 6), vec2(w - 6, h - 6), rgbm(0.03, 0.04, 0.06, 0.94), 0)
-  ui.drawRect(vec2(6, 6), vec2(w - 6, h - 6), rgbm(1, 1, 1, 0.10), 0, nil, 1)
+  ui.drawRectFilled(vec2(6, 6), vec2(w - 6, h - 6), rgbm(0.027, 0.027, 0.031, 0.97), 0)
+  ui.drawRect(vec2(6, 6), vec2(w - 6, h - 6), SURFACE_BORDER, 0, nil, 1)
 
   ui.pushFont(ui.Font.Title)
   local titleText = "Multiple Class Race"
@@ -57,61 +56,113 @@ local function drawBackgroundAndTitle(w, h)
   return barY + 20
 end
 
--- Column layout for the current frame: cards are dropped into the shortest column.
-local layout = { cols = 1, cardW = 0, ys = {}, baseX = 0 }
+-- Grid layout for the current frame: the cards are laid out in rows of `cols` cards, and every
+-- card of a row is as tall as the tallest card in that row.
+local layout = { cols = 1, cardW = 0, baseX = 0 }
 local MIN_CARD_W = 300
 local COL_GAP = 14
+local ROW_GAP = 14
 
-local function beginColumns(w, top)
+local function beginColumns(w)
   local cols = math.floor((w - 2 * CARD_MARGIN + COL_GAP) / (MIN_CARD_W + COL_GAP))
   layout.cols = math.max(1, math.min(3, cols))
   layout.cardW = (w - 2 * CARD_MARGIN - (layout.cols - 1) * COL_GAP) / layout.cols
-  layout.ys = {}
-  for c = 1, layout.cols do layout.ys[c] = top end
 end
 
--- Draws one titled card around the content produced by fn.
--- matchKey (optional): never be shorter than that section, so side-by-side cards line up.
-local function section(key, title, accent, fn, matchKey)
-  local c = 1
-  for i = 2, layout.cols do
-    if layout.ys[i] < layout.ys[c] - 0.5 then c = i end
-  end
-  local y0 = layout.ys[c]
-  local x1 = CARD_MARGIN + (c - 1) * (layout.cardW + COL_GAP)
+-- Draws one titled card (x1..x2, y0..y0+height) around the content produced by fn, and returns the
+-- height its content actually needed.
+local function drawSection(sec, x1, y0, height)
   local x2 = x1 + layout.cardW
-  local height = math.max(sectionHeights[key] or 80, matchKey and sectionHeights[matchKey] or 0)
-  Draw.DrawCard(x1, y0, x2, y0 + height)
+  Draw.DrawCard(x1, y0, x2, y0 + height, SURFACE)
+  ui.drawRect(vec2(x1, y0), vec2(x2, y0 + height), SURFACE_BORDER, 6, nil, 1)
+  -- Accent strip across the top edge, like the dashboard cards.
+  ui.drawRectFilled(vec2(x1, y0), vec2(x2, y0 + 3), ACCENT_BLUE, 6, ui.CornerFlags and ui.CornerFlags.Top)
 
   colX = x1 + 12
   ui.pushFont(ui.Font.Small)
-  ui.setCursor(vec2(colX + 2, y0 + 11))
-  ui.textColored(title, Draw.WithAlpha(accent, 0.95))
+  ui.setCursor(vec2(colX + 2, y0 + 12))
+  ui.textColored(string.upper(sec.title), TITLE_TEXT)
   ui.popFont()
+  ui.drawLine(vec2(x1 + 12, y0 + 31), vec2(x2 - 12, y0 + 31), SURFACE_BORDER, 1)
 
   -- Line breaks inside the card return to the indent, so move it to this column.
   local indent = colX - layout.baseX
   if indent > 0 then ui.indent(indent) else indent = 0 end
-  ui.setCursor(vec2(colX, y0 + CARD_PAD_TOP))
+  ui.setCursor(vec2(colX, y0 + CARD_PAD_TOP + 4))
   local wrapped = type(ui.pushTextWrapPos) == "function" and type(ui.popTextWrapPos) == "function"
   if wrapped then ui.pushTextWrapPos(x2 - 12) end
   layout.innerW = layout.cardW - 24
-  fn(layout.cardW + 24)   -- the section functions size full-width controls as (w - 48)
+  sec.fn(layout.cardW + 24)   -- the section functions size full-width controls as (w - 48)
   if wrapped then ui.popTextWrapPos() end
   if indent > 0 then ui.unindent(indent) end
 
   local used = ui.getCursor().y - y0
-  sectionHeights[key] = used
-  layout.ys[c] = y0 + math.max(used, matchKey and sectionHeights[matchKey] or 0) + 12
+  sectionHeights[sec.key] = used
+  return used
+end
+
+-- Lays the sections out in rows. A card is drawn before its content, so the shared row height comes
+-- from the heights measured on the previous frame. Returns the y below the last row.
+local function drawSections(sections, top)
+  local y = top
+  local i = 1
+  while i <= #sections do
+    local last = math.min(#sections, i + layout.cols - 1)
+    local rowHeight = 80
+    for j = i, last do
+      rowHeight = math.max(rowHeight, sectionHeights[sections[j].key] or 0)
+    end
+    local measured = 0
+    for j = i, last do
+      local x1 = CARD_MARGIN + (j - i) * (layout.cardW + COL_GAP)
+      measured = math.max(measured, drawSection(sections[j], x1, y, rowHeight))
+    end
+    y = y + math.max(rowHeight, measured) + ROW_GAP
+    i = last + 1
+  end
+  return y
+end
+
+-- Splits text into lines no wider than maxW, breaking at spaces and, for a word that is too long on
+-- its own (such as a path), inside the word. Measured with the current font.
+local function wrapLines(text, maxW)
+  local lines, line = {}, ""
+  local function flush() if line ~= "" then lines[#lines + 1] = line; line = "" end end
+  for word in tostring(text):gmatch("%S+") do
+    local candidate = (line == "") and word or (line .. " " .. word)
+    if ui.measureText(candidate).x <= maxW then
+      line = candidate
+    else
+      flush()
+      while ui.measureText(word).x > maxW and #word > 1 do
+        local cut = #word - 1
+        while cut > 1 and ui.measureText(word:sub(1, cut)).x > maxW do cut = cut - 1 end
+        lines[#lines + 1] = word:sub(1, cut)
+        word = word:sub(cut + 1)
+      end
+      line = word
+    end
+  end
+  flush()
+  if #lines == 0 then lines[1] = "" end
+  return lines
 end
 
 -- Checkbox whose label wraps inside the card instead of running past its edge. Returns true when
--- the box (or its label) was clicked, like ui.checkbox.
+-- the box (or its label) was clicked, like ui.checkbox. The label is wrapped by hand: the later
+-- lines line up under the first one, next to the box.
 local function checkRow(label, value)
   local clicked = ui.checkbox("##" .. label, value)
   ui.sameLine()
-  ui.textWrapped(label)
+  local textX = ui.getCursor().x
+  local maxW = math.max(60, (layout.innerW or 240) - (textX - colX))
+  local lines = wrapLines(label, maxW)
+  ui.text(lines[1])
   if type(ui.itemClicked) == "function" and ui.itemClicked() then clicked = true end
+  for i = 2, #lines do
+    ui.setCursor(vec2(textX, ui.getCursor().y))
+    ui.text(lines[i])
+  end
   return clicked
 end
 
@@ -120,10 +171,10 @@ local function pushModernStyle()
   local colours = {
     { "FrameBg", rgbm(1, 1, 1, 0.06) }, { "FrameBgHovered", rgbm(1, 1, 1, 0.12) },
     { "FrameBgActive", rgbm(1, 1, 1, 0.16) },
-    { "Button", rgbm(0.40, 0.68, 1.0, 0.22) }, { "ButtonHovered", rgbm(0.40, 0.68, 1.0, 0.40) },
-    { "ButtonActive", rgbm(0.40, 0.68, 1.0, 0.60) },
+    { "Button", rgbm(1.0, 0.18, 0.14, 0.30) }, { "ButtonHovered", rgbm(1.0, 0.18, 0.14, 0.55) },
+    { "ButtonActive", rgbm(1.0, 0.18, 0.14, 0.80) },
     { "CheckMark", ACCENT_BLUE },
-    { "Header", rgbm(0.40, 0.68, 1.0, 0.25) }, { "HeaderHovered", rgbm(0.40, 0.68, 1.0, 0.40) },
+    { "Header", rgbm(1.0, 0.18, 0.14, 0.25) }, { "HeaderHovered", rgbm(1.0, 0.18, 0.14, 0.40) },
   }
   local pushed = 0
   for _, entry in ipairs(colours) do
@@ -164,26 +215,7 @@ end
 -- Draws text wrapped to the card's inner width. Breaks at spaces, and inside a word that is too
 -- long on its own (such as a folder path), so nothing runs into the next column.
 local function drawWrapped(text, color)
-  local maxW = layout.innerW or 240
-  local lines, line = {}, ""
-  local function flush() if line ~= "" then lines[#lines + 1] = line; line = "" end end
-  for word in tostring(text):gmatch("%S+") do
-    local candidate = (line == "") and word or (line .. " " .. word)
-    if ui.measureText(candidate).x <= maxW then
-      line = candidate
-    else
-      flush()
-      while ui.measureText(word).x > maxW and #word > 1 do
-        local cut = #word - 1
-        while cut > 1 and ui.measureText(word:sub(1, cut)).x > maxW do cut = cut - 1 end
-        lines[#lines + 1] = word:sub(1, cut)
-        word = word:sub(cut + 1)
-      end
-      line = word
-    end
-  end
-  flush()
-  for _, l in ipairs(lines) do
+  for _, l in ipairs(wrapLines(text, layout.innerW or 240)) do
     if color then ui.textColored(l, color) else ui.text(l) end
   end
 end
@@ -301,6 +333,18 @@ local function drawAutopilotSection(w)
   ui.dummy(vec2(0, 8))
 end
 
+local function drawGeneralSection(w)
+  if checkRow("Close the game 5 seconds after the race result is saved", S.autoExitAfterRace) then
+    S.autoExitAfterRace = not S.autoExitAfterRace
+    S.storedSettings.autoExitAfterRace = S.autoExitAfterRace
+    if not S.autoExitAfterRace then S.raceExitAt = nil end
+  end
+  if ui.itemHovered() then
+    ui.setTooltip("After a race finishes and its result is saved, a banner counts down and Assetto Corsa closes.")
+  end
+  ui.dummy(vec2(0, 8))
+end
+
 local function drawYellowFlagSection(w)
   if checkRow("Full course yellow when a car stops on track", S.yellowFlagEnabled) then
     S.yellowFlagEnabled = not S.yellowFlagEnabled
@@ -338,7 +382,7 @@ end
 
 local function drawAddClassControls(w)
   ui.setCursor(vec2(colX, ui.getCursor().y))
-  ui.text("Add Class (auto-assign by car tag):")
+  drawWrapped("Add Class (auto-assign by car tag):")
   ui.setCursor(vec2(colX, ui.getCursor().y + 4))
   ui.pushItemWidth(w - 48)
   local options = availableClassOptions()
@@ -378,7 +422,7 @@ local function drawClassAddError()
   if S.classAddError then
     ui.setCursor(vec2(colX, ui.getCursor().y + 8))
     ui.pushFont(ui.Font.Small)
-    ui.textColored(S.classAddError, rgbm.colors.red)
+    drawWrapped(S.classAddError, rgbm.colors.red)
     ui.popFont()
   end
 end
@@ -395,7 +439,7 @@ local function drawClassRow(ci)
     end
   end
   ui.setCursor(vec2(colX + 8, ui.getCursor().y + 2))
-  ui.text(sFormat("%s (%d car%s)", clsName, count, count == 1 and "" or "s"))
+  drawWrapped(sFormat("%s (%d car%s)", clsName, count, count == 1 and "" or "s"))
   if count > 0 then
     if ui.itemHovered() then
       ui.setTooltip("Cars: " .. table.concat(carList, ", "))
@@ -445,7 +489,7 @@ end
 local function drawUnsupportedMessage(w, err)
   ui.setCursor(vec2(colX, ui.getCursor().y))
   ui.pushItemWidth(w - 48)
-  ui.textWrapped(err or "Class-based mode cannot be enabled under current conditions!")
+  drawWrapped(err or "Class-based mode cannot be enabled under current conditions!")
   ui.popItemWidth()
   ui.dummy(vec2(0, 8))
 end
@@ -462,24 +506,23 @@ function Config.Draw()
   local pushedColours = pushModernStyle()
 
   local top = drawBackgroundAndTitle(w, h)
-  beginColumns(w, top)
+  beginColumns(w)
 
-  section("race", "RACE MODE", ACCENT_GREEN, drawEnduranceSection)
-
+  local sections = { { key = "race", title = "Race mode", fn = drawEnduranceSection } }
   if S.enduranceEnabled then
-    section("results", "SESSION RESULTS", ACCENT_BLUE, drawResultExportSection, "race")
-    section("music", "MUSIC", ACCENT_PURPLE, drawMusicSection)
-    section("autopilot", "AUTOPILOT", ACCENT_CYAN, drawAutopilotSection)
-    section("flags", "FLAGS", ACCENT_AMBER, drawYellowFlagSection)
-
+    sections[#sections + 1] = { key = "results", title = "Session results", fn = drawResultExportSection }
+    sections[#sections + 1] = { key = "general", title = "General", fn = drawGeneralSection }
+    sections[#sections + 1] = { key = "music", title = "Music", fn = drawMusicSection }
+    sections[#sections + 1] = { key = "autopilot", title = "Autopilot", fn = drawAutopilotSection }
+    sections[#sections + 1] = { key = "flags", title = "Flags", fn = drawYellowFlagSection }
     if not valid then
-      section("notice", "NOTICE", ACCENT_RED, function(width) drawUnsupportedMessage(width, err) end)
+      sections[#sections + 1] = { key = "notice", title = "Notice",
+        fn = function(width) drawUnsupportedMessage(width, err) end }
     end
   end
 
-  -- Reserve the room below the tallest column so the auto-sized window includes it.
-  local bottom = top
-  for c = 1, layout.cols do bottom = math.max(bottom, layout.ys[c]) end
+  -- Reserve the room below the last row so the auto-sized window includes it.
+  local bottom = drawSections(sections, top)
   ui.setCursor(vec2(layout.baseX, bottom))
   ui.dummy(vec2(1, 14))
 

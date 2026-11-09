@@ -113,6 +113,7 @@ public class RaceService : IRaceService
             TrackLayout = NormalizeNullable(model.TrackLayout),
             NumberOfLaps = model.NumberOfLaps,
             RaceDuration = model.RaceDuration,
+            TimedRaceMinutes = RaceFormRules.NormalizeTimedRaceMinutes(model.TimedRaceMinutes),
             PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0),
             QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5),
             PointSettingId = pointSetting.SettingId,
@@ -146,6 +147,7 @@ public class RaceService : IRaceService
         race.TrackLayout = NormalizeNullable(model.TrackLayout);
         race.NumberOfLaps = model.NumberOfLaps;
         race.RaceDuration = model.RaceDuration;
+        race.TimedRaceMinutes = RaceFormRules.NormalizeTimedRaceMinutes(model.TimedRaceMinutes);
         race.PracticeSessionMinutes = NormalizeSessionMinutes(model.PracticeSessionMinutes, min: 0);
         race.QualifyingSessionMinutes = NormalizeSessionMinutes(model.QualifyingSessionMinutes, min: 5);
 

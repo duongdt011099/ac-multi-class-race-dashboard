@@ -451,6 +451,9 @@ namespace multi_class_race_dashboard.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("TimedRaceMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TrackLayout")
                         .HasColumnType("TEXT");
 

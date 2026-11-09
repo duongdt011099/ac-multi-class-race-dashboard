@@ -1730,3 +1730,28 @@ img.is-error {
     background: #ffc83d;
 }
 .wec-season-banner--warn { border-color: rgba(255, 200, 61, 0.55); background: rgba(255, 200, 61, 0.1); color: #ffd96b; }
+
+/* ---------- Modal layout: fixed top bar, header and footer; only the body scrolls ---------- */
+.wec-modal {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.wec-modal::before {
+    position: static;
+    flex: none;
+}
+.wec-modal__header,
+.wec-modal__footer {
+    flex: none;
+    background: transparent;
+}
+.wec-modal__footer {
+    background: var(--wec-surface);
+    box-shadow: 0 -8px 14px -10px rgba(0, 0, 0, 0.7);
+}
+.wec-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}

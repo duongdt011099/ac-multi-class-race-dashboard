@@ -6,6 +6,7 @@ local Sess = require("src/session")
 local Snap = require("src/export/snapshot")
 local Json = require("src/export/json")
 local Writer = require("src/export/writer")
+local TimedRace = require("src/timed_race")
 
 local Exporter = {}
 
@@ -69,10 +70,15 @@ local function onWriteSucceeded(sessionType, sessionKey, fileName, targetPath, s
     os.date("%H:%M:%S"),
     sessionType,
     fileName)
-  -- Shown as a banner image (see green_lights.lua) and as a toast.
+  -- Shown as a banner image (see green_lights.lua).
   if not silent then
-    S.resultSavedBannerUntil = os.clock() + 4.0
-    ui.toast(ui.Icons.Play, "Session result saved")
+    if sessionType == C.SUBFOLDER_RACE then
+      -- A finished race gets its own banner (green_lights.lua), which stays up until the next session.
+      S.raceFinishedBanner = true
+      if S.autoExitAfterRace then S.raceExitAt = os.clock() + C.AUTO_EXIT_DELAY_SECONDS end
+    else
+      S.resultSavedBannerUntil = os.clock() + 4.0
+    end
   end
   U.Log("EXPORT: wrote " .. targetPath)
 end
@@ -132,7 +138,30 @@ end
 function Exporter.ResetResultExport()
   S.exportedSessionKey = nil
   S.nextExportRetryAt = 0
+  S.raceFinishedBanner = false
+  S.raceExitAt = nil
   Snap.ClearLiveSession()
+end
+
+-- Shuts the game down once the countdown that follows a saved race result has run out.
+function Exporter.UpdateAutoExit()
+  if not S.raceExitAt or os.clock() < S.raceExitAt then return end
+  S.raceExitAt = nil
+  U.Log("EXPORT: race result saved, shutting the game down")
+  -- The regular shutdown can leave acs.exe hanging, and the script may stop running while the game
+  -- closes, so a detached helper ends the process a few seconds later if it is still there. The
+  -- result is already on disk.
+  local okKill, killErr = pcall(os.runConsoleProcess, {
+    filename = "cmd",
+    arguments = { "/c", "ping -n 6 127.0.0.1 >nul & taskkill /F /IM acs.exe" },
+    rawArguments = false,
+    terminateWithScript = false,
+    assignJob = false,
+    timeout = 0,
+  })
+  if not okKill then U.Log("EXPORT: kill helper failed: " .. tostring(killErr)) end
+  local ok, err = pcall(ac.shutdownAssettoCorsa)
+  if not ok then U.Log("EXPORT: shutdown failed: " .. tostring(err)) end
 end
 
 function Exporter.CaptureLiveSessionSafely(sim)
@@ -312,6 +341,9 @@ end
 local function hasEndSignal(sim, sessionSwitched)
   if S.lastSessionStarted == true and sim.isSessionStarted ~= true then return true end
 
+  -- AC never ends a timed race (it is 999 laps there); the timed-race clock decides.
+  if TimedRace.IsComplete() and S.liveSessionType ~= nil then return true end
+
   if sessionSwitched and S.liveSessionType ~= nil and S.liveSessionKey ~= nil
       and Sess.GetCurrentSessionKey(sim) ~= S.liveSessionKey then
     return true
@@ -435,8 +467,7 @@ function Exporter.IsPlayerWaitingForOthers(sim)
   end
 
   if S.liveSessionType == C.SUBFOLDER_RACE then
-    local okSession, session = pcall(ac.getSession, sim.currentSessionIndex)
-    local laps = okSession and session and session.laps or 0
+    local laps = S.liveTotalLaps or 0
     local okCar, car = pcall(ac.getCar, 0)
     if laps > 0 and okCar and car and (car.lapCount or 0) >= laps then return true end
   end

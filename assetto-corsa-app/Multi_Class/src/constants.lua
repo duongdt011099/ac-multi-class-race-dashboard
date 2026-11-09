@@ -6,6 +6,17 @@ C.DEBUG_ENABLED = true
 -- ui.MediaPlayer:setVolume only accepts 0..1 (values above 1 are not amplification), so 1.0 is the loudest.
 C.AUDIO_VOLUME = 1.0
 
+-- Timed race mode (see timed_race.lua). The dashboard enforces the same limits.
+C.TIMED_RACE_MIN_MINUTES = 5
+C.TIMED_RACE_MAX_MINUTES = 24 * 60
+-- After the leader takes the flag the remaining cars get this long to finish; a stuck car must not
+-- hold the result back forever.
+C.TIMED_RACE_FINISH_TIMEOUT_SECONDS = 600
+-- A car that has taken the flag is teleported to the pits after this delay.
+C.TIMED_RACE_PIT_DELAY_SECONDS = 5.0
+-- After a race result is saved the game closes this many seconds later (when the option is on).
+C.AUTO_EXIT_DELAY_SECONDS = 5.0
+
 C.RACE_POS_STABLE_FRAMES = 2
 C.EXPORT_RETRY_SECONDS   = 2
 

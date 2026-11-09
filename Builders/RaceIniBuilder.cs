@@ -1,11 +1,15 @@
 using System.Globalization;
 using System.Text;
 using MulticlassRace.Models;
+using MulticlassRace.ViewModels;
 
 namespace MulticlassRace.Builders;
 
 public sealed class RaceIniBuilder
 {
+    /// <summary>Lap limit written for a timed race so Assetto Corsa never ends it on its own.</summary>
+    public const int TimedRaceLaps = 999;
+
     public string Build(
         Race race,
         SessionType sessionType,
@@ -51,8 +55,14 @@ public sealed class RaceIniBuilder
         builder.Append("FIXED_SETUP=0\r\n");
         builder.Append("PENALTIES=").AppendLine(penalties ? "1" : "0");
         builder.Append("JUMP_START_PENALTY=0\r\n");
-        var raceLaps = (race.NumberOfLaps ?? 0) +
-                       (sessionType == SessionType.Race && rollingStartLapCompensation ? 1 : 0);
+        // A timed race is 999 laps for Assetto Corsa (it has no timed races with a rolling start); the Lua
+        // app runs the clock and ends the race on the leader's final lap.
+        var timedRaceMinutes = sessionType == SessionType.Race
+            ? RaceFormRules.NormalizeTimedRaceMinutes(race.TimedRaceMinutes)
+            : null;
+        var raceLaps = timedRaceMinutes is not null
+            ? TimedRaceLaps
+            : (race.NumberOfLaps ?? 0) + (sessionType == SessionType.Race && rollingStartLapCompensation ? 1 : 0);
         builder.Append("RACE_LAPS=").AppendLine(raceLaps.ToString());
         builder.Append("\r\n");
 
@@ -63,6 +73,10 @@ public sealed class RaceIniBuilder
             // The Lua app reads this custom header value to remove the formation segment from
             // exported race lap counts. Unknown HEADER values are ignored by Assetto Corsa.
             builder.Append("__MCR_ROLLING_START_LAP_OFFSET=1\r\n");
+        }
+        if (timedRaceMinutes is { } minutes)
+        {
+            builder.Append("__MCR_RACE_TIME_MINUTES=").AppendLine(minutes.ToString(CultureInfo.InvariantCulture));
         }
         builder.Append("\r\n");
         builder.Append("[LAP_INVALIDATOR]\r\nALLOWED_TYRES_OUT=-1\r\n\r\n");

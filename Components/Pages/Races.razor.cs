@@ -314,6 +314,7 @@ public partial class Races
             TrackName = race.TrackName,
             TrackLayout = race.TrackLayout,
             NumberOfLaps = race.NumberOfLaps,
+            TimedRaceMinutes = race.TimedRaceMinutes,
             PracticeSessionMinutes = race.PracticeSessionMinutes,
             QualifyingSessionMinutes = race.QualifyingSessionMinutes
         };

@@ -121,6 +121,7 @@ public class SeasonService : ISeasonService
                 TrackLayout = race.TrackLayout,
                 NumberOfLaps = race.NumberOfLaps,
                 RaceDuration = race.RaceDuration,
+                TimedRaceMinutes = race.TimedRaceMinutes,
                 PracticeSessionMinutes = race.PracticeSessionMinutes,
                 QualifyingSessionMinutes = race.QualifyingSessionMinutes,
                 PointSettingId = race.PointSettingId,

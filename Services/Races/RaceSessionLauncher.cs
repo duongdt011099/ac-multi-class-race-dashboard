@@ -50,7 +50,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
             throw new InvalidOperationException("Select a track for this race before starting a session.");
         }
 
-        if (sessionType == SessionType.Race && race.NumberOfLaps is not > 0)
+        if (sessionType == SessionType.Race && race.TimedRaceMinutes is not > 0 && race.NumberOfLaps is not > 0)
         {
             throw new InvalidOperationException("Set the number of laps for this race before starting the session.");
         }

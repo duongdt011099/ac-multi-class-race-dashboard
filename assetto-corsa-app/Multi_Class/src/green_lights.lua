@@ -36,6 +36,7 @@ local laneShown = nil
 local waitAlpha = 0.0
 local wasWaiting = false
 local savedAlpha = 0.0
+local finishedAlpha = 0.0
 local autoAlpha = 0.0
 local manualAlpha = 0.0
 
@@ -115,14 +116,12 @@ function M.Draw(dt)
 
   local okWait, waiting = pcall(Exporter.IsPlayerWaitingForOthers, sim)
   waiting = okWait and waiting == true and not showing and not manual
-  if waiting and not wasWaiting then
-    pcall(function() ui.toast(ui.Icons.Warning, "Wait for other cars to finish") end)
-  end
   wasWaiting = waiting
   waitAlpha = fade(waitAlpha, waiting, dt)
 
   local saved = (S.resultSavedBannerUntil or 0) > os.clock() and not showing and not manual
   savedAlpha = fade(savedAlpha, saved, dt)
+  finishedAlpha = fade(finishedAlpha, S.raceFinishedBanner == true and not showing and not manual, dt)
 
   alpha = fade(alpha, showing, dt)
   autoAlpha = fade(autoAlpha, auto, dt)
@@ -148,6 +147,31 @@ function M.Draw(dt)
   end
   if waitAlpha > 0.0 then
     ui.drawImage(WAIT_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, waitAlpha))
+  end
+  if finishedAlpha > 0.0 then
+    -- Drawn in code: a card with a chequered strip, the headline and a hint to leave.
+    local x1, y1, x2, y2 = 0, 0, width, height
+    local fill = rgbm(0.06, 0.08, 0.07, 0.94 * finishedAlpha)
+    Draw.DrawCard(x1, y1, x2, y2, fill)
+    local cell, cols = (y2 - y1) / 6, math.floor((x2 - x1) / ((y2 - y1) / 6))
+    for c = 0, cols - 1 do
+      for r = 0, 1 do
+        local light = (c + r) % 2 == 0
+        local cx = x1 + c * cell
+        ui.drawRectFilled(vec2(cx, y1 + r * cell * 0.5), vec2(math.min(cx + cell, x2), y1 + (r + 1) * cell * 0.5),
+          rgbm(light and 1 or 0.1, light and 1 or 0.1, light and 1 or 0.1, 0.9 * finishedAlpha))
+      end
+    end
+    local mid = (x1 + x2) / 2
+    Draw.DrawBoldText("RACE FINISHED", mid, y1 + (y2 - y1) * 0.48, math.floor((y2 - y1) * 0.34),
+      rgbm(0.45, 1.0, 0.55, finishedAlpha))
+    local hint = "Result saved  -  you can exit the game"
+    if S.raceExitAt then
+      hint = string.format("Result saved  -  exiting the game in %d seconds",
+        math.max(0, math.ceil(S.raceExitAt - os.clock())))
+    end
+    Draw.DrawBoldText(hint, mid, y1 + (y2 - y1) * 0.80,
+      math.floor((y2 - y1) * 0.16), rgbm(0.85, 0.88, 0.95, finishedAlpha), "label")
   end
   if savedAlpha > 0.0 then
     ui.drawImage(SAVED_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, savedAlpha))

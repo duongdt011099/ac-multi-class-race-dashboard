@@ -4,6 +4,7 @@ local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
 local Positions = require("src/leaderboard/positions")
+local TimedRace = require("src/timed_race")
 
 local M = {}
 
@@ -182,6 +183,10 @@ local function computeLayout()
   local w = ui.windowWidth()
   local h = ui.windowHeight()
   local layout = { w = w, h = h, padX = 12, gap = 16, panelTop = 8, gapPanelH = 46 }
+  -- Timed race: a clock panel sits above the position panels, which move down to make room.
+  layout.timePanelH = 46
+  layout.timed = TimedRace.IsTimedRace() and Sess.IsRaceMode()
+  if layout.timed then layout.panelTop = 8 + layout.timePanelH + 10 end
   layout.panelW = (w - 2 * layout.padX - 2 * layout.gap) / 3
   layout.gapPanelTop = h - 8 - layout.gapPanelH
   layout.columnBottom = layout.gapPanelTop - 10
@@ -192,6 +197,7 @@ end
 local function drawTopPanels(layout, data)
   local padX, panelW, gap = layout.padX, layout.panelW, layout.gap
   local lapTotalText = (data.totalLaps or 0) > 0 and sFormat("%d", data.totalLaps) or nil
+  -- Timed race: until the final lap is known the panel counts the race clock down instead.
   local overallText = data.overallPos and sFormat("%d", data.overallPos) or "-"
   local classText = data.classPos and sFormat("%d", data.classPos) or "-"
   -- The formation lap is not counted: the panel reads "-" until the player crosses the line for
@@ -345,6 +351,26 @@ local function drawGapPanel(layout, sim, data)
   DrawBoldText(gapStr, w / 2, layout.gapPanelTop + layout.gapPanelH / 2, gFs, gapColor)
 end
 
+-- Full-width race clock panel above the LAP / OVERALL / CLASS panels (timed races only).
+local function drawTimePanel(layout)
+  if not layout.timed then return end
+  local x1, x2 = layout.padX, layout.w - layout.padX
+  local y1, y2 = 8, 8 + layout.timePanelH
+  local accent = rgbm(0.95, 0.40, 0.40, 1)
+  drawCard(x1, y1, x2, y2)
+  ui.drawRectFilled(vec2(x1, y1), vec2(x2, y1 + 3), accent, CARD_RADIUS, ui.CornerFlags and ui.CornerFlags.Top)
+
+  local text, color
+  if S.timedRaceTimeUp then
+    text, color = TimedRace.FormatClock(0), rgbm(1.0, 0.85, 0.25, 1)
+  else
+    text, color = TimedRace.FormatClock(TimedRace.SecondsLeft()), rgbm(0.95, 0.96, 1, 1)
+  end
+  local cy = (y1 + y2) / 2 + 1
+  local cx = layout.w / 2
+  DrawBoldText(text, cx, cy, 28, color)
+end
+
 local function collectData(qualiMode)
   local data = {}
   if qualiMode then
@@ -374,6 +400,7 @@ function M.Leaderboard(dt)
     data.overallPos, data.classPos, data.gapFront, data.gapBehind = nil, nil, nil, nil
   end
 
+  drawTimePanel(layout)
   drawTopPanels(layout, data)
 
   if rollingText then

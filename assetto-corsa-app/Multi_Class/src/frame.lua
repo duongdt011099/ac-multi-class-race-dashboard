@@ -14,6 +14,7 @@ local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
 local Blue = require("src/blue/blue")
 local Pos = require("src/leaderboard/positions")
+local TimedRace = require("src/timed_race")
 
 local Frame = {}
 
@@ -370,6 +371,7 @@ function Frame.Update(dt)
   logUpdateEntry(sim)
   detectSessionEnded(sim)
   handleSessionChange(runExportFrame(sim))
+  pcall(Exporter.UpdateAutoExit)
   local valid, validationError = Sess.CheckSessionValidity()
   handleFirstFrame(sim)
   reloadClassesIfMissing(sim)
@@ -391,6 +393,8 @@ function Frame.Update(dt)
   end
 
   updateRolling(sim, dt)
+  local timedOk, timedErr = pcall(TimedRace.Update, sim, dt)
+  if not timedOk then U.Log("TIMED: update failed: " .. tostring(timedErr)) end
 end
 
 -- ac.onSessionStart fires both for a genuinely new session and for an in-place
@@ -399,6 +403,7 @@ end
 -- on the same grid, so the captured slots and measured sides have to survive.
 function Frame.OnSessionStart(sessionIndex, restarted)
   resetAttemptState()
+  pcall(TimedRace.OnSessionStart)
   S.firstFrame = true
   S.rollingRestartPending = restarted == true
 

@@ -21,6 +21,7 @@ public static class RaceMappings
             TrackLayout = race.TrackLayout,
             NumberOfLaps = race.NumberOfLaps,
             RaceDuration = race.RaceDuration,
+            TimedRaceMinutes = race.TimedRaceMinutes,
             PracticeSessionMinutes = race.PracticeSessionMinutes,
             QualifyingSessionMinutes = race.QualifyingSessionMinutes,
             StandingCount = race.Sessions.Sum(s => s.DriverStandings.Count)

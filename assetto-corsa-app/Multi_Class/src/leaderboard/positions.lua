@@ -3,6 +3,7 @@ local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
+local TimedRace = require("src/timed_race")
 
 local M = {}
 
@@ -71,7 +72,7 @@ function M.GetCurrentLapInfo()
   local totalLaps = 0
   local session = ac.getSession(sim.currentSessionIndex)
   if session then
-    totalLaps = session.laps or 0
+    totalLaps = TimedRace.TotalLaps(session.laps or 0)
   end
 
   -- lapOffset is how many laps AC counts before the racing laps begin: the formation lap when
