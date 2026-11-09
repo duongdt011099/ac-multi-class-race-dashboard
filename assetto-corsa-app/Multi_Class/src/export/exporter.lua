@@ -72,13 +72,11 @@ local function onWriteSucceeded(sessionType, sessionKey, fileName, targetPath, s
     fileName)
   -- Shown as a banner image (see green_lights.lua).
   if not silent then
-    if sessionType == C.SUBFOLDER_RACE then
-      -- A finished race gets its own banner (green_lights.lua), which stays up until the next session.
-      S.raceFinishedBanner = true
-      if S.autoExitAfterRace then S.raceExitAt = os.clock() + C.AUTO_EXIT_DELAY_SECONDS end
-    else
-      S.resultSavedBannerUntil = os.clock() + 4.0
-    end
+    -- Every finished session (race, qualifying, practice) gets the banner, which stays up until the
+    -- next session and counts down to closing the game.
+    S.raceFinishedBanner = true
+    S.finishedBannerTitle = string.upper(sessionType) .. " FINISHED"
+    if S.autoExitAfterRace then S.raceExitAt = os.clock() + C.AUTO_EXIT_DELAY_SECONDS end
   end
   U.Log("EXPORT: wrote " .. targetPath)
 end

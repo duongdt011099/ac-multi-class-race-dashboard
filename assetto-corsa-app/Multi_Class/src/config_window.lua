@@ -334,13 +334,13 @@ local function drawAutopilotSection(w)
 end
 
 local function drawGeneralSection(w)
-  if checkRow("Close the game 5 seconds after the race result is saved", S.autoExitAfterRace) then
+  if checkRow("Close the game 5 seconds after a session result is saved", S.autoExitAfterRace) then
     S.autoExitAfterRace = not S.autoExitAfterRace
     S.storedSettings.autoExitAfterRace = S.autoExitAfterRace
     if not S.autoExitAfterRace then S.raceExitAt = nil end
   end
   if ui.itemHovered() then
-    ui.setTooltip("After a race finishes and its result is saved, a banner counts down and Assetto Corsa closes.")
+    ui.setTooltip("After a race, qualifying or practice session finishes and its result is saved, a banner counts down and Assetto Corsa closes.")
   end
   ui.dummy(vec2(0, 8))
 end

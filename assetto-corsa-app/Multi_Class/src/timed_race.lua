@@ -204,7 +204,13 @@ function T.Update(sim, dt)
       U.Log(sFormat("TIMED: timed race of %d minutes", S.timedRaceMinutes))
     end
   end
-  if not T.IsTimedRace() then return end
+  if not T.IsTimedRace() then
+    -- Lap race: the same clock simply counts up from the green flag (shown in the time panel).
+    if raceClockRunning(sim) and not Sess.IsSessionFinished(sim) then
+      S.timedRaceSeconds = S.timedRaceSeconds + dt
+    end
+    return
+  end
   if S.timedFinishLaps then updateFinishTeleports(dt) end
   if S.timedRaceComplete then return end
 

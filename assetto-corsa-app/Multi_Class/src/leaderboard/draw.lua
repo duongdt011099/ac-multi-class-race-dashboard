@@ -185,8 +185,9 @@ local function computeLayout()
   local layout = { w = w, h = h, padX = 12, gap = 16, panelTop = 8, gapPanelH = 46 }
   -- Timed race: a clock panel sits above the position panels, which move down to make room.
   layout.timePanelH = 46
-  layout.timed = TimedRace.IsTimedRace() and Sess.IsRaceMode()
-  if layout.timed then layout.panelTop = 8 + layout.timePanelH + 10 end
+  -- The clock panel is always there (race countdown, race elapsed time, or the practice / qualifying
+  -- time left), so the position panels keep the same height in every session.
+  layout.panelTop = 8 + layout.timePanelH + 10
   layout.panelW = (w - 2 * layout.padX - 2 * layout.gap) / 3
   layout.gapPanelTop = h - 8 - layout.gapPanelH
   layout.columnBottom = layout.gapPanelTop - 10
@@ -351,21 +352,29 @@ local function drawGapPanel(layout, sim, data)
   DrawBoldText(gapStr, w / 2, layout.gapPanelTop + layout.gapPanelH / 2, gFs, gapColor)
 end
 
--- Full-width race clock panel above the LAP / OVERALL / CLASS panels (timed races only).
-local function drawTimePanel(layout)
-  if not layout.timed then return end
+-- Full-width clock panel above the LAP / OVERALL / CLASS panels: time left in a timed race or in
+-- practice / qualifying, elapsed time in a lap race.
+local function timePanelText(sim)
+  if Sess.IsRaceMode(sim) then
+    if TimedRace.IsTimedRace() then
+      local color = S.timedRaceTimeUp and rgbm(1.0, 0.85, 0.25, 1) or rgbm(0.95, 0.96, 1, 1)
+      return TimedRace.FormatClock(TimedRace.SecondsLeft()), color
+    end
+    return TimedRace.FormatClock(S.timedRaceSeconds or 0), rgbm(0.95, 0.96, 1, 1)
+  end
+  local ok, left = pcall(function() return sim.sessionTimeLeft end)
+  local seconds = (ok and type(left) == "number" and left > 0) and left / 1000 or 0
+  return TimedRace.FormatClock(seconds), rgbm(0.95, 0.96, 1, 1)
+end
+
+local function drawTimePanel(layout, sim)
   local x1, x2 = layout.padX, layout.w - layout.padX
   local y1, y2 = 8, 8 + layout.timePanelH
   local accent = rgbm(0.95, 0.40, 0.40, 1)
   drawCard(x1, y1, x2, y2)
   ui.drawRectFilled(vec2(x1, y1), vec2(x2, y1 + 3), accent, CARD_RADIUS, ui.CornerFlags and ui.CornerFlags.Top)
 
-  local text, color
-  if S.timedRaceTimeUp then
-    text, color = TimedRace.FormatClock(0), rgbm(1.0, 0.85, 0.25, 1)
-  else
-    text, color = TimedRace.FormatClock(TimedRace.SecondsLeft()), rgbm(0.95, 0.96, 1, 1)
-  end
+  local text, color = timePanelText(sim)
   local cy = (y1 + y2) / 2 + 1
   local cx = layout.w / 2
   DrawBoldText(text, cx, cy, 28, color)
@@ -400,7 +409,7 @@ function M.Leaderboard(dt)
     data.overallPos, data.classPos, data.gapFront, data.gapBehind = nil, nil, nil, nil
   end
 
-  drawTimePanel(layout)
+  drawTimePanel(layout, sim)
   drawTopPanels(layout, data)
 
   if rollingText then

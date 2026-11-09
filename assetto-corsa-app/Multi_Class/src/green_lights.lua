@@ -163,7 +163,7 @@ function M.Draw(dt)
       end
     end
     local mid = (x1 + x2) / 2
-    Draw.DrawBoldText("RACE FINISHED", mid, y1 + (y2 - y1) * 0.48, math.floor((y2 - y1) * 0.34),
+    Draw.DrawBoldText(S.finishedBannerTitle or "SESSION FINISHED", mid, y1 + (y2 - y1) * 0.48, math.floor((y2 - y1) * 0.34),
       rgbm(0.45, 1.0, 0.55, finishedAlpha))
     local hint = "Result saved  -  you can exit the game"
     if S.raceExitAt then
