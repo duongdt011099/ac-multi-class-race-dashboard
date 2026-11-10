@@ -150,12 +150,17 @@ function Exporter.UpdateAutoExit()
   -- closes, so a detached helper ends the process a few seconds later if it is still there. The
   -- result is already on disk.
   local okKill, killErr = pcall(os.runConsoleProcess, {
-    filename = "cmd",
-    arguments = { "/c", "ping -n 6 127.0.0.1 >nul & taskkill /F /IM acs.exe" },
-    rawArguments = false,
+    filename = "cmd.exe",
+    arguments = { '/c "ping -n 4 127.0.0.1 >nul & taskkill /F /T /IM acs.exe & taskkill /F /T /IM acs_x86.exe"' },
+    rawArguments = true,
     terminateWithScript = false,
     assignJob = false,
-    timeout = 0,
+    separateConsole = true,
+    dataCallback = function(err, data)
+      if err or (data and data ~= "") then
+        U.Log("EXPORT: kill helper output: " .. tostring(err or data))
+      end
+    end,
   })
   if not okKill then U.Log("EXPORT: kill helper failed: " .. tostring(killErr)) end
   local ok, err = pcall(ac.shutdownAssettoCorsa)

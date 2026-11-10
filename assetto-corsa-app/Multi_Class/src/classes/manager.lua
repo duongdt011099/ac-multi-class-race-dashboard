@@ -36,19 +36,39 @@ local function isAlreadyAdded(lower)
   return false
 end
 
-local function assignMatchingCars(n, lower)
-  local matched = 0
+local function countMatches(lower)
+  local c = 0
   for i = 0, S.driverCount - 1 do
-    if carMatches(i, lower) then
+    if carMatches(i, lower) then c = c + 1 end
+  end
+  return c
+end
+
+-- A car carrying several tags (e.g. tag1 and tag2) matches several added classes. The more
+-- specific class (fewer matching cars) wins, so tag1 = tag1-only cars and tag2 = cars with both,
+-- regardless of the order the classes were added in.
+local function assignMatchingCars(n, lower)
+  local newCount = countMatches(lower)
+  local countCache = {}
+  for i = 0, S.driverCount - 1 do
+    local cur = S.manualDriverClass[i]
+    local keep = false
+    if cur and cur ~= "" and string.lower(cur) ~= lower then
+      local curLower = string.lower(cur)
+      if countCache[curLower] == nil then
+        countCache[curLower] = countMatches(curLower)
+      end
+      keep = countCache[curLower] <= newCount and carMatches(i, curLower)
+    end
+    if not keep and carMatches(i, lower) then
       S.manualDriverClass[i] = n
       local saved = ClsStore.SaveCarClass(U.SafeCarID(i), n, i)
       if not saved then
         U.Log(sFormat("AddReleaseClass WARN: car %d class '%s' assigned in memory but NOT persisted", i, n))
       end
-      matched = matched + 1
     end
   end
-  return matched
+  return newCount
 end
 
 local function closestClassName(avail, lower)

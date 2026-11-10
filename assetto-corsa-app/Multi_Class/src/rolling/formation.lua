@@ -456,10 +456,42 @@ local function WatchForStalledCar(carIndex, state, car, dt)
   end
 end
 
+-- A car that crashes or stalls during the formation lap gets teleported to the pits by CSP. Its AI
+-- would then drive out of the pit lane and rejoin mid-formation, so it is retired instead: held
+-- where it is and out of the spacing chains until its class goes green.
+local function WatchForPitTeleport(carIndex, state, car, trackLength)
+  if state.retired or not car then return end
+  local inPit = car.isInPitlane == true or car.isInPit == true
+  if state.startedInPit == nil then state.startedInPit = inPit end
+  local jumped = false
+  local spline = car.splinePosition
+  if type(spline) == "number" and type(state.lastSplineCheck) == "number" and type(trackLength) == "number" then
+    local d = spline - state.lastSplineCheck
+    if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+    jumped = math.abs(d) * trackLength > C.ROLLING_START_TELEPORT_JUMP_METERS
+  end
+  state.lastSplineCheck = type(spline) == "number" and spline or state.lastSplineCheck
+  if (inPit and not state.startedInPit) or (jumped and state.released) then
+    state.retired = true
+    state.dropped = true
+    U.Log(sFormat("ROLLING: car %d teleported to the pits during formation (pit=%s jump=%s); retired until green",
+        carIndex, tostring(inPit), tostring(jumped)))
+  end
+end
+
 local function MaintainCar(carIndex, state, trackLength, moves)
   local car = getCar(carIndex)
   local isAI = (carIndex ~= 0)
   local group = S.rollingStartGroups[state.groupIndex]
+
+  if isAI and not state.green then
+    WatchForPitTeleport(carIndex, state, car, trackLength)
+    if state.retired then
+      HoldUnreleasedAI(carIndex)
+      RCtl.SetRollingLaneOffset(carIndex, 0.0)
+      return
+    end
+  end
 
   if not state.released and RGroups.IsRollingCarReleased(state) then
     RCtl.ReleaseRollingCar(carIndex)

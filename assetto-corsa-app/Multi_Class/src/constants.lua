@@ -149,6 +149,7 @@ C.ROLLING_START_CLASS_GAP_SECONDS   = 3.0
 -- A released car that is still crawling STALL_GRACE_SECONDS after its release has not launched.
 -- Stage 1 hands it back full throttle (and skips the launch ramp), stage 2 gives it a small
 -- velocity nudge. Without this the car sits on the grid and the cars behind drive past it.
+C.ROLLING_START_TELEPORT_JUMP_METERS     = 60.0   -- one-frame position jump that means CSP teleported the car
 C.ROLLING_START_STALL_SPEED_KMH          = 8.0
 C.ROLLING_START_STALL_GRACE_SECONDS      = 1.2
 C.ROLLING_START_STALL_STAGE1_SECONDS     = 0.4
@@ -189,7 +190,7 @@ C.YELLOW_RECOVER_SECONDS      = 1.5
 C.YELLOW_MIN_ZONE_SECONDS     = 15.0
 -- A stop/crash only calls the yellow once the car has stayed a hazard this long; a car that rejoins
 -- and races normally before then (a spin or a slide on the grass) does not.
-C.YELLOW_CONFIRM_SECONDS      = 6.0
+C.YELLOW_CONFIRM_SECONDS      = 12.0
 C.YELLOW_STOPPED_KMH          = 20
 C.YELLOW_STOPPED_SECONDS      = 0.15
 C.YELLOW_DROP_FROM_KMH        = 110
