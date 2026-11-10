@@ -34,8 +34,8 @@ public sealed class ClassItemOption
     }
 
     /// <summary>
-    /// Options still available to add. Once a class is chosen only classes of the same rank (Order)
-    /// are offered, so a team cannot mix a top class from one setting with a lower class from another.
+    /// Options still available to add. Once a class is chosen only classes of the same rank or lower
+    /// (Order equal or greater; the first class leads) are offered, so a team cannot add a class above its top one.
     /// </summary>
     public static List<ClassItemOption> Available(
         IReadOnlyCollection<ClassItemOption> all,
@@ -43,13 +43,14 @@ public sealed class ClassItemOption
         string? searchText)
     {
         var selected = selectedIds.ToHashSet();
-        var selectedOrders = all.Where(o => selected.Contains(o.Id)).Select(o => o.Order).ToHashSet();
+        var selectedOrders = all.Where(o => selected.Contains(o.Id)).Select(o => o.Order).ToList();
 
         IEnumerable<ClassItemOption> results = all.Where(o => !selected.Contains(o.Id));
 
         if (selectedOrders.Count > 0)
         {
-            results = results.Where(o => selectedOrders.Contains(o.Order));
+            var topOrder = selectedOrders.Min();
+            results = results.Where(o => o.Order >= topOrder);
         }
 
         if (!string.IsNullOrWhiteSpace(searchText))

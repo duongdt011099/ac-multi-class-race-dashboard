@@ -147,16 +147,19 @@ public class ClassItemOptionTests
     };
 
     [Fact]
-    public void Available_ExcludesSelectedAndRestrictsToSameOrder()
+    public void Available_ExcludesSelectedAndHigherClasses()
     {
         var hyper = Option("WEC", "Hypercar", 1);
         var lmp2 = Option("WEC", "LMP2", 2);
         var imsaTop = Option("IMSA", "GTP", 1);
         var all = new[] { hyper, lmp2, imsaTop };
 
-        var result = ClassItemOption.Available(all, new[] { hyper.Id }, null);
+        // Same or lower classes stay available (ordered by setting name, then rank).
+        Assert.Equal(new[] { imsaTop, lmp2 }, ClassItemOption.Available(all, new[] { hyper.Id }, null));
 
-        Assert.Equal(new[] { imsaTop }, result);
+        // Selecting a lower class hides the higher ones.
+        var result = ClassItemOption.Available(all, new[] { lmp2.Id }, null);
+        Assert.Empty(result);
     }
 
     [Fact]
