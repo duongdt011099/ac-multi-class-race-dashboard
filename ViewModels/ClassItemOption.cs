@@ -34,8 +34,8 @@ public sealed class ClassItemOption
     }
 
     /// <summary>
-    /// Options still available to add. Once a class is chosen only classes of the same rank or lower
-    /// (Order equal or greater; the first class leads) are offered, so a team cannot add a class above its top one.
+    /// Options still available to add. Any class may be picked freely, except classes from a setting
+    /// the team already has a class in (a team takes at most one class per setting).
     /// </summary>
     public static List<ClassItemOption> Available(
         IReadOnlyCollection<ClassItemOption> all,
@@ -43,15 +43,10 @@ public sealed class ClassItemOption
         string? searchText)
     {
         var selected = selectedIds.ToHashSet();
-        var selectedOrders = all.Where(o => selected.Contains(o.Id)).Select(o => o.Order).ToList();
+        var selectedSettings = all.Where(o => selected.Contains(o.Id)).Select(o => o.SettingId).ToHashSet();
 
-        IEnumerable<ClassItemOption> results = all.Where(o => !selected.Contains(o.Id));
-
-        if (selectedOrders.Count > 0)
-        {
-            var topOrder = selectedOrders.Min();
-            results = results.Where(o => o.Order >= topOrder);
-        }
+        IEnumerable<ClassItemOption> results = all
+            .Where(o => !selected.Contains(o.Id) && !selectedSettings.Contains(o.SettingId));
 
         if (!string.IsNullOrWhiteSpace(searchText))
         {

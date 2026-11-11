@@ -8,5 +8,6 @@ public interface ITeamRepository : IGenericRepository<Team>
     Task<Team?> GetTeamDetailsAsync(Guid teamId);
     Task DeacivateTeamAsync(Guid teamId);
     Task CreateTeamAsync(Team team, IReadOnlyCollection<Guid> classItemIds, IReadOnlyCollection<Guid> driverIds);
+    Task UpdateClassesAsync(IReadOnlyCollection<Guid> teamIds, IReadOnlyCollection<Guid> classItemIds);
     Task UpdateTeamAsync(Team team, IReadOnlyCollection<Guid> classItemIds, IReadOnlyCollection<Guid> driverIds);
 }

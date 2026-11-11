@@ -137,9 +137,12 @@ public class DriverListQueryTests
 
 public class ClassItemOptionTests
 {
+    private static readonly Dictionary<string, Guid> SettingIds = new();
+
     private static ClassItemOption Option(string setting, string name, int order) => new()
     {
         Id = Guid.NewGuid(),
+        SettingId = SettingIds.TryGetValue(setting, out var sid) ? sid : SettingIds[setting] = Guid.NewGuid(),
         SettingName = setting,
         Name = name,
         Color = "#000",
@@ -147,19 +150,20 @@ public class ClassItemOptionTests
     };
 
     [Fact]
-    public void Available_ExcludesSelectedAndHigherClasses()
+    public void Available_ExcludesSelectedAndSameSettingClasses()
     {
         var hyper = Option("WEC", "Hypercar", 1);
         var lmp2 = Option("WEC", "LMP2", 2);
         var imsaTop = Option("IMSA", "GTP", 1);
-        var all = new[] { hyper, lmp2, imsaTop };
+        var imsaLow = Option("IMSA", "GTD", 2);
+        var all = new[] { hyper, lmp2, imsaTop, imsaLow };
 
-        // Same or lower classes stay available (ordered by setting name, then rank).
-        Assert.Equal(new[] { imsaTop, lmp2 }, ClassItemOption.Available(all, new[] { hyper.Id }, null));
+        // Classes from other settings are offered freely, regardless of rank.
+        Assert.Equal(new[] { imsaTop, imsaLow }, ClassItemOption.Available(all, new[] { hyper.Id }, null));
+        Assert.Equal(new[] { imsaTop, imsaLow }, ClassItemOption.Available(all, new[] { lmp2.Id }, null));
 
-        // Selecting a lower class hides the higher ones.
-        var result = ClassItemOption.Available(all, new[] { lmp2.Id }, null);
-        Assert.Empty(result);
+        // Classes from the same setting as any selected class are hidden.
+        Assert.Equal(new[] { hyper, lmp2 }, ClassItemOption.Available(all, new[] { imsaLow.Id }, null));
     }
 
     [Fact]

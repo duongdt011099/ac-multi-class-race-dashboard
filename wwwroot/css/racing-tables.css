@@ -1113,11 +1113,10 @@
     position: relative;
 }
 
+/* Fixed, not absolute: the modal body scrolls and would clip the list. wecPlaceClassMenu (class-picker.js)
+   sets left/top/width from the input; top/left fall back to the in-flow position until it runs. */
 .wec-class-search__menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
+    position: fixed;
     z-index: 20;
     max-height: 13rem;
     overflow-y: auto;

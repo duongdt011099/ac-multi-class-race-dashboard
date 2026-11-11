@@ -8,5 +8,6 @@ public interface ITeamService
     Task<TeamModel?> GetTeamByIdAsync(Guid teamId);
     Task DeacivateTeamAsync(Guid teamId);
     Task CreateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds);
+    Task BatchUpdateClassesAsync(IReadOnlyCollection<Guid> teamIds, IReadOnlyCollection<Guid> classItemIds);
     Task UpdateTeamAsync(TeamFormModel team, IReadOnlyCollection<Guid> driverIds);
 }

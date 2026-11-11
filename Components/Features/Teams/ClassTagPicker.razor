@@ -1,6 +1,6 @@
 @using MulticlassRace.ViewModels
 
-<div class="wec-class-search">
+<div class="wec-class-search" @ref="wrapper">
     <input id="@Id" type="text" placeholder="Search classes..." value="@searchText"
            autocomplete="off" @oninput="HandleInput" @onfocus="Open" />
     @if (isOpen)
@@ -41,8 +41,32 @@
 }
 
 @code {
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
     private string searchText = "";
     private bool isOpen;
+    private ElementReference wrapper;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isOpen)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("wecPlaceClassMenu", wrapper);
+        }
+        catch (JSException)
+        {
+            // Placement is cosmetic; the list stays usable at its default position.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering has no browser to place the list in.
+        }
+    }
 
     [Parameter] public string? Id { get; set; }
 

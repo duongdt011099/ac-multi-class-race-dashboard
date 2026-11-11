@@ -45,6 +45,16 @@ public class TeamService : ITeamService
         return _teamRepository.UpdateTeamAsync(ToTeam(team), team.ClassSettingItemIds, driverIds);
     }
 
+    public async Task BatchUpdateClassesAsync(IReadOnlyCollection<Guid> teamIds, IReadOnlyCollection<Guid> classItemIds)
+    {
+        if (teamIds.Count == 0 || classItemIds.Count == 0)
+        {
+            return;
+        }
+
+        await _teamRepository.UpdateClassesAsync(teamIds, classItemIds);
+    }
+
     private static Models.Team ToTeam(TeamFormModel model)
     {
         return new Models.Team

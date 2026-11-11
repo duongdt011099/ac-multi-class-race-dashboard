@@ -31,6 +31,9 @@ public partial class Teams
     private int currentPage = 1;
     private string selectedClassFilter = "";
     private string searchTerm = "";
+    private bool isBatchMode;
+    private bool showBatchModal;
+    private readonly HashSet<Guid> selectedIds = new();
 
     private IEnumerable<SelectOption> ClassFilterOptions =>
         TeamListQuery.ClassNames(teams ?? new()).Select(name => new SelectOption(name, name));
@@ -64,6 +67,92 @@ public partial class Teams
     {
         searchTerm = value;
         currentPage = 1;
+    }
+
+    private void HandleBatchButton()
+    {
+        if (!isBatchMode)
+        {
+            isBatchMode = true;
+        }
+        else if (selectedIds.Count == 0)
+        {
+            isBatchMode = false;
+        }
+        else
+        {
+            showBatchModal = true;
+        }
+    }
+
+    private void ToggleSelected(Guid id, bool selected)
+    {
+        if (selected)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
+    }
+
+    private bool AllPageSelected(PagedList<TeamModel> paged) =>
+        paged.Items.Any() && paged.Items.All(t => selectedIds.Contains(t.TeamId));
+
+    private void ToggleAll(PagedList<TeamModel> paged, bool selected)
+    {
+        foreach (var team in paged.Items)
+        {
+            ToggleSelected(team.TeamId, selected);
+        }
+    }
+
+    // A row click edits the team; while batch-selecting it ticks the row instead.
+    private async Task HandleRowClick(TeamModel team)
+    {
+        if (isBatchMode)
+        {
+            ToggleSelected(team.TeamId, !selectedIds.Contains(team.TeamId));
+            return;
+        }
+
+        await OpenEdit(team);
+    }
+
+    private async Task SaveBatchAsync(List<Guid> classItemIds)
+    {
+        if (classItemIds.Count == 0)
+        {
+            Toast.Show("Select at least one team class to apply.", isError: true);
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var ids = selectedIds.ToList();
+
+            var saved = await TryAsync(async () =>
+            {
+                await TeamService.BatchUpdateClassesAsync(ids, classItemIds);
+                teams = (await TeamService.GetActiveTeamsAsync()).ToList();
+            }, "Could not save teams");
+
+            if (saved)
+            {
+                DriverNotifier.NotifyChanged();
+                Toast.Show($"Updated {ids.Count} team(s).");
+                showBatchModal = false;
+                isBatchMode = false;
+                selectedIds.Clear();
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private void OpenCreate()

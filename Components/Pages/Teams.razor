@@ -16,6 +16,10 @@ else
 
     <div class="wec-toolbar">
         <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Team</ToolbarButton>
+        <ToolbarButton Icon="@(isBatchMode ? (selectedIds.Count == 0 ? "bi-x-lg" : "bi-check-lg") : "bi-pencil-square")"
+                       OnClick="HandleBatchButton">
+            @(!isBatchMode ? "Batch Edit" : selectedIds.Count == 0 ? "Cancel Edit" : "Open Editor")
+        </ToolbarButton>
     </div>
 
     <FilterBar>
@@ -27,8 +31,15 @@ else
         </FilterItem>
     </FilterBar>
 
-    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="4" EmptyText="No teams found">
+    <DataTable IsEmpty="@(paged.TotalCount == 0)" ColumnCount="@(isBatchMode ? 5 : 4)" EmptyText="No teams found">
         <Header>
+            @if (isBatchMode)
+            {
+                <th class="wec-table__check">
+                    <input type="checkbox" title="Select all on page" checked="@AllPageSelected(paged)"
+                           @onchange="e => ToggleAll(paged, (bool)e.Value!)" />
+                </th>
+            }
             <th>#</th>
             <SortableHeader TColumn="TeamSortColumn" Column="TeamSortColumn.Team" Current="sort.Column"
                             Descending="sort.Descending" OnSort="sort.Toggle">Team</SortableHeader>
@@ -45,7 +56,15 @@ else
             {
                 index++;
                 var current = team;
-                <tr class="wec-row-clickable" title="@($"Edit {team.TeamName}")" @onclick="() => OpenEdit(current)">
+                <tr class="wec-row-clickable" title="@($"Edit {team.TeamName}")" @onclick="() => HandleRowClick(current)">
+                    @if (isBatchMode)
+                    {
+                        <td class="wec-table__check" @onclick:stopPropagation="true">
+                            <input type="checkbox" title="@($"Select {team.TeamName}")"
+                                   checked="@selectedIds.Contains(team.TeamId)"
+                                   @onchange="e => ToggleSelected(current.TeamId, (bool)e.Value!)" />
+                        </td>
+                    }
                     <td class="wec-table__position">@index</td>
                     <td><TeamCell Name="@team.TeamName" Logo="@team.TeamLogo" ShowInitialsFallback="true" /></td>
                     <td><ClassBadges Tags="team.ClassTags" /></td>
@@ -57,6 +76,12 @@ else
             <Pagination Page="paged.Page" TotalPages="paged.TotalPages" PageChanged="page => currentPage = page" />
         </Footer>
     </DataTable>
+}
+
+@if (showBatchModal)
+{
+    <TeamBatchEditModal Count="selectedIds.Count" IsSaving="isSaving" ClassOptions="classItems"
+                        OnSave="SaveBatchAsync" OnCancel="() => showBatchModal = false" />
 }
 
 @if (editingTeam is not null)

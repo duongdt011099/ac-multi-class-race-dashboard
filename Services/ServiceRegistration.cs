@@ -1,6 +1,7 @@
 using MulticlassRace.BackgroundServices;
 using MulticlassRace.Services.AssettoCorsa;
 using MulticlassRace.Services.Championships;
+using MulticlassRace.Services.Database;
 using MulticlassRace.Services.Drivers;
 using MulticlassRace.Services.Notifications;
 using MulticlassRace.Services.Races;
@@ -20,6 +21,7 @@ public static class ServiceRegistration
             .AddChampionshipServices()
             .AddRaceServices()
             .AddSettingsServices()
+            .AddDatabaseServices()
             .AddTeamServices()
             .AddDriverServices()
             .AddAssettoCorsaServices()

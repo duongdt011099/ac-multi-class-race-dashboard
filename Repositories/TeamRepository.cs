@@ -121,6 +121,28 @@ public class TeamRepository : GenericRepository<Team>, ITeamRepository
         await _context.SaveChangesAsync();
     }
 
+    public async Task UpdateClassesAsync(IReadOnlyCollection<Guid> teamIds, IReadOnlyCollection<Guid> classItemIds)
+    {
+        var classItems = await ResolveClassItemsAsync(classItemIds);
+
+        var teams = await _context.Teams
+            .Include(t => t.ClassSettingItems)
+            .Where(t => teamIds.Contains(t.TeamId))
+            .ToListAsync();
+
+        foreach (var team in teams)
+        {
+            team.ClassSettingItems.Clear();
+
+            foreach (var item in classItems)
+            {
+                team.ClassSettingItems.Add(item);
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
     private async Task<List<ClassSettingItem>> ResolveClassItemsAsync(IEnumerable<Guid> itemIds)
     {
         var requested = itemIds.Distinct().ToList();

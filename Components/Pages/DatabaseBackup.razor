@@ -1,0 +1,125 @@
+@page "/database"
+@rendermode Interactive
+@using multi_class_race_dashboard.Components.Shared
+@using MulticlassRace.Services.Database
+@inherits PageBase
+@inject IDatabaseTransferService Transfer
+@inject NavigationManager Nav
+
+<PageHeader Title="Database" />
+
+<div class="wec-config">
+    <div class="wec-config__intro">
+        Export saves everything (teams, drivers, races, results and settings) to one file you can keep or
+        move to another computer. Import loads such a file back in.
+    </div>
+
+    <div class="wec-config__actions">
+        <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@isBusy" @onclick="OpenExportPicker">
+            <i class="bi bi-download"></i> Export Database...
+        </button>
+        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" disabled="@isBusy" @onclick="OpenImportPicker">
+            <i class="bi bi-upload"></i> Import Database...
+        </button>
+    </div>
+
+    <div class="wec-config__hint">
+        <strong>Importing replaces all current data</strong> with the contents of the file. Before it does,
+        a copy of the current data is saved in <code>@SafetyFolder</code>. Team logo pictures are not part
+        of the database file.
+    </div>
+</div>
+
+<FolderPicker FieldLabel="Export folder" Title="Select the folder to export to" InputId="database-export-folder"
+              Value="" ValueChanged="ExportToFolderAsync" ShowBrowseButton="false" @ref="exportPicker" />
+
+<FolderPicker FieldLabel="Database file" Title="Select the database file to import" InputId="database-import-file"
+              Value="" ValueChanged="RequestImport" ShowBrowseButton="false" IncludeFiles="true"
+              FilePattern="*.db" @ref="importPicker" />
+
+@if (pendingImportPath is not null)
+{
+    <ConfirmDialog Title="Replace all data?" CancelText="Cancel" ConfirmText="Replace data" BusyText="Importing..."
+                   IsBusy="isBusy" OnCancel="() => pendingImportPath = null" OnConfirm="ImportAsync">
+        All current data will be erased and replaced with the contents of @Path.GetFileName(pendingImportPath).
+        A copy of the current data is saved first.
+    </ConfirmDialog>
+}
+
+@code {
+    private FolderPicker exportPicker = default!;
+    private FolderPicker importPicker = default!;
+    private bool isBusy;
+    private string? pendingImportPath;
+
+    private static string SafetyFolder => Path.Combine(AppContext.BaseDirectory, "backups");
+
+    private void OpenExportPicker() => exportPicker.Open(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+
+    private void OpenImportPicker() => importPicker.Open(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+
+    private async Task ExportToFolderAsync(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            string? path = null;
+
+            if (await TryAsync(async () => path = await Transfer.ExportAsync(folder), "Could not export the database"))
+            {
+                Toast.Show($"Database exported to {path}.");
+            }
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void RequestImport(string? filePath)
+    {
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            pendingImportPath = filePath;
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (pendingImportPath is null)
+        {
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            var path = pendingImportPath;
+            string? safetyCopy = null;
+
+            if (await TryAsync(async () => safetyCopy = await Transfer.ImportAsync(path), "Could not import the database"))
+            {
+                Toast.Show($"Database imported. Previous data saved to {safetyCopy}.");
+                pendingImportPath = null;
+
+                // Every page holds data read before the import, so start over from a clean load.
+                Nav.NavigateTo("", forceLoad: true);
+            }
+            else
+            {
+                pendingImportPath = null;
+            }
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}
