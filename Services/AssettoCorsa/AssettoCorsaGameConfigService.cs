@@ -27,7 +27,8 @@ public class AssettoCorsaGameConfigService : IAssettoCorsaGameConfigService
             GamePath = config.GamePath,
             PresetPath = config.PresetPath,
             RaceResultsPath = config.RaceResultsPath,
-            LuaResultPath = config.LuaResultPath
+            LuaResultPath = config.LuaResultPath,
+            SafetyCar = config.SafetyCar
         };
     }
 
@@ -43,7 +44,8 @@ public class AssettoCorsaGameConfigService : IAssettoCorsaGameConfigService
                 GamePath = model.GamePath.Trim(),
                 PresetPath = model.PresetPath.Trim(),
                 RaceResultsPath = model.RaceResultsPath.Trim(),
-                LuaResultPath = model.LuaResultPath.Trim()
+                LuaResultPath = model.LuaResultPath.Trim(),
+                SafetyCar = model.SafetyCar.Trim()
             };
 
             await _configRepository.AddAsync(newConfig);
@@ -54,6 +56,7 @@ public class AssettoCorsaGameConfigService : IAssettoCorsaGameConfigService
         config.PresetPath = model.PresetPath.Trim();
         config.RaceResultsPath = model.RaceResultsPath.Trim();
         config.LuaResultPath = model.LuaResultPath.Trim();
+        config.SafetyCar = model.SafetyCar.Trim();
 
         await _configRepository.UpdateAsync(config);
         return false;

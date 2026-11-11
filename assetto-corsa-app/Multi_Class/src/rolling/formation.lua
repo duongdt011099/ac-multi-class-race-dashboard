@@ -302,12 +302,30 @@ local function WaitForStragglers(group, car, trackLength, targetSpeed, throttleL
   return targetSpeed, throttleLimit
 end
 
+-- True for the two cars at the front of the class (its first row). Cars that are dropped or retired
+-- do not count, so the front row is always the first two cars actually driving.
+local function IsFrontRow(carIndex, group)
+  if not (group and group.cars) then return true end
+  local ahead = 0
+  for _, memberIndex in ipairs(group.cars) do
+    if memberIndex == carIndex then return ahead < 2 end
+    local member = S.rollingStartCars[memberIndex]
+    if member and not member.dropped then ahead = ahead + 1 end
+  end
+  return true
+end
+
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
   local targetSpeed, throttleLimit = Spacing.ApplyRollingPhaseTwoSpacing(state, group, trackLength)
   targetSpeed, throttleLimit = ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimit)
-  targetSpeed, throttleLimit = WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
+  -- Only the front row waits for the stragglers. Every other car follows the car ahead through the
+  -- spacing above; slowing them by their own distance to the stragglers made the cars at the back
+  -- brake less than the ones in front of them and run into them.
+  if IsFrontRow(carIndex, group) then
+    targetSpeed, throttleLimit = WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
+  end
   return targetSpeed, targetOffset, cautionLevel, throttleLimit
 end
 
@@ -329,7 +347,7 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
 
   targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
   -- Final safety net, applied to every car: never run into whatever is physically ahead.
-  targetSpeed, throttleLimit = Spacing.ProximityGuard(carIndex, car, S.driverCount, targetSpeed, throttleLimit)
+  targetSpeed, throttleLimit = Spacing.ProximityGuard(carIndex, car, S.carsTotal or S.driverCount, targetSpeed, throttleLimit)
 
   local launch = LaunchProgress(state)
   if launch < 1.0 then
@@ -529,8 +547,8 @@ local function MaintainCar(carIndex, state, trackLength, moves)
   end
   if autopiloted and (atHandover or state.green) then
     RCtl.SetPlayerAutopilot(false)
-    S.manualBannerUntil = os.clock() + 4.0   -- keep the "Manual Control" banner up briefly
-    ui.toast(ui.Icons.Warning, "Autopilot off: you have control")
+    S.manualBannerUntil = 0   -- the "Manual Control" notice gives way to the blinking "You have control" banner
+    S.controlBannerUntil = os.clock() + C.CONTROL_BANNER_SECONDS
     autopiloted = false
   end
   if state.green then

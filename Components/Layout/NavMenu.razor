@@ -66,6 +66,29 @@
             }
         </div>
 
+        <div class="wec-nav-human wec-nav-safety" @onclick:stopPropagation="true">
+            <div class="wec-nav-human__title">
+                <span class="bi bi-flag-fill" aria-hidden="true"></span> Safety Car
+            </div>
+            @if (carOptions.Count == 0)
+            {
+                <div class="wec-nav-human__car">No cars found</div>
+            }
+            else
+            {
+                <button type="button" class="wec-nav-human__card wec-nav-human__card--link" title="Change the safety car"
+                        @onclick="PanelRequest.Request">
+                    <div class="wec-nav-human__row">
+                        <img src="/car-thumb?car=@Uri.EscapeDataString(safetyCar ?? "")" alt="" class="wec-nav-human__car-img" />
+                        <div class="wec-nav-human__info">
+                            <span class="wec-nav-human__name">@SafetyCarName</span>
+                            <span class="wec-nav-human__car">Click to change</span>
+                        </div>
+                    </div>
+                </button>
+            }
+        </div>
+
         <NavItem Href="achievements" Icon="bi-medal-nav-menu" Text="Achievements" Enabled="isConfigured" />
         <NavItem Href="" Icon="bi-trophy-nav-menu" Text="Championship" Match="NavLinkMatch.All" Enabled="isConfigured" />
         <NavItem Href="teams" Icon="bi-car-nav-menu" Text="Teams" Enabled="isConfigured" />

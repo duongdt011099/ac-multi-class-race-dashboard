@@ -131,6 +131,10 @@ namespace multi_class_race_dashboard.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SafetyCar")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("AssettoCorsaGameConfigId");
 
                     b.ToTable("AssettoCorsaGameConfigs");
@@ -459,6 +463,9 @@ namespace multi_class_race_dashboard.Migrations
 
                     b.Property<string>("TrackName")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("UseSafetyCar")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("RaceId");
 

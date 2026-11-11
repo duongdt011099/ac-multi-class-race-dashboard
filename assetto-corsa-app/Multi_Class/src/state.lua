@@ -66,6 +66,14 @@ S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
 S.raceExitAt          = nil
 -- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
 S.blueCars            = {}
+-- Faster-class AI cars commit to passes on slower classes (see overtake/overtake.lua).
+S.overtakeAssistEnabled = true
+-- Safety car: index of the extra AI car (last in race.ini), nil when the race has none.
+S.safetyCarIndex      = nil
+S.safetyCarHolding    = false   -- true while the field must wait for the safety car to start moving
+-- Bumped each time the rolling start is staged (first start or restart), so modules can spot a new attempt.
+S.rollingAttempt        = 0
+S.carsTotal           = 0   -- sim.carsCount, safety car included (S.driverCount excludes it)
 if S.storedSettings.rollingMusicVolume ~= nil then S.storedSettings.rollingMusicVolume = C.AUDIO_VOLUME end
 if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume = C.AUDIO_VOLUME end
 

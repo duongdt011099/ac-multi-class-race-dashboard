@@ -30,6 +30,9 @@ public class RaceModel
 
     public int? TimedRaceMinutes { get; set; }
 
+    /// <summary>Whether a safety car leads the formation lap of this race.</summary>
+    public bool UseSafetyCar { get; set; } = true;
+
     public int? PracticeSessionMinutes { get; set; }
 
     public int? QualifyingSessionMinutes { get; set; }

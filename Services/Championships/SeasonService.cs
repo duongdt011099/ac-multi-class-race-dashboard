@@ -122,6 +122,7 @@ public class SeasonService : ISeasonService
                 NumberOfLaps = race.NumberOfLaps,
                 RaceDuration = race.RaceDuration,
                 TimedRaceMinutes = race.TimedRaceMinutes,
+                UseSafetyCar = race.UseSafetyCar,
                 PracticeSessionMinutes = race.PracticeSessionMinutes,
                 QualifyingSessionMinutes = race.QualifyingSessionMinutes,
                 PointSettingId = race.PointSettingId,

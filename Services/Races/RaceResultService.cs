@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using MulticlassRace.Builders;
 using MulticlassRace.Models;
 using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.ViewModels;
@@ -114,10 +115,18 @@ public class RaceResultService : IRaceResultService
         var driverByKey = BuildDriverLookup(teams);
 
         var entries = new List<ImportEntry>();
+        var safetyCarEntries = 0;
 
         for (var carIndex = 0; carIndex < sessionFile.Players.Length; carIndex++)
         {
             var player = sessionFile.Players[carIndex];
+
+            // The safety car only leads the formation lap; it is never a competitor.
+            if (IsSafetyCar(player.Name))
+            {
+                safetyCarEntries++;
+                continue;
+            }
 
             if (!driverByKey.TryGetValue(BuildDriverKey(player.Car, player.Skin, player.Name), out var match))
             {
@@ -175,7 +184,7 @@ public class RaceResultService : IRaceResultService
         return new RaceResultImportResult
         {
             Imported = session.DriverStandings.Count,
-            Skipped = sessionFile.Players.Length - session.DriverStandings.Count,
+            Skipped = sessionFile.Players.Length - safetyCarEntries - session.DriverStandings.Count,
             SessionDate = session.SessionDate,
             SessionType = session.SessionType
         };
@@ -213,6 +222,11 @@ public class RaceResultService : IRaceResultService
 
         foreach (var entry in entries)
         {
+            if (IsSafetyCar(entry.Driver))
+            {
+                continue;
+            }
+
             if (!driverByKey.TryGetValue(BuildDriverKey(entry.Car, entry.Skin, entry.Driver), out var match))
             {
                 skipped++;
@@ -368,6 +382,9 @@ public class RaceResultService : IRaceResultService
 
         return driverByKey;
     }
+
+    private static bool IsSafetyCar(string? driverName)
+        => string.Equals(driverName?.Trim(), RaceIniBuilder.SafetyCarDriverName, StringComparison.OrdinalIgnoreCase);
 
     private static string BuildDriverKey(string car, string skin, string driverName)
     {

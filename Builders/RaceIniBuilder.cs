@@ -7,6 +7,9 @@ namespace MulticlassRace.Builders;
 
 public sealed class RaceIniBuilder
 {
+    /// <summary>Driver name of the safety car in race.ini. Result imports ignore any entry with this name.</summary>
+    public const string SafetyCarDriverName = "Safety Car";
+
     /// <summary>Lap limit written for a timed race so Assetto Corsa never ends it on its own.</summary>
     public const int TimedRaceLaps = 999;
 
@@ -20,7 +23,8 @@ public sealed class RaceIniBuilder
         int playerStartPosition = 1,
         bool penalties = true,
         bool rollingStartLapCompensation = false,
-        Func<string?, string?, string?>? resolveSkin = null)
+        Func<string?, string?, string?>? resolveSkin = null,
+        string? safetyCar = null)
     {
         string? ResolveSkin(string? car, string? skin)
         {
@@ -31,6 +35,10 @@ public sealed class RaceIniBuilder
         var opponents = drivers.Where(d => !d.IsHuman).ToList();
         var playerCar = human?.Car?.Trim();
         var playerSkin = ResolveSkin(playerCar, human?.Skin);
+
+        // The safety car only leads the race formation lap; it is the last car of the grid and is not a competitor.
+        var safetyCarId = sessionType == SessionType.Race && !string.IsNullOrWhiteSpace(safetyCar) ? safetyCar.Trim() : null;
+        var safetyCarIndex = opponents.Count + 1;
 
         var model = "[BENCHMARK]\r\nACTIVE=0\r\n\r\n" +
             "[REPLAY]\r\nACTIVE=0\r\n\r\n" +
@@ -50,7 +58,7 @@ public sealed class RaceIniBuilder
         builder.Append("TRACK=").AppendLine(race.TrackName);
         builder.Append("CONFIG_TRACK=").AppendLine(race.TrackLayout ?? string.Empty);
         builder.Append("AI_LEVEL=100\r\n");
-        builder.Append("CARS=").AppendLine((opponents.Count + 1).ToString());
+        builder.Append("CARS=").AppendLine((opponents.Count + 1 + (safetyCarId is null ? 0 : 1)).ToString());
         builder.Append("DRIFT_MODE=0\r\n");
         builder.Append("FIXED_SETUP=0\r\n");
         builder.Append("PENALTIES=").AppendLine(penalties ? "1" : "0");
@@ -73,6 +81,10 @@ public sealed class RaceIniBuilder
             // The Lua app reads this custom header value to remove the formation segment from
             // exported race lap counts. Unknown HEADER values are ignored by Assetto Corsa.
             builder.Append("__MCR_ROLLING_START_LAP_OFFSET=1\r\n");
+        }
+        if (safetyCarId is not null)
+        {
+            builder.Append("__MCR_SAFETY_CAR_INDEX=").AppendLine(safetyCarIndex.ToString(CultureInfo.InvariantCulture));
         }
         if (timedRaceMinutes is { } minutes)
         {
@@ -121,6 +133,15 @@ public sealed class RaceIniBuilder
                 builder.Append("AI_AGGRESSION=").AppendLine(da.ToString(CultureInfo.InvariantCulture));
             }
             builder.Append("\r\n");
+        }
+
+        if (safetyCarId is not null)
+        {
+            builder.Append($"[CAR_{safetyCarIndex}]\r\n");
+            builder.Append("MODEL=").AppendLine(safetyCarId);
+            builder.Append("SKIN=").AppendLine(ResolveSkin(safetyCarId, null));
+            builder.Append("BALLAST=0\r\nRESTRICTOR=0\r\n");
+            builder.Append("DRIVER_NAME=Safety Car\r\nNATIONALITY=\r\nNATION_CODE=\r\n\r\n");
         }
 
         builder.Append("[GHOST_CAR]\r\nRECORDING=0\r\nPLAYING=0\r\nLOAD=0\r\nFILE=\r\nENABLED=0\r\nSECONDS_ADVANTAGE=0\r\n\r\n");

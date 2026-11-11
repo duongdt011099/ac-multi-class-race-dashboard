@@ -228,6 +228,8 @@ local function EarlierCarStillHeld(state)
 end
 
 function M.IsRollingCarReleased(state)
+  -- The safety car leaves first: nobody is released while it is still standing on the grid.
+  if S.safetyCarHolding then return false end
   local group = S.rollingStartGroups[state.groupIndex]
   if not group then return true end
   if IsBlockingReleasedCar(state) or ClassMateBehindReleased(state, group) then

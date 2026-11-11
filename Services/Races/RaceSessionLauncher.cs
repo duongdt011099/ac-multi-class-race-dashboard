@@ -14,19 +14,22 @@ public class RaceSessionLauncher : IRaceSessionLauncher
     private readonly IGameSessionLauncher _gameSessionLauncher;
     private readonly SessionLaunchTracker _launchTracker;
     private readonly AssettoCorsaPathResolver _pathResolver;
+    private readonly IAssettoCorsaGameConfigService? _configService;
 
     public RaceSessionLauncher(
         IRaceRepository raceRepository,
         ITrackService trackService,
         IGameSessionLauncher gameSessionLauncher,
         SessionLaunchTracker launchTracker,
-        AssettoCorsaPathResolver pathResolver)
+        AssettoCorsaPathResolver pathResolver,
+        IAssettoCorsaGameConfigService? configService = null)
     {
         _raceRepository = raceRepository;
         _trackService = trackService;
         _gameSessionLauncher = gameSessionLauncher;
         _launchTracker = launchTracker;
         _pathResolver = pathResolver;
+        _configService = configService;
     }
 
     public async Task LaunchSessionAsync(
@@ -69,7 +72,14 @@ public class RaceSessionLauncher : IRaceSessionLauncher
 
         var teams = (await _raceRepository.GetEnteredTeamsWithDriversAsync(raceId)).ToList();
 
-        var activeDriverCount = teams.Sum(t => t.Drivers.Count(d => d.IsActive));
+        var rollingStartLapCompensation = sessionType == SessionType.Race &&
+            HasTrackAiSpline(gamePath, race.TrackName, race.TrackLayout);
+
+        // The safety car leads the formation lap, so it needs the AI spline the rolling start runs on, and a
+        // pit of its own to retire to.
+        var safetyCar = rollingStartLapCompensation && race.UseSafetyCar ? await ResolveSafetyCarAsync(gamePath) : null;
+
+        var activeDriverCount = teams.Sum(t => t.Drivers.Count(d => d.IsActive)) + (safetyCar is null ? 0 : 1);
         var pitCount = await _trackService.GetPitCountAsync(
             race.TrackName,
             string.IsNullOrWhiteSpace(race.TrackLayout) ? null : race.TrackLayout);
@@ -124,9 +134,6 @@ public class RaceSessionLauncher : IRaceSessionLauncher
                 : drivers.TakeWhile(d => d.DriverId != human.DriverId).Count() + 1;
         }
 
-        var rollingStartLapCompensation = sessionType == SessionType.Race &&
-            HasTrackAiSpline(gamePath, race.TrackName, race.TrackLayout);
-
         var raceIni = new RaceIniBuilder().Build(
             race,
             sessionType,
@@ -137,7 +144,8 @@ public class RaceSessionLauncher : IRaceSessionLauncher
             playerStartPosition,
             penalties,
             rollingStartLapCompensation,
-            (car, skin) => ResolveSkin(gamePath, car, skin));
+            (car, skin) => ResolveSkin(gamePath, car, skin),
+            safetyCar);
 
         var executable = Path.Combine(gamePath, "acs.exe");
 
@@ -175,6 +183,26 @@ public class RaceSessionLauncher : IRaceSessionLauncher
             championshipName,
             race.TrackName ?? string.Empty,
             DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>The configured safety car when it is installed, otherwise the first car found in the game folder.</summary>
+    private async Task<string?> ResolveSafetyCarAsync(string gamePath)
+    {
+        var carsRoot = Path.Combine(gamePath, "content", "cars");
+
+        if (!Directory.Exists(carsRoot))
+        {
+            return null;
+        }
+
+        var configured = (await (_configService?.GetAsync() ?? Task.FromResult<MulticlassRace.ViewModels.AssettoCorsaGameConfigModel?>(null)))?.SafetyCar?.Trim();
+
+        if (IsSafeFolderSegment(configured) && Directory.Exists(Path.Combine(carsRoot, configured!)))
+        {
+            return configured;
+        }
+
+        return Directory.GetDirectories(carsRoot).Select(Path.GetFileName).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
     }
 
     private static bool HasTrackAiSpline(string gamePath, string? trackName, string? layout)

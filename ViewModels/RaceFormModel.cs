@@ -25,6 +25,8 @@ public class RaceFormModel
     /// <summary>Race length in minutes for a timed race; null for a lap-limited race.</summary>
     public int? TimedRaceMinutes { get; set; }
 
+    public bool UseSafetyCar { get; set; } = true;
+
     public int? PracticeSessionMinutes { get; set; }
 
     public int? QualifyingSessionMinutes { get; set; }

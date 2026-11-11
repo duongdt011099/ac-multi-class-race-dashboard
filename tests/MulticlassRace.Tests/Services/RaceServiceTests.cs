@@ -515,6 +515,25 @@ public class RaceServiceImportTests : IDisposable
     }
 
     [Fact]
+    public async Task RaceResult_IgnoresTheSafetyCar()
+    {
+        var (race, _, _) = Setup();
+        var withSafetyCar = RaceJson
+            .Replace("{\"name\":\"Stranger\",\"car\":\"x\",\"skin\":\"x\"}",
+                "{\"name\":\"Stranger\",\"car\":\"x\",\"skin\":\"x\"},{\"name\":\"Safety Car\",\"car\":\"c1\",\"skin\":\"s1\"}")
+            .Replace("\"lapsTotal\":[9,10,10,3]", "\"lapsTotal\":[9,10,10,3,1]");
+        Assert.NotEqual(RaceJson, withSafetyCar);
+        WriteResult("260401-130000.json", withSafetyCar);
+
+        var result = await _fx.Results.ImportRaceResultAsync(race.RaceId, "260401-130000.json");
+
+        Assert.Equal(3, result.Imported);
+        Assert.Equal(1, result.Skipped);   // only the unknown driver, not the safety car
+        var standings = await StandingsAsync(race.RaceId, SessionType.Race);
+        Assert.DoesNotContain(standings, s => s.DriverName == "Safety Car");
+    }
+
+    [Fact]
     public async Task RaceResult_FromPathUsesGivenNameAndFile()
     {
         var (race, _, _) = Setup();

@@ -96,6 +96,9 @@
             </div>
         </fieldset>
 
+        <CheckboxField Id="race-safety-car" Label="Safety car leads the formation lap" @bind-Value="Race.UseSafetyCar"
+                       Title="The safety car (set in the side menu) leads the rolling-start formation lap and pulls into the pits when the field is in double file." />
+
         <div class="wec-form-field">
             <label for="race-point-setting">Point Setting</label>
             <ImageSelect ShowImages="false" Id="race-point-setting" Value="@Race.PointSettingId.ToString()"

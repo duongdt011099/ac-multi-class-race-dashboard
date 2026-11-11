@@ -174,6 +174,7 @@ function M.PrepareRollingStart(sim)
 
   S.rollingRestartPending = false
   S.rollingStartState = "staged"
+  S.rollingAttempt = (S.rollingAttempt or 0) + 1
   S.rollingStartStatus = "ROLLING START READY"
   S.rollingStartSessionKey = Sess.GetCurrentSessionKey(sim)
   S.rollingStartLastFrame = nil

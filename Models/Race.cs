@@ -25,6 +25,9 @@ public class Race
     /// <summary>Race length in minutes for a timed race; null for an ordinary lap-limited race.</summary>
     public int? TimedRaceMinutes { get; set; }
 
+    /// <summary>Whether a safety car leads the formation lap of this race.</summary>
+    public bool UseSafetyCar { get; set; } = true;
+
     public int? PracticeSessionMinutes { get; set; }
 
     public int? QualifyingSessionMinutes { get; set; }

@@ -20,6 +20,8 @@ local armed = false      -- the human car has entered double file
 local started = false
 local fadeLeft = nil
 local finishing = false  -- green arrived near the end: let the track finish on its own
+local doubleFilePlayed = false   -- the callouts play once per attempt (reset in M.Reset)
+local autopilotOffPlayed = false
 
 local function filePath()
   return ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/" .. FILE_NAME
@@ -37,6 +39,8 @@ end
 function M.Reset()
   dispose()
   armed = false
+  doubleFilePlayed = false
+  autopilotOffPlayed = false
 end
 
 -- Load the track paused at the start of the formation so it is ready when needed.
@@ -65,6 +69,8 @@ local doubleFilePlayer = nil
 
 function M.PlayDoubleFile()
   if not S.rollingMusicEnabled then return end
+  if doubleFilePlayed then return end
+  doubleFilePlayed = true
   local ok, err = pcall(function()
     if not doubleFilePlayer then
       doubleFilePlayer = ui.MediaPlayer(ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/sounds/double_file.mp3",
@@ -83,6 +89,8 @@ end
 local autopilotOffPlayer = nil
 
 function M.PlayAutopilotOff()
+  if autopilotOffPlayed then return end
+  autopilotOffPlayed = true
   local ok, err = pcall(function()
     if not autopilotOffPlayer then
       autopilotOffPlayer = ui.MediaPlayer(ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/sounds/auto_pilot_off.mp3",
@@ -351,7 +359,9 @@ function M.Suspend()
   if next(suspended) ~= nil then return end
   for _, p in ipairs(allPlayers()) do
     local ok, playing = pcall(function() return p:playing() end)
-    if ok and playing == true then
+    -- A clip that has already finished can still report "playing"; resuming it would play it again.
+    local okEnd, ended = pcall(function() return p:ended() end)
+    if ok and playing == true and not (okEnd and ended == true) then
       pcall(function() p:pause() end)
       suspended[#suspended + 1] = p
     end

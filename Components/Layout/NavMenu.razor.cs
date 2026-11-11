@@ -12,6 +12,12 @@ public partial class NavMenu : IDisposable
 {
     [Inject] private AssettoCorsaPathResolver PathResolver { get; set; } = default!;
 
+    [Inject] private IAssettoCorsaContentService ContentService { get; set; } = default!;
+
+    [Inject] private IAssettoCorsaGameConfigService GameConfigService { get; set; } = default!;
+
+    [Inject] private SafetyCarPanelRequest PanelRequest { get; set; } = default!;
+
     [Inject] private IDriverService DriverService { get; set; } = default!;
 
     [Inject] private GameConfigChangeNotifier ConfigNotifier { get; set; } = default!;
@@ -31,6 +37,9 @@ public partial class NavMenu : IDisposable
     private bool isConfigured;
     private bool hasUpdate;
     private DriverModel? humanDriver;
+    private IReadOnlyList<CarOptionModel> carOptions = Array.Empty<CarOptionModel>();
+    private string? safetyCar;
+    private string SafetyCarName => carOptions.FirstOrDefault(c => string.Equals(c.CarId, safetyCar, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? safetyCar ?? string.Empty;
 
     private string VersionTitle => hasUpdate
         ? "Update available - click to view"
@@ -72,6 +81,17 @@ public partial class NavMenu : IDisposable
 
         var drivers = await DriverService.GetActiveDriversAsync();
         humanDriver = drivers.FirstOrDefault(d => d.IsHuman);
+
+        if (isConfigured)
+        {
+            carOptions = (await ContentService.GetCarOptionsAsync()).OrderBy(c => c.CarId, StringComparer.OrdinalIgnoreCase).ToList();
+            var saved = (await GameConfigService.GetAsync())?.SafetyCar;
+
+            // Nothing configured (or the car was removed): the first car found in the game folder.
+            safetyCar = carOptions.Any(c => string.Equals(c.CarId, saved, StringComparison.OrdinalIgnoreCase))
+                ? carOptions.First(c => string.Equals(c.CarId, saved, StringComparison.OrdinalIgnoreCase)).CarId
+                : carOptions.FirstOrDefault()?.CarId;
+        }
     }
 
     private void OnUpdateStateChanged()

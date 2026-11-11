@@ -1,0 +1,131 @@
+.sc-backdrop {
+    position: fixed;
+    inset: 0 0 0 250px;
+    z-index: 900;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.sc-panel {
+    position: fixed;
+    top: 0;
+    left: 250px;
+    bottom: 0;
+    z-index: 901;
+    width: min(440px, calc(100vw - 250px));
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem 1rem;
+    background: #15171c;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.5);
+    color: #f1f1f1;
+    animation: sc-slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sc-slide-in {
+    from { transform: translateX(-40px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+
+.sc-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sc-panel__close {
+    background: none;
+    border: 0;
+    color: #bbb;
+    cursor: pointer;
+}
+
+.sc-panel__close:hover { color: #fff; }
+
+.sc-panel__hint {
+    font-size: 0.8rem;
+    color: #9d9d9d;
+}
+
+.sc-panel__search {
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    color: #f1f1f1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+}
+
+.sc-panel__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.sc-car {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    text-align: left;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.sc-car:hover { border-color: rgba(255, 46, 36, 0.6); }
+
+.sc-car--selected {
+    border-color: #e10600;
+    background: rgba(225, 6, 0, 0.16);
+}
+
+.sc-car__img {
+    width: 84px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #222;
+    flex-shrink: 0;
+}
+
+.sc-car__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.sc-car__name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sc-car__id {
+    font-size: 0.72rem;
+    color: #9d9d9d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sc-car__check { color: #e10600; }
+
+.sc-panel__empty {
+    padding: 1rem;
+    text-align: center;
+    color: #9d9d9d;
+}

@@ -1,0 +1,52 @@
+@rendermode Interactive
+@implements IDisposable
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.Notifications
+@using MulticlassRace.ViewModels
+@inject SafetyCarPanelRequest PanelRequest
+@inject IAssettoCorsaContentService ContentService
+@inject IAssettoCorsaGameConfigService GameConfigService
+@inject GameConfigChangeNotifier ConfigNotifier
+
+@if (isOpen)
+{
+    <SafetyCarPanel Cars="cars" Selected="selected" OnSelect="SelectAsync" OnClose="Close" />
+}
+
+@code {
+    private bool isOpen;
+    private IReadOnlyList<CarOptionModel> cars = Array.Empty<CarOptionModel>();
+    private string? selected;
+
+    protected override void OnInitialized() => PanelRequest.Requested += OnRequested;
+
+    private async void OnRequested()
+    {
+        try
+        {
+            cars = (await ContentService.GetCarOptionsAsync()).OrderBy(c => c.CarId, StringComparer.OrdinalIgnoreCase).ToList();
+            var saved = (await GameConfigService.GetAsync())?.SafetyCar;
+            selected = cars.FirstOrDefault(c => string.Equals(c.CarId, saved, StringComparison.OrdinalIgnoreCase))?.CarId
+                       ?? cars.FirstOrDefault()?.CarId;
+            isOpen = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // The panel simply does not open when the car list cannot be read.
+        }
+    }
+
+    private void Close() => isOpen = false;
+
+    private async Task SelectAsync(string car)
+    {
+        isOpen = false;
+        var config = await GameConfigService.GetAsync() ?? new AssettoCorsaGameConfigModel();
+        config.SafetyCar = car;
+        await GameConfigService.SaveAsync(config);
+        ConfigNotifier.NotifyChanged();   // the side menu card re-reads the selection
+    }
+
+    public void Dispose() => PanelRequest.Requested -= OnRequested;
+}

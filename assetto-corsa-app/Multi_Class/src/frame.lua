@@ -13,6 +13,8 @@ local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
 local Blue = require("src/blue/blue")
+local Overtake = require("src/overtake/overtake")
+local SafetyCar = require("src/safetycar/safetycar")
 local Pos = require("src/leaderboard/positions")
 local TimedRace = require("src/timed_race")
 
@@ -106,12 +108,15 @@ local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(Blue.Reset)
+  pcall(Overtake.Reset)
+  pcall(SafetyCar.Reset)
   pcall(Audio.ResetAll)
   pcall(TimedRace.OnSessionStart)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   -- Banners, timers and one-shot flags of the attempt that just ended.
   S.manualBannerUntil = 0
+  S.controlBannerUntil = 0
   S.autopilotResumeAfterReplay = nil
   S.rollingStartLaneDiagDone = false
   S.rollingStartDiagAt = nil
@@ -300,6 +305,16 @@ local function updateRolling(sim, dt)
     U.Log("BLUE: update failed: " .. tostring(blueErr))
     pcall(Blue.Reset)
   end
+  local otOk, otErr = pcall(Overtake.Update, sim, dt)
+  if not otOk then
+    U.Log("OVERTAKE: update failed: " .. tostring(otErr))
+    pcall(Overtake.Reset)
+  end
+  local scOk, scErr = pcall(SafetyCar.Update, sim, dt)
+  if not scOk then
+    U.Log("SAFETY: update failed: " .. tostring(scErr))
+    pcall(SafetyCar.Reset)
+  end
 end
 
 local function stopAllFeatures(sim)
@@ -307,6 +322,8 @@ local function stopAllFeatures(sim)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(Blue.Reset)
+  pcall(Overtake.Reset)
+  pcall(SafetyCar.Reset)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
   S.leaderboardOpened = false
@@ -316,7 +333,7 @@ end
 
 function Frame.Update(dt)
   local sim = ac.getSim()
-  S.driverCount = sim.carsCount or 0
+  S.driverCount = SafetyCar.CompetitorCount(sim)
 
   -- Paused from the in-game menu: the whole app stands still (no session tracking, rolling start,
   -- flags, timers or exports) with its audio held, and carries on from the same spot on resume.
@@ -334,6 +351,7 @@ function Frame.Update(dt)
     pausedAt = nil
     dt = 0.016
     if (S.manualBannerUntil or 0) > 0 then S.manualBannerUntil = S.manualBannerUntil + paused end
+    if (S.controlBannerUntil or 0) > 0 then S.controlBannerUntil = S.controlBannerUntil + paused end
     if (S.resultSavedBannerUntil or 0) > 0 then S.resultSavedBannerUntil = S.resultSavedBannerUntil + paused end
     if S.raceExitAt then S.raceExitAt = S.raceExitAt + paused end
   end
@@ -354,6 +372,7 @@ function Frame.Update(dt)
       end
       pcall(Yellow.Reset)
       pcall(Blue.Reset)
+      pcall(Overtake.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
       ac.setWindowOpen("cl_greenlights", false)
     else

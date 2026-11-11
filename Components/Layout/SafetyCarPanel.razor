@@ -1,0 +1,60 @@
+@using MulticlassRace.ViewModels
+
+@* Side panel on the right of the window for choosing the safety car. A plain dropdown inside the narrow
+   side menu was too small to read, so the car list opens here instead. *@
+
+<div class="sc-backdrop" @onclick="OnClose"></div>
+
+<aside class="sc-panel" role="dialog" aria-label="Safety car">
+    <div class="sc-panel__header">
+        <span><i class="bi bi-flag-fill" aria-hidden="true"></i> Safety Car</span>
+        <button type="button" class="sc-panel__close" aria-label="Close" @onclick="OnClose">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+
+    <div class="sc-panel__hint">
+        Leads the formation lap of races that have the safety car switched on, then pulls into the pits.
+    </div>
+
+    <input class="sc-panel__search" type="text" placeholder="Search cars..." @bind="search" @bind:event="oninput" />
+
+    <div class="sc-panel__list">
+        @foreach (var car in Filtered)
+        {
+            var selected = string.Equals(car.CarId, Selected, StringComparison.OrdinalIgnoreCase);
+            <button type="button" class="sc-car @(selected ? "sc-car--selected" : null)" @onclick="() => OnSelect.InvokeAsync(car.CarId)">
+                <img class="sc-car__img" src="/car-thumb?car=@Uri.EscapeDataString(car.CarId)" alt="" loading="lazy" />
+                <span class="sc-car__text">
+                    <span class="sc-car__name">@car.DisplayName</span>
+                    <span class="sc-car__id">@car.CarId</span>
+                </span>
+                @if (selected)
+                {
+                    <i class="bi bi-check-lg sc-car__check" aria-hidden="true"></i>
+                }
+            </button>
+        }
+        @if (!Filtered.Any())
+        {
+            <div class="sc-panel__empty">No cars found.</div>
+        }
+    </div>
+</aside>
+
+@code {
+    private string search = string.Empty;
+
+    [Parameter] public IReadOnlyList<CarOptionModel> Cars { get; set; } = Array.Empty<CarOptionModel>();
+
+    [Parameter] public string? Selected { get; set; }
+
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private IEnumerable<CarOptionModel> Filtered => string.IsNullOrWhiteSpace(search)
+        ? Cars
+        : Cars.Where(c => c.DisplayName.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)
+                          || c.CarId.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase));
+}

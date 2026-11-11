@@ -38,6 +38,10 @@ C.ROLLING_START_LONG_TRACK_METERS   = 7000
 C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS = 2000
 C.AUTOPILOT_OFF_WARNING_SECONDS     = 10.0
 C.AUTOPILOT_HANDOVER_METERS         = 300.0   -- autopilot hands the car back this far before the start line
+-- How long the blinking "You have control" banner stays up after the autopilot hands the car back, and
+-- how long each of its two blink images shows.
+C.CONTROL_BANNER_SECONDS            = 6.0
+C.CONTROL_BANNER_BLINK_SECONDS      = 0.4
 -- A car is considered to have rolled over the start line once its spline position drops below this.
 C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- Lateral distance of each column from the racing line, in metres. CSP keeps the AI on a lane with
@@ -263,14 +267,42 @@ C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 -- passer's speed (never below MIN_SPEED_KMH) until the passer is RELEASE_GAP_M ahead, so it does not
 -- pass back. Nothing else about the car is changed.
 C.BLUE_PASSED_M              = 0.5
-C.BLUE_ENGAGE_GAP_M          = 60
-C.BLUE_CLOSE_GAP_M           = 15
-C.BLUE_CLOSE_FACTOR          = 0.85
-C.BLUE_CLOSE_CAUTION         = 2.0
-C.BLUE_RELEASE_GAP_M         = 70
-C.BLUE_HOLD_FACTOR           = 0.98
-C.BLUE_MIN_SPEED_KMH         = 50
-C.BLUE_SCAN_SECONDS          = 0.25
+C.BLUE_ENGAGE_GAP_M          = 150
+C.BLUE_CLOSE_GAP_M           = 40
+C.BLUE_CLOSE_FACTOR          = 0.75
+C.BLUE_CLOSE_CAUTION         = 2.5
+C.BLUE_RELEASE_GAP_M         = 220
+C.BLUE_HOLD_FACTOR           = 0.93
+C.BLUE_MIN_SPEED_KMH         = 40
+C.BLUE_SCAN_SECONDS          = 0.1
+
+-- Multi-class overtaking assist (overtake/overtake.lua): a faster-class AI car within RANGE_M of a
+-- slower-class car (inside LATERAL_M sideways) with a clear side lowers its caution to CAUTION and
+-- raises aggression so it commits to the pass instead of tailgating.
+C.OVERTAKE_RANGE_M           = 70
+C.OVERTAKE_LATERAL_M         = 2.5
+C.OVERTAKE_CAUTION           = 0.5
+C.OVERTAKE_AGGRESSION        = 0.8
+C.OVERTAKE_SCAN_SECONDS      = 0.15
+
+-- Safety car (safetycar/safetycar.lua): placed AHEAD_M in front of the first row of the first class,
+-- leads the formation lap at the race cars' formation speed, slowing when the leader is more than
+-- WAIT_START_M behind (down to the single-file wait speed at WAIT_FULL_M).
+C.SAFETY_CAR_AHEAD_M         = 50
+C.SAFETY_CAR_WAIT_START_M    = 120
+C.SAFETY_CAR_WAIT_FULL_M     = 320
+-- The field is held until the safety car is above RELEASE_SPEED_KMH (or MAX_SECONDS after it started).
+C.SAFETY_CAR_RELEASE_SPEED_KMH = 20
+-- The car is re-placed while it is further than TOLERANCE_M from its spot; the field waits at most
+-- PLACE_MAX_SECONDS after the formation starts for it to be in position.
+C.SAFETY_CAR_PLACE_TOLERANCE_M = 20
+C.SAFETY_CAR_PLACE_MAX_SECONDS = 4
+-- Retirement: the safety car drives into the pit lane (AI pit request) when the field is in double file,
+-- keeps leading until it gets there, and is teleported to the pits only as a fallback after TIMEOUT.
+C.SAFETY_CAR_PIT_TIMEOUT_SECONDS = 240
+C.SAFETY_CAR_PIT_SPEED_KMH = 80
+C.SAFETY_CAR_PARK_MAX_SECONDS = 25
+C.SAFETY_CAR_RELEASE_MAX_SECONDS = 6
 
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named exactly yyMMdd-HHmmss.json.

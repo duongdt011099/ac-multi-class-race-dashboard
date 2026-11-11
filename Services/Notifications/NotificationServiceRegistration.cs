@@ -10,6 +10,7 @@ public static class NotificationServiceRegistration
         services.AddScoped<ToastService>();
         services.AddScoped<BrowserStorage>();
         services.AddScoped<UserGuideRequest>();
+        services.AddScoped<SafetyCarPanelRequest>();
 
         return services;
     }

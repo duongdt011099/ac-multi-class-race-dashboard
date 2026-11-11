@@ -145,7 +145,9 @@ function M.Update(sim, dt)
       S.blueCars[i] = nil
     elseif st.passer then
       if skipCar(i, car) then
-        -- Pits or yellow take over the car's controls; just forget the hold.
+        -- Pits or yellow take over the car's controls; forget the hold. A car in the pits must not
+        -- keep the speed cap into its next stint.
+        if inPit(car) then RCtl.RestoreAIControl(i, false) end
         st.passer, st.cap = nil, nil
       else
         holdCar(i, car, p, st, trackLength)

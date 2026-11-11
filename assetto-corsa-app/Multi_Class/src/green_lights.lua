@@ -1,6 +1,7 @@
 -- "Five green lights" banner shown at the top of the screen whenever the player is given green
 -- (rolling start green only, not the green after a yellow flag).
 local S = require("src/state")
+local C = require("src/constants")
 local Draw = require("src/leaderboard/draw")
 local Audio = require("src/audio")
 local Exporter = require("src/export/exporter")
@@ -14,6 +15,7 @@ local FADE_SECONDS = 0.4
 
 local AUTOPILOT_IMAGE = "auto_pilot.png"       -- "Auto Pilot Mode"
 local MANUAL_IMAGE = "manual_control.png"     -- "Manual Control, Hold your steering wheel"
+local CONTROL_IMAGES = { "you_have_control_1.png", "you_have_control_2.png" }   -- "You have control", blinking
 
 local SAVED_IMAGE = "result_saved.png"         -- "Session Result Saved" (practice / qualifying / race)
 
@@ -39,6 +41,7 @@ local savedAlpha = 0.0
 local finishedAlpha = 0.0
 local autoAlpha = 0.0
 local manualAlpha = 0.0
+local controlAlpha = 0.0
 
 local function fade(current, showing, dt)
   local step = (dt or 0.016) / FADE_SECONDS
@@ -62,14 +65,20 @@ function M.Draw(dt)
     manual = false
     S.manualBannerUntil = 0
   end
+  -- The "You have control" banner outranks the manual notice: the autopilot-off clip can still be
+  -- playing when the car is handed back, and must not keep the new banner from showing.
+  local control = (S.controlBannerUntil or 0) > os.clock() and not showing
   local auto = S.playerAutopilotOn == true and not manual and not showing
-  manual = manual and not showing
+  manual = manual and not showing and not control
+  -- "You have control" after the autopilot hands the car back: two images swapped every few tenths of
+  -- a second make it blink. Like the manual notice it hides the lower-priority banners.
+  local covered = manual or control
 
   -- Lane notice for a human driver who steers the formation lap themselves (autopilot off):
   -- shown from the double-file phase until the player's class goes green.
   local laneImage = nil
   if not S.autopilotEnabled and startLive and playerState and playerState.enteredPhase2
-      and not playerState.green and not showing and not manual then
+      and not playerState.green and not showing and not covered then
     local side = Draw.GetPlayerLaneSide()
     if side == "LEFT" then laneImage = LANE_LEFT_IMAGE elseif side == "RIGHT" then laneImage = LANE_RIGHT_IMAGE end
   end
@@ -108,24 +117,25 @@ function M.Draw(dt)
       lastLap = onFinalLap and not finished
     end
   end
-  lastLap = lastLap and not showing and not manual
+  lastLap = lastLap and not showing and not covered
   lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
 
   laneAlpha = fade(laneAlpha, laneImage ~= nil, dt)
   if laneImage then laneShown = laneImage end
 
   local okWait, waiting = pcall(Exporter.IsPlayerWaitingForOthers, sim)
-  waiting = okWait and waiting == true and not showing and not manual
+  waiting = okWait and waiting == true and not showing and not covered
   wasWaiting = waiting
   waitAlpha = fade(waitAlpha, waiting, dt)
 
-  local saved = (S.resultSavedBannerUntil or 0) > os.clock() and not showing and not manual
+  local saved = (S.resultSavedBannerUntil or 0) > os.clock() and not showing and not covered
   savedAlpha = fade(savedAlpha, saved, dt)
-  finishedAlpha = fade(finishedAlpha, S.raceFinishedBanner == true and not showing and not manual, dt)
+  finishedAlpha = fade(finishedAlpha, S.raceFinishedBanner == true and not showing and not covered, dt)
 
   alpha = fade(alpha, showing, dt)
   autoAlpha = fade(autoAlpha, auto, dt)
   manualAlpha = fade(manualAlpha, manual, dt)
+  controlAlpha = fade(controlAlpha, control, dt)
 
   local size = ui.windowSize()
   local width = size.x
@@ -138,6 +148,10 @@ function M.Draw(dt)
   end
   if manualAlpha > 0.0 then
     ui.drawImage(MANUAL_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, manualAlpha))
+  end
+  if controlAlpha > 0.0 then
+    local blink = math.floor(os.clock() / C.CONTROL_BANNER_BLINK_SECONDS) % 2 + 1
+    ui.drawImage(CONTROL_IMAGES[blink], vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, controlAlpha))
   end
   if lastLapAlpha > 0.0 then
     ui.drawImage(LAST_LAP_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, lastLapAlpha))
