@@ -16,6 +16,50 @@ function M.SignedGap(other, car, trackLength)
 end
 local gap = M.SignedGap
 
+-- Nearest car physically in front of `car` (along its heading, within a lane-width sideways), found
+-- from world positions so it does not depend on class order, formation phase or lane bookkeeping.
+-- Returns the centre-to-centre distance and that car's speed, or nil.
+function M.NearestAhead(carIndex, car, driverCount)
+  local pos, look = car.position, car.look
+  if not (pos and look) then return nil end
+  local lx, lz = look.x, look.z
+  local len = math.sqrt(lx * lx + lz * lz)
+  if len < 0.001 then return nil end
+  lx, lz = lx / len, lz / len
+  local bestDist, bestSpeed
+  for j = 0, driverCount - 1 do
+    if j ~= carIndex then
+      local other = getCar(j)
+      local op = other and other.position
+      if op then
+        local dx, dz = op.x - pos.x, op.z - pos.z
+        local fwd = dx * lx + dz * lz
+        if fwd > 0 and fwd < C.ROLLING_START_PROX_GUARD_GAP and (not bestDist or fwd < bestDist) then
+          local side = math.abs(dx * lz - dz * lx)
+          if side < C.ROLLING_START_PROX_LATERAL_M then bestDist, bestSpeed = fwd, other.speedKmh or 0 end
+        end
+      end
+    end
+  end
+  return bestDist, bestSpeed
+end
+
+-- Caps the commanded speed so the car keeps PROX_HOLD_GAP behind whatever is in front of it.
+function M.ProximityGuard(carIndex, car, driverCount, targetSpeed, throttleLimit)
+  if not car then return targetSpeed, throttleLimit end
+  local dist, aheadSpeed = M.NearestAhead(carIndex, car, driverCount)
+  if not dist then return targetSpeed, throttleLimit end
+  local cap = aheadSpeed + (dist - C.ROLLING_START_PROX_HOLD_GAP) * C.ROLLING_START_PROX_GAIN_KMH
+  if dist < C.ROLLING_START_PROX_STOP_GAP then
+    cap = math.min(cap, math.max(0.0, aheadSpeed - 10.0))
+    throttleLimit = 0.0
+  elseif dist < C.ROLLING_START_PROX_HOLD_GAP then
+    throttleLimit = math.min(throttleLimit, 0.3)
+  end
+  if cap < targetSpeed then targetSpeed = math.max(0.0, cap) end
+  return targetSpeed, throttleLimit
+end
+
 -- Linear catch-up multiplier from the reference app: 1.0 at minDist, up to maxMult at maxDist.
 function M.GetLinearMultiplier(dist, minDist, maxDist, maxMult)
   maxMult = maxMult or C.ROLLING_START_CATCHUP_LIMIT

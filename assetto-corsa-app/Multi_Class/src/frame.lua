@@ -18,6 +18,8 @@ local TimedRace = require("src/timed_race")
 
 local Frame = {}
 
+local pausedAt = nil   -- os.clock() when the in-game pause began (nil = not paused)
+
 local sFormat = string.format
 
 local function readSessionName(sim)
@@ -104,8 +106,17 @@ local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(Blue.Reset)
+  pcall(Audio.ResetAll)
+  pcall(TimedRace.OnSessionStart)
   S.rollingStartState = "idle"
   S.rollingStartStatus = ""
+  -- Banners, timers and one-shot flags of the attempt that just ended.
+  S.manualBannerUntil = 0
+  S.autopilotResumeAfterReplay = nil
+  S.rollingStartLaneDiagDone = false
+  S.rollingStartDiagAt = nil
+  S.rollingStartDiagFrame = 0
+  S.yellowPlayerLimited = false
   S.leaderboardOpened = false
   S.playerStoppedState = false
   S.raceDisplayStable = nil
@@ -310,10 +321,24 @@ function Frame.Update(dt)
   -- Paused from the in-game menu: the whole app stands still (no session tracking, rolling start,
   -- flags, timers or exports) with its audio held, and carries on from the same spot on resume.
   if sim.isPaused == true and sim.isInMainMenu ~= true then
+    if not pausedAt then pausedAt = os.clock() end
     pcall(Audio.Suspend)
     return
   end
   pcall(Audio.Resume)
+  if pausedAt then
+    -- First frame after a pause: dt can span the whole pause, which would run every flag/race timer
+    -- forward at once (a yellow flag turning green on resume). Count it as one ordinary frame and
+    -- push the wall-clock deadlines (banners, auto exit) back by the time spent paused.
+    local paused = os.clock() - pausedAt
+    pausedAt = nil
+    dt = 0.016
+    if (S.manualBannerUntil or 0) > 0 then S.manualBannerUntil = S.manualBannerUntil + paused end
+    if (S.resultSavedBannerUntil or 0) > 0 then S.resultSavedBannerUntil = S.resultSavedBannerUntil + paused end
+    if S.raceExitAt then S.raceExitAt = S.raceExitAt + paused end
+  end
+  -- A long hitch must never advance the flag and race clocks by more than a moment either.
+  dt = math.min(dt or 0.016, 0.25)
 
   -- Replay: the app is fully disabled while a replay is being watched, and no session
   -- result may be auto-saved from replay data. The auto-save preference itself is left
@@ -403,7 +428,6 @@ end
 -- on the same grid, so the captured slots and measured sides have to survive.
 function Frame.OnSessionStart(sessionIndex, restarted)
   resetAttemptState()
-  pcall(TimedRace.OnSessionStart)
   S.firstFrame = true
   S.rollingRestartPending = restarted == true
 

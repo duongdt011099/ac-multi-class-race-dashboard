@@ -625,6 +625,9 @@ function M.Reset()
   S.yellowPlayerActive = false
   S.yellowPlayerLimited = false
   S.yellowGreenUntil = 0.0
+  S.yellowClock = 0.0
+  S.yellowLeaderDist = 0.0
+  S.yellowSlowKmh = nil
   syncTrackFlag()
   Audio.ResetFlags()
 end

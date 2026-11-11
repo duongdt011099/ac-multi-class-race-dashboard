@@ -104,6 +104,14 @@ C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
 C.ROLLING_START_CLASS_GUARD_GAP     = 70.0
 C.ROLLING_START_CLASS_HOLD_GAP      = 30.0
 C.ROLLING_START_CLASS_GUARD_GAIN_KMH = 2.5
+-- Last-resort proximity guard: any formation car (the autopilot-driven human car included) never
+-- closes on whatever is physically in front of it in its own path, whatever class or phase that car
+-- is in. Distances are centre to centre, in metres.
+C.ROLLING_START_PROX_GUARD_GAP       = 20.0   -- start matching the speed of the car ahead
+C.ROLLING_START_PROX_HOLD_GAP        = 10.0   -- target following distance
+C.ROLLING_START_PROX_STOP_GAP        = 7.0    -- closer than this: stop pushing and brake
+C.ROLLING_START_PROX_GAIN_KMH        = 5.0    -- km/h of speed difference per metre of error
+C.ROLLING_START_PROX_LATERAL_M       = 2.2    -- how far sideways still counts as "in front"
 -- Release cadence: the class leaves strictly in grid order, one car every CAR_SECONDS, so the
 -- run-up is a true single file and the double-file rows pair P1+P2, P3+P4, ... Each class starts
 -- CLASS_GAP_SECONDS after the previous class's final car, so the classes never bunch on the run-up.

@@ -328,6 +328,8 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   end
 
   targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
+  -- Final safety net, applied to every car: never run into whatever is physically ahead.
+  targetSpeed, throttleLimit = Spacing.ProximityGuard(carIndex, car, S.driverCount, targetSpeed, throttleLimit)
 
   local launch = LaunchProgress(state)
   if launch < 1.0 then

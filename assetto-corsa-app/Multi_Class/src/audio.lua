@@ -364,6 +364,23 @@ function M.Resume()
   suspended = {}
 end
 
+-- Full reset for a restarted or ended attempt: every clip stops, including the one-shot callouts,
+-- and the paused-clip bookkeeping is dropped. Without this the "autopilot off" clip (which drives the
+-- "Hold your steering wheel" banner) could still be playing into the next attempt.
+function M.ResetAll()
+  M.Reset()
+  M.ResetFlags()
+  flagClock = 0.0
+  flagLastTime = {}
+  suspended = {}
+  for _, p in ipairs({ doubleFilePlayer, autopilotOffPlayer }) do
+    pcall(function()
+      p:pause()
+      p:setCurrentTime(0)
+    end)
+  end
+end
+
 function M.Update(dt)
   updateFlagSounds(dt)
   if not player then return end
