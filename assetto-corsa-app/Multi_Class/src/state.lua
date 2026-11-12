@@ -94,6 +94,9 @@ S.yellowGuardUntil    = 0.0
 S.yellowSlowCooldownUntil = 0.0
 S.yellowPlayerActive  = false
 S.yellowClock         = 0.0
+S.crashStrikes        = {}   -- AI car -> times it crashed into the pits
+S.crashLocked         = {}   -- AI car -> locked in the pits for the rest of the race
+S.crashPitEvents      = {}   -- AI car -> seconds it was a hazard before reaching the pits (set by yellow.lua)
 S.yellowSlowKmh       = nil
 S.yellowGreenUntil    = 0.0
 

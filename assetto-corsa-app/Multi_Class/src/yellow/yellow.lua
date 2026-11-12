@@ -107,6 +107,8 @@ local function updateHazard(i, car, dt, trackLength)
   if inPit(car) then
     st.slow, st.ok, st.moved = 0.0, 0.0, false
     if st.hazard then
+      -- The crash guard counts a hazard that ends in the pit lane (CSP's damage teleport) as a crash.
+      S.crashPitEvents[i] = S.yellowClock - (st.hazardAt or 0)
       st.hazard, st.ignored, st.confirmLogged = false, false, false
       U.Log(sFormat("YELLOW: car %d reached the pits; hazard ended after %.0f s", i, S.yellowClock - (st.hazardAt or 0)))
     end

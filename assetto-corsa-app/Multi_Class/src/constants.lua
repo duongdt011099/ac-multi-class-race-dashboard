@@ -336,4 +336,12 @@ C.SESSION_TYPE_QUALIFY  = (ac.SessionType and ac.SessionType.Qualify) or 2
 C.SESSION_TYPE_RACE     = (ac.SessionType and ac.SessionType.Race) or 3
 C.SESSION_TYPE_HOTLAP   = (ac.SessionType and ac.SessionType.Hotlap) or 4
 
+
+-- Crash guard (crashguard/crashguard.lua): an AI car that crashes into the pits is repaired once; the
+-- second time it is locked in the pit lane for the rest of the race.
+C.CRASH_GUARD_ENABLED       = true
+C.CRASH_MAX_PIT_TRIPS       = 2      -- the Nth crash locks the car (1st = repaired and released)
+C.CRASH_MIN_HAZARD_SECONDS  = 8.0    -- stopped/slow this long on track before the pits = a crash, not a pit stop
+C.CRASH_SCAN_SECONDS        = 0.5
+
 return C
