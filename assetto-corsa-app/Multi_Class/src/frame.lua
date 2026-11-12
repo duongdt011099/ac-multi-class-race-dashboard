@@ -314,14 +314,18 @@ local function updateRolling(sim, dt)
   end
 end
 
-local function stopAllFeatures(sim)
+local function stopAllFeatures(sim, keepRaceState)
   RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(Overtake.Reset)
   pcall(SafetyCar.Reset)
-  S.rollingStartState = "idle"
-  S.rollingStartStatus = ""
+  -- A race that is already under way keeps its "complete" / "unavailable" state through a replay:
+  -- the race clock only runs in those states, and nothing re-stages a race that has started.
+  if not (keepRaceState and (S.rollingStartState == "complete" or S.rollingStartState == "unavailable")) then
+    S.rollingStartState = "idle"
+    S.rollingStartStatus = ""
+  end
   S.leaderboardOpened = false
   ac.setWindowOpen("cl_leaderboard", false)
   ac.setWindowOpen("cl_greenlights", false)
@@ -377,7 +381,7 @@ function Frame.Update(dt)
       if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
         S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
       end
-      stopAllFeatures(sim)
+      stopAllFeatures(sim, true)
     end
     ac.setWindowOpen("cl_config", false)
     return

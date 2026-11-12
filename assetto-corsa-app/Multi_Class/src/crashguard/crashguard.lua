@@ -50,6 +50,8 @@ local function shouldRun(sim)
   if not C.CRASH_GUARD_ENABLED then return false end
   if sim.isSessionStarted ~= true or not Sess.IsRaceMode(sim) then return false end
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return false end
+  -- Once the leader has finished the pits are closed: no repairs, no rejoining.
+  if S.raceLeaderFinished then return false end
   return not Sess.IsSessionFinished(sim)
 end
 

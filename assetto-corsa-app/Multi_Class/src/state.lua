@@ -129,6 +129,7 @@ S.timedRaceSeconds   = 0.0     -- race clock, running from the green flag
 S.timedRaceTimeUp    = false
 S.timedFinishLaps    = nil     -- AC lap count at which the race ends, known once the time is up
 S.timedRaceComplete  = false
+S.raceLeaderFinished = false   -- the race leader has taken the flag: the pits are closed
 
 -- Rolling start
 S.rollingStartState          = "idle"

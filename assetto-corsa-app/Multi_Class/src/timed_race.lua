@@ -27,9 +27,14 @@ local lapCountOf
 local finishedAt = {}
 local teleported = {}
 local finishClock = 0.0
+local pitDone, pitHoldTeleportAt = {}, {}
+local pitHoldClock, nextPitHoldAt = 0.0, 0.0
 
 local function resetRace()
   finishedAt, teleported, finishClock = {}, {}, 0.0
+  pitDone, pitHoldTeleportAt = {}, {}
+  pitHoldClock, nextPitHoldAt = 0.0, 0.0
+  S.raceLeaderFinished = false
   S.timedRaceSeconds = 0.0
   S.timedRaceTimeUp = false
   S.timedFinishLaps = nil
@@ -154,6 +159,7 @@ local function onLeaderFinished()
   leaderFinishedLaps = {}
   for i = 0, S.driverCount - 1 do leaderFinishedLaps[i] = lapCountOf(i) end
   leaderFinishedAt = S.timedRaceSeconds
+  S.raceLeaderFinished = true
   U.Log("TIMED: leader took the flag")
 end
 
@@ -165,7 +171,42 @@ local function leaderHasFinished()
   return false
 end
 
+local function carInPits(car)
+  return U.SafeBool(car, "isInPit") == true or U.SafeBool(car, "isInPitlane") == true
+end
+
+-- Once the race leader has taken the flag, an AI car that is in the pits (CSP's damage teleport, a
+-- crash-guard lock, the finish teleport) is out of the race for good: it counts as done and is kept there. Without
+-- this a repaired car drives back out, is no longer "done", and the race result is never saved.
+local function holdPitCars(dt)
+  pitHoldClock = pitHoldClock + dt
+  if pitHoldClock < nextPitHoldAt then return end
+  nextPitHoldAt = pitHoldClock + 0.5
+  for i = 1, S.driverCount - 1 do
+    local okCar, car = pcall(getCar, i)
+    if okCar and car then
+      if not pitDone[i] and carInPits(car) then
+        pitDone[i] = true
+        U.Log(sFormat("TIMED: car %d is in the pits after the leader finished; it is out of the race", i))
+      end
+      if pitDone[i] then
+        pcall(physics.setGentleStop, i, true)
+        pcall(physics.setAITopSpeed, i, 0.0)
+        pcall(physics.setAIThrottleLimit, i, 0.0)
+        pcall(physics.setAIStopCounter, i, C.ROLLING_START_STOP_COUNTER_HELD)
+        if not carInPits(car) and physics.teleportCarTo and ac.SpawnSet
+            and pitHoldClock - (pitHoldTeleportAt[i] or -1000.0) >= 2.0 then
+          pitHoldTeleportAt[i] = pitHoldClock
+          pcall(physics.teleportCarTo, i, ac.SpawnSet.Pits)
+          U.Log(sFormat("TIMED: car %d left the pits after the leader finished; sent back", i))
+        end
+      end
+    end
+  end
+end
+
 local function carDone(i)
+  if pitDone[i] then return true end
   local okCar, car = pcall(getCar, i)
   if not okCar or not car then return true end
   local lc = lapCountOf(i)
@@ -205,6 +246,18 @@ function T.Update(sim, dt)
     end
   end
   if not T.IsTimedRace() then
+    -- Lap race: the leader has finished once any car has completed the race distance.
+    local laps = S.liveTotalLaps or 0
+    if not S.raceLeaderFinished and laps > 0 and sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
+      for i = 0, S.driverCount - 1 do
+        if lapCountOf(i) >= laps then
+          S.raceLeaderFinished = true
+          U.Log(sFormat("RACE: car %d took the flag; the pits are closed", i))
+          break
+        end
+      end
+    end
+    if S.raceLeaderFinished then holdPitCars(dt) end
     -- Lap race: the same clock simply counts up from the green flag (shown in the time panel).
     if raceClockRunning(sim) and not Sess.IsSessionFinished(sim) then
       S.timedRaceSeconds = S.timedRaceSeconds + dt
@@ -212,6 +265,7 @@ function T.Update(sim, dt)
     return
   end
   if S.timedFinishLaps then updateFinishTeleports(dt) end
+  if S.raceLeaderFinished then holdPitCars(dt) end
   if S.timedRaceComplete then return end
 
   if not S.timedRaceTimeUp then
