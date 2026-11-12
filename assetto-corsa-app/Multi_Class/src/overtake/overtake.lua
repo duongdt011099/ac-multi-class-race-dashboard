@@ -50,8 +50,6 @@ end
 
 local function eligible(i, car)
   if inPit(car) then return false end
-  local b = S.blueCars[i]
-  if b and b.passer then return false end
   local y = S.yellowCars[i]
   return not (y and (y.hazard or y.limited or y.releasing))
 end

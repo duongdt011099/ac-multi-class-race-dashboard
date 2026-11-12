@@ -185,11 +185,10 @@ local function updateHazard(i, car, dt, trackLength)
     st.leaderMark = S.yellowLeaderDist
     st.towT, st.towLogged, st.ignored = 0.0, false, false
     st.hazardP = nil
-    U.Log(sFormat("YELLOW: t=%.1f car %d is %s (%.0f km/h, peak %.0f, slow limit %.0f); hazard%s spline=%.3f lap=%s blue=%s",
+    U.Log(sFormat("YELLOW: t=%.1f car %d is %s (%.0f km/h, peak %.0f, slow limit %.0f); hazard%s spline=%.3f lap=%s",
         S.yellowClock, i, reason, speed, st.peak or 0, C.YELLOW_SLOW_KMH,
         S.yellowArmed and "" or " (not armed yet, first lap)",
-        car.splinePosition or -1, tostring(car.lapCount),
-        tostring(S.blueCars and S.blueCars[i] and S.blueCars[i].passer or nil)))
+        car.splinePosition or -1, tostring(car.lapCount)))
   end
   return st.hazard
 end

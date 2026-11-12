@@ -274,38 +274,6 @@ C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
 -- many seconds down instead, and the limit starts when it reaches zero.
 C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS = 5.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
--- Lapped-car rule (blue flag). When a car that is a lap or more up has passed an AI car (it is
--- PASSED_M..ENGAGE_GAP_M ahead of it), the lapped car's top speed is capped at HOLD_FACTOR times the
--- passer's speed (never below MIN_SPEED_KMH) until the passer is RELEASE_GAP_M ahead, so it does not
--- pass back. Nothing else about the car is changed.
-C.BLUE_PASSED_M              = 0.5
-C.BLUE_ENGAGE_GAP_M          = 150
-C.BLUE_CLOSE_GAP_M           = 40
-C.BLUE_CLOSE_FACTOR          = 0.75
-C.BLUE_CLOSE_CAUTION         = 1.0   -- was 2.5: the extra caution made held cars brake hard in front of the field
-C.BLUE_RELEASE_GAP_M         = 220
-C.BLUE_HOLD_FACTOR           = 0.93
-C.BLUE_MIN_SPEED_KMH         = 110  -- floor of the cap: a held car is never slowed to a crawl on a straight (a faster car arriving from behind rear-ends it)
--- A passer must be at least this fast to count and stay the passer this long; cars this close to the
--- start/finish line are not judged (the lap counter and spline wrap disagree there).
-C.BLUE_MIN_PASSER_KMH        = 100
-C.BLUE_CONFIRM_SECONDS       = 1.5
-C.BLUE_LINE_MARGIN_M         = 250
-C.BLUE_SCAN_SECONDS          = 0.1
--- The cap may fall at most this fast, so a passer braking for a corner does not drag the lapped car
--- down in front of the cars arriving behind it. A faster car this close behind (and this much faster)
--- cancels the hold and keeps it off for BLUE_BEHIND_COOLDOWN_S.
-C.BLUE_CAP_RAMP_KMH_S        = 12
-C.BLUE_BEHIND_M              = 200
-C.BLUE_BEHIND_FASTER_KMH     = 25
-C.BLUE_BEHIND_COOLDOWN_S     = 10
--- Yield: a car a lap down that has a faster (lapping) car alongside it, within ALONGSIDE_M, slows by
--- YIELD_SLOW_KMH (never below YIELD_MIN_KMH) so the faster car can complete the pass; the slowdown lasts
--- YIELD_HOLD_S after the last time the car was alongside.
-C.BLUE_ALONGSIDE_M           = 12
-C.BLUE_YIELD_SLOW_KMH        = 25
-C.BLUE_YIELD_MIN_KMH         = 70
-C.BLUE_YIELD_HOLD_S          = 1.5
 
 -- Multi-class overtaking assist (overtake/overtake.lua): a faster-class AI car within RANGE_M of a
 -- slower-class car (inside LATERAL_M sideways) with a clear side lowers its caution to CAUTION and

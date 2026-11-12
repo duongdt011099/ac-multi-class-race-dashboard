@@ -14,7 +14,6 @@ S.storedSettings = ac.storage({
   flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
   autopilotEnabled = true,
-  blueFlagEnabled = true,
   autoExitAfterRace = true,
   showPositionLap = true,
   showTimeGap = true,
@@ -62,14 +61,11 @@ S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
 S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
 S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
-S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
 S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
 S.showPositionLap     = S.storedSettings.showPositionLap ~= false
 S.showTimeGap         = S.storedSettings.showTimeGap ~= false
 -- os.clock() time at which the game is shut down after a finished race (nil = not scheduled).
 S.raceExitAt          = nil
--- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
-S.blueCars            = {}
 -- Faster-class AI cars commit to passes on slower classes (see overtake/overtake.lua).
 S.overtakeAssistEnabled = true
 -- Safety car: index of the extra AI car (last in race.ini), nil when the race has none.
