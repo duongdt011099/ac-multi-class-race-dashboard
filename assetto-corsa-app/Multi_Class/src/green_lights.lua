@@ -45,6 +45,12 @@ local controlAlpha = 0.0
 local yellowAlpha = 0.0
 local yellowLeft = 5
 
+local RACE_FINISHED_IMAGE = "race_finished.png"   -- "Race Finished" (human car took the flag)
+local FINISH_BANNER_SECONDS = 8.0
+local finishBannerUntil = 0
+local playerWasFinished = false
+local finishAlpha = 0.0
+
 local function fade(current, showing, dt)
   local step = (dt or 0.016) / FADE_SECONDS
   if showing then return math.min(1.0, current + step) end
@@ -90,6 +96,7 @@ function M.Draw(dt)
   -- the overall leader began the leader's own final lap, and ends at its first crossing after the
   -- leader has finished.
   local lastLap = false
+  local playerFinished = false
   local totalLaps = S.liveTotalLaps or 0
   if S.liveSessionType == "race" and totalLaps > 0 and not startLive then
     local okCar, car = pcall(ac.getCar, 0)
@@ -117,16 +124,27 @@ function M.Draw(dt)
       local onFinalLap = lc >= totalLaps - 1 or (leaderFinalLc ~= nil and lc > leaderFinalLc)
       local finished = lc >= totalLaps or (leaderDoneLc ~= nil and lc > leaderDoneLc)
       lastLap = onFinalLap and not finished
+      playerFinished = finished
     end
   end
   lastLap = lastLap and not showing and not covered
   lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
 
+  -- Race-finish notice: a few seconds from the moment the human car takes the flag.
+  if playerFinished and not playerWasFinished then
+    finishBannerUntil = os.clock() + FINISH_BANNER_SECONDS
+    pcall(U.Log, "FINISH: player took the flag; showing the race finish banner")
+  end
+  playerWasFinished = playerFinished
+  local finishNotice = playerFinished and finishBannerUntil > os.clock() and S.raceFinishedBanner ~= true
+      and not showing and not covered
+  finishAlpha = fade(finishAlpha, finishNotice, dt)
+
   laneAlpha = fade(laneAlpha, laneImage ~= nil, dt)
   if laneImage then laneShown = laneImage end
 
   local okWait, waiting = pcall(Exporter.IsPlayerWaitingForOthers, sim)
-  waiting = okWait and waiting == true and not showing and not covered
+  waiting = okWait and waiting == true and not showing and not covered and not finishNotice
   wasWaiting = waiting
   waitAlpha = fade(waitAlpha, waiting, dt)
 
@@ -160,6 +178,9 @@ function M.Draw(dt)
   end
   if laneAlpha > 0.0 and laneShown then
     ui.drawImage(laneShown, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, laneAlpha))
+  end
+  if finishAlpha > 0.0 then
+    ui.drawImage(RACE_FINISHED_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, finishAlpha))
   end
   if waitAlpha > 0.0 then
     ui.drawImage(WAIT_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, waitAlpha))
