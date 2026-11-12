@@ -42,6 +42,8 @@ local finishedAlpha = 0.0
 local autoAlpha = 0.0
 local manualAlpha = 0.0
 local controlAlpha = 0.0
+local yellowAlpha = 0.0
+local yellowLeft = 5
 
 local function fade(current, showing, dt)
   local step = (dt or 0.016) / FADE_SECONDS
@@ -186,6 +188,16 @@ function M.Draw(dt)
     end
     Draw.DrawBoldText(hint, mid, y1 + (y2 - y1) * 0.80,
       math.floor((y2 - y1) * 0.16), rgbm(0.85, 0.88, 0.95, finishedAlpha), "label")
+  end
+  -- Yellow flag warning when the flag sounds are off: drawn in code, counting down to the limit.
+  local yellowSoon = S.fcy == "yellow_pending" and S.fcyNoAudio == true and not showing and not covered
+  yellowAlpha = fade(yellowAlpha, yellowSoon, dt)
+  if yellowAlpha > 0.0 then
+    if yellowSoon then
+      yellowLeft = math.max(1, math.ceil(C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS - ((S.yellowClock or 0) - (S.fcyAt or 0))))
+    end
+    ui.drawImage(string.format("yellow_in_%d.png", math.max(1, math.min(5, yellowLeft))),
+      vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, yellowAlpha))
   end
   if savedAlpha > 0.0 then
     ui.drawImage(SAVED_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, savedAlpha))

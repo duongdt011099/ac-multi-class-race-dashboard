@@ -157,6 +157,7 @@ end
 -- Yellow / green flag callouts: short one-shot clips. A new yellow replaces a playing green; a green
 -- never cuts a yellow off, it waits until the yellow clip has finished.
 local FLAG_CLIP_SECONDS = 8.8
+local FLAG_END_TAIL_SECONDS = 0.6
 local flagPlayers = {}
 local pendingFlags = { yellow_flag = false, green_flag = false }
 local flagClock = 0.0
@@ -261,14 +262,14 @@ local function flagDone(name, startedAt)
   local elapsed = flagClock - startedAt
   -- Right after play() the player can still report a stale "ended" / time; never trust it early.
   if elapsed < 2.0 then return false end
-  local okEnded, ended = pcall(function() return p:ended() end)
-  if okEnded and ended == true then return true end
-  local t = flagTime(p)
   local okDur, duration = pcall(function() return p:duration() end)
-  if t and okDur and type(duration) == "number" and duration > 1.0 then
-    return t >= duration - 0.15
-  end
-  return elapsed >= FLAG_CLIP_SECONDS
+  local hasDuration = okDur and type(duration) == "number" and duration > 1.0
+  -- The clip is only done once the whole of it has been heard. The player position runs a little
+  -- ahead of what is audible (output buffering), so never trust "almost at the end" or a stale
+  -- ended() flag before the real duration plus a small tail has passed on the wall clock.
+  local minElapsed = (hasDuration and duration or FLAG_CLIP_SECONDS) + FLAG_END_TAIL_SECONDS
+  if elapsed < minElapsed then return false end
+  return true
 end
 
 function M.YellowDone() return flagDone("yellow_flag", yellowStartedAt) end

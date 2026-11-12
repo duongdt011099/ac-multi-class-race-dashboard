@@ -316,13 +316,21 @@ local function updateFcy(trackLength)
       count = #S.yellowHazards
       if count > 0 then
         S.fcy, S.fcyAt = "yellow_pending", S.yellowClock
+        -- Sounds off: the banner counts down instead of the clip.
+        S.fcyNoAudio = not S.flagSoundEnabled
         if otherHazards() > 0 then Audio.PlayYellowFlag() end
         U.Log(sFormat("YELLOW: t=%.1f full course yellow pending, %d hazard(s), countdown started", S.yellowClock, count))
       end
     end
   elseif state == "yellow_pending" then
     -- The countdown always plays to the end, even if the hazard has gone by then.
-    if clipDone(Audio.YellowDone(), S.fcyAt, C.YELLOW_AUDIO_SECONDS) then
+    local countdownDone
+    if S.fcyNoAudio then
+      countdownDone = S.yellowClock - S.fcyAt >= C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS
+    else
+      countdownDone = clipDone(Audio.YellowDone(), S.fcyAt, C.YELLOW_AUDIO_SECONDS)
+    end
+    if countdownDone then
       S.fcy, S.fcyAt = "yellow", S.yellowClock
       U.Log(sFormat("YELLOW: t=%.1f YELLOW, countdown finished (%d hazard(s))", S.yellowClock, count))
     end

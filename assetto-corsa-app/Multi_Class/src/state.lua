@@ -16,6 +16,8 @@ S.storedSettings = ac.storage({
   autopilotEnabled = true,
   blueFlagEnabled = true,
   autoExitAfterRace = true,
+  showPositionLap = true,
+  showTimeGap = true,
 })
 
 -- Grid / session tracking
@@ -62,6 +64,8 @@ S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
 S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
 S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
 S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
+S.showPositionLap     = S.storedSettings.showPositionLap ~= false
+S.showTimeGap         = S.storedSettings.showTimeGap ~= false
 -- os.clock() time at which the game is shut down after a finished race (nil = not scheduled).
 S.raceExitAt          = nil
 -- Lapped-car yielding: per-car phase tables (see blue/blue.lua).
@@ -81,6 +85,7 @@ if S.storedSettings.flagSoundVolume ~= nil then S.storedSettings.flagSoundVolume
 -- (green clip) -> "green". yellowPlayerActive is true while the yellow panel shows.
 S.fcy                 = "green"
 S.fcyAt               = 0.0
+S.fcyNoAudio          = false   -- yellow countdown is a banner (flag sounds are off), not a clip
 S.yellowHazards       = {}
 S.yellowCars          = {}
 S.yellowArmed         = false

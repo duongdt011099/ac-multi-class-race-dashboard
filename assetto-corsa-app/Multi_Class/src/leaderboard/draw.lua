@@ -190,6 +190,10 @@ local function computeLayout()
   layout.panelTop = 8 + layout.timePanelH + 10
   layout.panelW = (w - 2 * layout.padX - 2 * layout.gap) / 3
   layout.gapPanelTop = h - 8 - layout.gapPanelH
+  -- Without the position panels, the bottom panel sits right under the clock instead.
+  if not S.showPositionLap then
+    layout.gapPanelTop = layout.panelTop
+  end
   layout.columnBottom = layout.gapPanelTop - 10
   layout.panelH = layout.columnBottom - layout.panelTop
   return layout
@@ -204,9 +208,16 @@ local function drawTopPanels(layout, data)
   -- The formation lap is not counted: the panel reads "-" until the player crosses the line for
   -- the first time, and the racing laps then start at 1.
   local lapText = data.formationLap and "-" or sFormat("%d", math.max(1, data.currentLap))
+  -- A single class on the grid makes the CLASS panel redundant: LAP and POSITION share the width.
+  local singleClass = (data.classTotal or 0) <= 1
+  if singleClass then
+    panelW = (layout.w - 2 * padX - gap) / 2
+    layout = setmetatable({ panelW = panelW }, { __index = layout })
+  end
   drawPanel(layout, padX, "LAP", lapText, lapTotalText, rgbm(0.95, 0.96, 1, 1), rgbm(0.40, 0.68, 1.0, 1))
-  drawPanel(layout, padX + panelW + gap, "OVERALL", overallText, sFormat("%d", data.totalCars),
-      rgbm(0.95, 0.96, 1, 1), rgbm(1.0, 0.72, 0.28, 1))
+  drawPanel(layout, padX + panelW + gap, singleClass and "POSITION" or "OVERALL", overallText,
+      sFormat("%d", data.totalCars), rgbm(0.95, 0.96, 1, 1), rgbm(1.0, 0.72, 0.28, 1))
+  if singleClass then return end
   if data.classTotal > 0 then
     drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", classText, sFormat("%d", data.classTotal),
         rgbm(0.45, 1.0, 0.55, 1), rgbm(0.30, 0.90, 0.45, 1))
@@ -241,7 +252,8 @@ local function drawBottomPanelBox(layout, flag)
   elseif flag == "green" then
     fill = GREEN_FLAG_FILL
   end
-  local top, bottom = layout.gapPanelTop, layout.h - 8
+  local top = layout.gapPanelTop
+  local bottom = top + layout.gapPanelH
   drawCard(layout.padX, top, gapPanelRight, bottom, fill, border)
   if not flag then
     -- Flat accent strip on the left edge for the neutral state.
@@ -410,7 +422,14 @@ function M.Leaderboard(dt)
   end
 
   drawTimePanel(layout, sim)
-  drawTopPanels(layout, data)
+  if S.showPositionLap then
+    drawTopPanels(layout, data)
+  end
+
+  if not S.showTimeGap then
+    -- Bottom panel fully hidden: no gap, rolling-start / flag message or qualifying best.
+    return
+  end
 
   if rollingText then
     local flag = nil

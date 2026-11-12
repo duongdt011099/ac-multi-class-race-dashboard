@@ -48,6 +48,15 @@ C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- the metre-based setAISplineAbsoluteOffset; single file is offset 0.
 C.ROLLING_START_LANE_METERS         = 3.0
 C.ROLLING_START_LANE_RAMP_MPS       = 1.5
+-- Tyre-warming weave in single file: every cycle the car drives straight for STRAIGHT_SECONDS, then
+-- swings gently left/right for WEAVE_SECONDS (AMPLITUDE_M each way, one swing per PERIOD_SECONDS).
+C.ROLLING_START_WEAVE_STRAIGHT_SECONDS = 10.0
+C.ROLLING_START_WEAVE_SECONDS          = 5.0
+C.ROLLING_START_WEAVE_AMPLITUDE_M      = 1.6
+C.ROLLING_START_WEAVE_PERIOD_SECONDS   = 2.4
+-- Single-file cars may move sideways this many times faster than the normal lane ramp, so the
+-- weave keeps its shape instead of being flattened by the rate limit.
+C.ROLLING_START_WEAVE_LANE_RATE_SCALE  = 2.5
 -- After a class goes green its lane offset eases back to the racing line at this rate, and its
 -- caution level ramps from 0 to 1 over GREEN_WINDOW_SECONDS (reference green-flag transition).
 C.ROLLING_START_GREEN_OFFSET_RAMP_MPS = 0.5
@@ -79,13 +88,13 @@ C.ROLLING_START_CATCHUP_LIMIT       = 1.5
 -- starts only beyond MIN_GAP metres and eases back to 1.0 by FULL_GAP, keeping it gentle enough
 -- that a follower never overshoots into hard braking.
 C.ROLLING_START_PHASE1_CATCHUP      = 1.3
-C.ROLLING_START_PHASE1_MIN_GAP      = 10.0
+C.ROLLING_START_PHASE1_MIN_GAP      = 25.0
 -- Single-file leaders wait for the car behind: once the nearest moving car behind is further than
 -- BEHIND_START_GAP metres the car slows, down to BEHIND_MIN_SPEED at BEHIND_FULL_GAP metres.
 C.ROLLING_START_PHASE1_BEHIND_START_GAP = 40.0
 C.ROLLING_START_PHASE1_BEHIND_FULL_GAP  = 150.0
 C.ROLLING_START_PHASE1_BEHIND_MIN_SPEED = 35.0
-C.ROLLING_START_PHASE1_FULL_GAP     = 120.0
+C.ROLLING_START_PHASE1_FULL_GAP     = 140.0
 -- Inside PHASE1_MIN_GAP the follower runs below the car ahead's speed, by GAP_GAIN km/h for every
 -- metre it is short of the gap (capped at YIELD_KMH once alongside or past). Aiming at the ahead
 -- car's speed or above let a slightly faster car creep alongside and pass, so the class reached
@@ -261,6 +270,9 @@ C.YELLOW_LOG_SECONDS          = 1.0
 C.YELLOW_AUDIO_SECONDS        = 8.7
 C.YELLOW_GREEN_AUDIO_SECONDS  = 8.1
 C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
+-- With the flag sounds switched off there is no countdown clip: a "YELLOW IN n" banner counts this
+-- many seconds down instead, and the limit starts when it reaches zero.
+C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS = 5.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 -- Lapped-car rule (blue flag). When a car that is a lap or more up has passed an AI car (it is
 -- PASSED_M..ENGAGE_GAP_M ahead of it), the lapped car's top speed is capped at HOLD_FACTOR times the

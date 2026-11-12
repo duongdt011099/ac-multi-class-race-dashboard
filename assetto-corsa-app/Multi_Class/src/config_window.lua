@@ -342,6 +342,17 @@ local function drawGeneralSection(w)
   if ui.itemHovered() then
     ui.setTooltip("After a race, qualifying or practice session finishes and its result is saved, a banner counts down and Assetto Corsa closes.")
   end
+  if checkRow("Show position / lap on the leaderboard", S.showPositionLap) then
+    S.showPositionLap = not S.showPositionLap
+    S.storedSettings.showPositionLap = S.showPositionLap
+  end
+  if checkRow("Show time gap on the leaderboard", S.showTimeGap) then
+    S.showTimeGap = not S.showTimeGap
+    S.storedSettings.showTimeGap = S.showTimeGap
+  end
+  if ui.itemHovered() then
+    ui.setTooltip("When both are unchecked the leaderboard only shows the race time.")
+  end
   ui.dummy(vec2(0, 8))
 end
 

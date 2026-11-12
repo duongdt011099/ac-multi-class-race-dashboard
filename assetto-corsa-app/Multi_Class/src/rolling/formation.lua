@@ -168,7 +168,21 @@ local function FieldStillLaunching()
   return false
 end
 
-local function SingleFileTargets(state, group, car, trackLength)
+-- Lateral offset (m) that makes a single-file car swing gently left/right like a driver warming
+-- the tyres: straight for 10 s, weave for 5 s, repeat. The sine is faded in and out by a half-sine
+-- envelope so the weave starts and ends smoothly. Cars are staggered by index so they do not all
+-- weave in unison.
+local function TyreWarmWeaveOffset(carIndex)
+  local straight = C.ROLLING_START_WEAVE_STRAIGHT_SECONDS
+  local weave = C.ROLLING_START_WEAVE_SECONDS
+  local t = ((S.rollingStartSessionTime or 0) + carIndex * 3.7) % (straight + weave)
+  if t < straight then return 0.0 end
+  local w = t - straight
+  local envelope = math.sin(math.pi * w / weave)
+  return C.ROLLING_START_WEAVE_AMPLITUDE_M * envelope * math.sin(2 * math.pi * w / C.ROLLING_START_WEAVE_PERIOD_SECONDS)
+end
+
+local function SingleFileTargets(carIndex, state, group, car, trackLength)
   local formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH
   local aheadCar
   if group and group.cars then
@@ -229,7 +243,10 @@ local function SingleFileTargets(state, group, car, trackLength)
       end
     end
   end
-  return formationSpeed, 0.0, 1.0, throttleLimit
+  -- Weave only once the car is actually rolling at speed.
+  local offset = 0.0
+  if car and (car.speedKmh or 0) > 30.0 then offset = TyreWarmWeaveOffset(carIndex) end
+  return formationSpeed, offset, 1.0, throttleLimit
 end
 
 -- Never close on whatever is physically ahead in this car's own lane (see LANE_GUARD constants).
@@ -342,7 +359,7 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   if state.enteredPhase2 then
     targetSpeed, targetOffset, cautionLevel, throttleLimit = DoubleFileTargets(carIndex, state, group, car, trackLength)
   else
-    targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(state, group, car, trackLength)
+    targetSpeed, targetOffset, cautionLevel, throttleLimit = SingleFileTargets(carIndex, state, group, car, trackLength)
   end
 
   targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
@@ -357,6 +374,8 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
     targetSpeed = math.min(targetSpeed, startSpeed + (targetSpeed - startSpeed) * launch)
     maxLaneMove = maxLaneMove * (C.ROLLING_START_LAUNCH_LANE_SCALE + (1.0 - C.ROLLING_START_LAUNCH_LANE_SCALE) * launch)
   end
+
+  if not state.enteredPhase2 then maxLaneMove = maxLaneMove * C.ROLLING_START_WEAVE_LANE_RATE_SCALE end
 
   local applied = state.currentSplineOffset or 0.0
   local diff = targetOffset - applied
