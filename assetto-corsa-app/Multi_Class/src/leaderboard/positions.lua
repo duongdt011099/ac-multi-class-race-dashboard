@@ -311,6 +311,8 @@ function M.GetPlayerPositions()
     nearLine = sp > 0.985 or sp < 0.015
   end
   local settling = nearLine or (now >= lapChangeTime and now - lapChangeTime < LINE_SETTLE_SECONDS)
+  -- The sim clock jumps back after a replay: a cache stamped in the "future" would never refresh.
+  if now < raceCache.lastTime then raceCache.valid = false end
   if raceCache.valid and (settling or now - raceCache.lastTime < raceCache.interval) then
     local cachedGapsFront = raceCache.gapFront
     local cachedGapsBehind = raceCache.gapBehind
@@ -366,6 +368,7 @@ function M.GetPlayerPositionsQuali()
     now = sim.time / 1000
   end
 
+  if now < qualiCache.lastTime then qualiCache.valid = false end
   if qualiCache.valid and now - qualiCache.lastTime < qualiCache.interval then
     return qualiCache.overallPos, qualiCache.totalCars, qualiCache.classPos, qualiCache.classTotal,
       qualiCache.classFastestMs, qualiCache.playerBestMs

@@ -211,7 +211,7 @@ C.YELLOW_RECOVER_SECONDS      = 1.5
 C.YELLOW_MIN_ZONE_SECONDS     = 15.0
 -- A stop/crash only calls the yellow once the car has stayed a hazard this long; a car that rejoins
 -- and races normally before then (a spin or a slide on the grass) does not.
-C.YELLOW_CONFIRM_SECONDS      = 12.0
+C.YELLOW_CONFIRM_SECONDS      = 20.0
 C.YELLOW_STOPPED_KMH          = 20
 C.YELLOW_STOPPED_SECONDS      = 0.15
 C.YELLOW_DROP_FROM_KMH        = 110
@@ -285,7 +285,12 @@ C.BLUE_CLOSE_FACTOR          = 0.75
 C.BLUE_CLOSE_CAUTION         = 2.5
 C.BLUE_RELEASE_GAP_M         = 220
 C.BLUE_HOLD_FACTOR           = 0.93
-C.BLUE_MIN_SPEED_KMH         = 40
+C.BLUE_MIN_SPEED_KMH         = 60   -- above YELLOW_SLOW_KMH, so a held car is never read as a slow hazard
+-- A passer must be at least this fast to count and stay the passer this long; cars this close to the
+-- start/finish line are not judged (the lap counter and spline wrap disagree there).
+C.BLUE_MIN_PASSER_KMH        = 100
+C.BLUE_CONFIRM_SECONDS       = 1.5
+C.BLUE_LINE_MARGIN_M         = 250
 C.BLUE_SCAN_SECONDS          = 0.1
 
 -- Multi-class overtaking assist (overtake/overtake.lua): a faster-class AI car within RANGE_M of a

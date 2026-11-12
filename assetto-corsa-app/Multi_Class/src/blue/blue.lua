@@ -37,12 +37,20 @@ local function skipCar(i, car)
 end
 
 -- Nearest car just ahead of car i that is at least a lap up on it: the car that has lapped it.
+local function nearLine(p, trackLength)
+  local m = C.BLUE_LINE_MARGIN_M / trackLength
+  return p < m or p > 1.0 - m
+end
+
 local function findPasser(i, car, p, trackLength)
   local best, bestGap
+  -- The lap counter and the spline wrap do not flip on the same frame, so right at the start/finish
+  -- line the lap difference is unreliable (it briefly reads a whole lap off). Never judge there.
+  if nearLine(p, trackLength) then return nil end
   for j = 0, S.driverCount - 1 do
     local other = j ~= i and getCar(j) or nil
     local op = other and not inPit(other) and progress(other)
-    if op then
+    if op and not nearLine(op, trackLength) and (other.speedKmh or 0) >= C.BLUE_MIN_PASSER_KMH then
       local ahead = signedGap(p, op, trackLength)
       if ahead > C.BLUE_PASSED_M and ahead <= C.BLUE_ENGAGE_GAP_M and (not bestGap or ahead < bestGap) then
         -- Lap counters tick at the line while the spline wraps there: remove the distance between
@@ -72,6 +80,10 @@ local function holdCar(i, car, p, st, trackLength)
     drop(i, st, sFormat("passer %.0f m ahead", ahead))
   elseif ahead < 0 then
     drop(i, st, "passer is behind again")
+  elseif (passer.speedKmh or 0) < C.BLUE_MIN_PASSER_KMH or inPit(passer) then
+    -- A slow or stopped passer must not drag the lapped car down with it (a held car crawling at the
+    -- floor speed was being called a yellow hazard).
+    drop(i, st, "passer is slow")
   else
     -- The closer the passer, the further under its speed the lapped car is held, so it can neither
     -- close up nor punch the faster car when that one brakes.
@@ -98,7 +110,16 @@ local function scan(trackLength)
     if p and not st then st = {}; S.blueCars[i] = st end
     if st and not st.passer and not skipCar(i, car) then
       local passerIndex = findPasser(i, car, p, trackLength)
+      -- The same passer must be seen for BLUE_CONFIRM_SECONDS so a one-frame lap-counter glitch
+      -- cannot start a hold.
+      if passerIndex and st.cand == passerIndex then
+        if clock - st.candSince < C.BLUE_CONFIRM_SECONDS then passerIndex = nil end
+      else
+        st.cand, st.candSince = passerIndex, clock
+        passerIndex = nil
+      end
       if passerIndex then
+        st.cand = nil
         st.passer = passerIndex
         U.Log(sFormat("BLUE: t=%.1f car %d (%.0f km/h) was passed by lapping car %d; not passing back",
             clock, i, car.speedKmh or 0, passerIndex))

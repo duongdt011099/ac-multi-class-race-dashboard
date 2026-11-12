@@ -362,6 +362,9 @@ function Frame.Update(dt)
   -- result may be auto-saved from replay data. The auto-save preference itself is left
   -- untouched, so it comes back as soon as the replay ends.
   if U.IsReplayActive(sim) then
+    -- Positions and gaps cached before the replay are stale (and stamped on another clock).
+    pcall(function() Pos.InvalidateLeaderboardCache() end)
+    S.playerStoppedState = false
     local rollingLive = S.rollingStartState == "staged" or S.rollingStartState == "rolling"
     if rollingLive then
       -- A formation lap in progress is only paused by the replay: keep its state so it carries on
