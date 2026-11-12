@@ -67,7 +67,21 @@ local function drop(i, st, reason)
   if st.passer then U.Log(sFormat("BLUE: t=%.1f car %d free again (%s)", clock, i, reason)) end
   RCtl.RestoreAIControl(i, false)
   st.passer = nil
-  st.cap = nil
+  st.cap, st.capAt = nil, nil
+end
+
+-- A clearly faster car close behind the lapped car: it must not be slowed in front of it.
+local function fasterCarBehind(i, car, p, trackLength)
+  local mine = car.speedKmh or 0
+  for j = 0, S.driverCount - 1 do
+    local other = j ~= i and getCar(j) or nil
+    local op = other and not inPit(other) and progress(other)
+    if op and (other.speedKmh or 0) >= mine + C.BLUE_BEHIND_FASTER_KMH then
+      local gap = signedGap(p, op, trackLength)
+      if gap < 0 and gap > -C.BLUE_BEHIND_M then return j end
+    end
+  end
+  return nil
 end
 
 local function holdCar(i, car, p, st, trackLength)
@@ -80,6 +94,9 @@ local function holdCar(i, car, p, st, trackLength)
     drop(i, st, sFormat("passer %.0f m ahead", ahead))
   elseif ahead < 0 then
     drop(i, st, "passer is behind again")
+  elseif fasterCarBehind(i, car, p, trackLength) then
+    st.noHoldUntil = clock + C.BLUE_BEHIND_COOLDOWN_S
+    drop(i, st, "faster car closing from behind")
   elseif (passer.speedKmh or 0) < C.BLUE_MIN_PASSER_KMH or inPit(passer) then
     -- A slow or stopped passer must not drag the lapped car down with it (a held car crawling at the
     -- floor speed was being called a yellow hazard).
@@ -92,6 +109,12 @@ local function holdCar(i, car, p, st, trackLength)
       factor = C.BLUE_CLOSE_FACTOR + (C.BLUE_HOLD_FACTOR - C.BLUE_CLOSE_FACTOR) * (ahead / C.BLUE_CLOSE_GAP_M)
     end
     local cap = math.max(C.BLUE_MIN_SPEED_KMH, (passer.speedKmh or 0) * factor)
+    -- The cap only falls gradually: the passer braking for a corner must not make this car brake
+    -- on the straight with the field arriving behind it.
+    local prev = st.cap or math.max(car.speedKmh or 0, cap)
+    local dtCap = st.cap and clock - (st.capAt or clock) or 0
+    st.capAt = clock
+    if cap < prev then cap = st.cap and math.max(cap, prev - C.BLUE_CAP_RAMP_KMH_S * dtCap) or prev end
     st.cap = cap
     pcall(physics.setAITopSpeed, i, cap)
     if ahead < C.BLUE_CLOSE_GAP_M and (car.speedKmh or 0) > cap then
@@ -102,13 +125,44 @@ local function holdCar(i, car, p, st, trackLength)
   end
 end
 
+-- A faster car that has lapped car i and is right beside it (not yet clear in front, not still behind).
+local function lappingCarAlongside(i, car, p, trackLength)
+  if nearLine(p, trackLength) or not car.position then return nil end
+  local mine = car.speedKmh or 0
+  for j = 0, S.driverCount - 1 do
+    local other = j ~= i and getCar(j) or nil
+    local op = other and other.position and not inPit(other) and progress(other)
+    if op and not nearLine(op, trackLength) and (other.speedKmh or 0) >= mine + 10
+        and (other.speedKmh or 0) >= C.BLUE_MIN_PASSER_KMH then
+      local dx, dz = other.position.x - car.position.x, other.position.z - car.position.z
+      if dx * dx + dz * dz <= C.BLUE_ALONGSIDE_M * C.BLUE_ALONGSIDE_M then
+        local gap = signedGap(p, op, trackLength)
+        local diff = (other.lapCount or 0) + op - ((car.lapCount or 0) + p) - gap / trackLength
+        if math.floor(diff + 0.5) >= 1 then return j end
+      end
+    end
+  end
+  return nil
+end
+
 local function scan(trackLength)
   for i = 1, S.driverCount - 1 do
     local car = getCar(i)
     local p = car and progress(car)
     local st = p and S.blueCars[i]
     if p and not st then st = {}; S.blueCars[i] = st end
-    if st and not st.passer and not skipCar(i, car) then
+    if st and not skipCar(i, car) then
+      local side = lappingCarAlongside(i, car, p, trackLength)
+      if side then
+        if not st.yieldCap then
+          st.yieldCap = math.max(C.BLUE_YIELD_MIN_KMH, (car.speedKmh or 0) - C.BLUE_YIELD_SLOW_KMH)
+          U.Log(sFormat("BLUE: t=%.1f car %d (%.0f km/h) yields to lapping car %d alongside; cap %.0f km/h",
+              clock, i, car.speedKmh or 0, side, st.yieldCap))
+        end
+        st.yieldUntil = clock + C.BLUE_YIELD_HOLD_S
+      end
+    end
+    if st and not st.passer and not (st.noHoldUntil and clock < st.noHoldUntil) and not skipCar(i, car) then
       local passerIndex = findPasser(i, car, p, trackLength)
       -- The same passer must be seen for BLUE_CONFIRM_SECONDS so a one-frame lap-counter glitch
       -- cannot start a hold.
@@ -131,7 +185,7 @@ end
 -- Hand every car back and forget all state.
 function M.Reset()
   for i, st in pairs(S.blueCars) do
-    if st.passer and i ~= 0 then RCtl.RestoreAIControl(i, false) end
+    if (st.passer or st.yieldCap) and i ~= 0 then RCtl.RestoreAIControl(i, false) end
   end
   S.blueCars = {}
   clock = 0.0
@@ -164,6 +218,13 @@ function M.Update(sim, dt)
     local p = car and progress(car)
     if not p then
       S.blueCars[i] = nil
+    elseif st.yieldCap and st.yieldUntil and clock < st.yieldUntil and not skipCar(i, car) then
+      -- A faster car is beside this one: slow down and let it go by.
+      pcall(physics.setAITopSpeed, i, st.yieldCap)
+      pcall(physics.setAICaution, i, 1.0)
+    elseif st.yieldCap then
+      st.yieldCap, st.yieldUntil = nil, nil
+      if not st.passer then RCtl.RestoreAIControl(i, false) end
     elseif st.passer then
       if skipCar(i, car) then
         -- Pits or yellow take over the car's controls; forget the hold. A car in the pits must not
