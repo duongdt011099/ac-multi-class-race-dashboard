@@ -34,6 +34,7 @@ local retireTries = 0
 local dirSign = -1.0         -- flipped when the placed car turns out to face the wrong way
 local placedAt = nil          -- clock time of the last placement, nil once its heading was verified
 local placeTries = 0
+local lastLogAt = -1000.0
 
 local function readIndex()
   if cachedIndex then return cachedIndex end
@@ -152,7 +153,8 @@ end
 -- being released, formation speed afterwards, eased in with the launch ramp and slowed when the
 -- leader falls far behind.
 local function lead(i, car, trackLength)
-  local speed = fieldStillLaunching() and C.ROLLING_START_SPEED_KMH or C.ROLLING_START_FORMATION_SPEED_KMH
+  local speed = fieldStillLaunching() and C.ROLLING_START_SPEED_KMH
+      or C.ROLLING_START_FORMATION_SPEED_KMH * C.SAFETY_CAR_SPEED_FACTOR
   local throttle = 1.0
 
   local launch = math.min(1.0, (clock - leadingSince) / C.ROLLING_START_LAUNCH_RAMP_SECONDS)
@@ -172,6 +174,13 @@ local function lead(i, car, trackLength)
     end
   end
 
+  if pole and clock - lastLogAt >= 5.0 then
+    lastLogAt = clock
+    local poleP = U.NormalizeTrackProgress(pole.splinePosition or 0)
+    local carP = U.NormalizeTrackProgress(car.splinePosition or 0)
+    U.Log(sFormat("SAFETY: car %d v=%.0f top=%.0f gap-to-pole=%.0f m pole v=%.0f", i, car.speedKmh or 0, speed,
+        signedGap(poleP, carP, trackLength), pole.speedKmh or 0))
+  end
   pcall(physics.setAITopSpeed, i, speed)
   pcall(physics.setAIThrottleLimit, i, throttle)
   pcall(physics.setAICaution, i, 1.0)

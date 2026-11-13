@@ -197,9 +197,18 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
     end
   end
   local throttleLimit = 1.0
+  -- The class leader follows the safety car like any other car ahead, so it never closes on it.
+  local leaderHasNoCarAhead = not aheadCar
+  if not aheadCar and car and S.safetyCarIndex then
+    local sc = getCar(S.safetyCarIndex)
+    if sc and sc.isInPitlane ~= true and sc.isInPit ~= true and type(sc.splinePosition) == "number" then
+      local scGap = Spacing.SignedGap(sc, car, trackLength)
+      if scGap > -20 and scGap < 400 then aheadCar = sc end
+    end
+  end
   -- A leader with nobody ahead cruises at the rolling speed while the rest of the field is still
   -- being released, so it does not run off at race pace and leave the field far behind.
-  if not aheadCar and FieldStillLaunching() then
+  if leaderHasNoCarAhead and FieldStillLaunching() then
     formationSpeed = C.ROLLING_START_SPEED_KMH
   end
   if aheadCar and car then

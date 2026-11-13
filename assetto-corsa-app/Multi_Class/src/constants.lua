@@ -288,6 +288,8 @@ C.OVERTAKE_SCAN_SECONDS      = 0.15
 -- leads the formation lap at the race cars' formation speed, slowing when the leader is more than
 -- WAIT_START_M behind (down to the single-file wait speed at WAIT_FULL_M).
 C.SAFETY_CAR_AHEAD_M         = 50
+-- Safety car top speed = formation speed * this, so the pole car (which now follows it) never has to run flat out.
+C.SAFETY_CAR_SPEED_FACTOR    = 1.1
 C.SAFETY_CAR_WAIT_START_M    = 120
 C.SAFETY_CAR_WAIT_FULL_M     = 320
 -- The field is held until the safety car is above RELEASE_SPEED_KMH (or MAX_SECONDS after it started).
