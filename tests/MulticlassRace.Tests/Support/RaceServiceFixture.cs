@@ -16,9 +16,12 @@ public sealed class FakeGameSessionLauncher : IGameSessionLauncher
 {
     public List<(string GamePath, string Executable, string RaceIni)> Launches { get; } = new();
 
-    public Task LaunchAsync(string gamePath, string executablePath, string raceIni)
+    public List<string?> SessionManifests { get; } = new();
+
+    public Task LaunchAsync(string gamePath, string executablePath, string raceIni, string? sessionManifest = null)
     {
         Launches.Add((gamePath, executablePath, raceIni));
+        SessionManifests.Add(sessionManifest);
         return Task.CompletedTask;
     }
 }

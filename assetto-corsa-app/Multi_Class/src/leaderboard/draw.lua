@@ -199,6 +199,16 @@ local function computeLayout()
   return layout
 end
 
+-- Title of the CLASS panel: the player's class as named in the dashboard (uppercase to match the other titles).
+local function playerClassTitle()
+  local key = S.displayClass[0]
+  if not key then return "CLASS" end
+  for _, name in ipairs(S.releaseClasses) do
+    if "class" .. string.lower(name) == key then return string.upper(name) end
+  end
+  return "CLASS"
+end
+
 local function drawTopPanels(layout, data)
   local padX, panelW, gap = layout.padX, layout.panelW, layout.gap
   local lapTotalText = (data.totalLaps or 0) > 0 and sFormat("%d", data.totalLaps) or nil
@@ -219,10 +229,10 @@ local function drawTopPanels(layout, data)
       sFormat("%d", data.totalCars), rgbm(0.95, 0.96, 1, 1), rgbm(1.0, 0.72, 0.28, 1))
   if singleClass then return end
   if data.classTotal > 0 then
-    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", classText, sFormat("%d", data.classTotal),
+    drawPanel(layout, padX + 2 * (panelW + gap), playerClassTitle(), classText, sFormat("%d", data.classTotal),
         rgbm(0.45, 1.0, 0.55, 1), rgbm(0.30, 0.90, 0.45, 1))
   else
-    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", "-", "add a class",
+    drawPanel(layout, padX + 2 * (panelW + gap), "CLASS", "-", "no class",
         rgbm(0.55, 0.55, 0.6, 1), rgbm(0.45, 0.47, 0.55, 1))
   end
 end
@@ -406,7 +416,7 @@ end
 
 function M.Leaderboard(dt)
   -- The whole app is off while "Enable Multiple Class Race" is unchecked.
-  if not S.enduranceEnabled then return end
+  if Sess.AppDisabled() then return end
   local sim = ac.getSim()
   local layout = computeLayout()
 

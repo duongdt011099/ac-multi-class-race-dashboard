@@ -135,4 +135,44 @@ function Sess.CheckSessionValidity()
   return true, nil
 end
 
+-- The dashboard stamps race.ini with a marker and a fresh launch id every time it starts a session.
+-- The game re-saves race.ini on later launches and keeps unknown HEADER keys, so the marker alone
+-- would outlive the dashboard launch. Each launch id is therefore accepted by one game run only:
+-- a later run that finds the id already used was started some other way.
+Sess.DASHBOARD_HEADER = "__MCR_DASHBOARD"
+Sess.LAUNCH_ID_HEADER = "__MCR_LAUNCH_ID"
+Sess.NOT_FROM_DASHBOARD_MESSAGE = "The multi class app can only be used from the dashboard app."
+
+function Sess.IsDashboardLaunch()
+  local S = require("src/state")
+  if S.dashboardLaunch ~= nil then return S.dashboardLaunch end
+
+  if not ac.INIConfig or type(ac.INIConfig.raceConfig) ~= "function" then return false end
+  local okConfig, config = pcall(ac.INIConfig.raceConfig)
+  if not okConfig or not config then return false end
+
+  local okMarker, marker = pcall(function() return config:get("HEADER", Sess.DASHBOARD_HEADER, 0) end)
+  local okId, id = pcall(function() return config:get("HEADER", Sess.LAUNCH_ID_HEADER, "") end)
+  id = okId and tostring(id or "") or ""
+
+  local fromDashboard = okMarker and tonumber(marker) == 1 and id ~= ""
+  if fromDashboard then
+    local okUsed, used = pcall(function() return S.storedSettings.dashboardLaunchId end)
+    if okUsed and used == id then
+      fromDashboard = false
+    else
+      pcall(function() S.storedSettings.dashboardLaunchId = id end)
+    end
+  end
+
+  S.dashboardLaunch = fromDashboard
+  return fromDashboard
+end
+
+-- True while the app does nothing: switched off by the user, or the game was not started from the dashboard.
+function Sess.AppDisabled()
+  local S = require("src/state")
+  return not S.enduranceEnabled or not Sess.IsDashboardLaunch()
+end
+
 return Sess

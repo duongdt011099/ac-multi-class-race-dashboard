@@ -26,6 +26,8 @@ public partial class RaceSessionsModal : IDisposable
 
     [Inject] private ITrackService TrackService { get; set; } = default!;
 
+    [Inject] private ISteamStatusService SteamStatus { get; set; } = default!;
+
     [Inject] private ILuaResultImportService LuaResultImportService { get; set; } = default!;
 
     [Inject] private RaceSessionChangeNotifier RaceSessionChangeNotifier { get; set; } = default!;
@@ -70,6 +72,8 @@ public partial class RaceSessionsModal : IDisposable
     private bool isImportingRaceResult;
     private bool isImportingSessionResult;
     private bool isStarting;
+    private bool steamRunning = true;
+    private System.Threading.Timer? steamTimer;
     private int? trackPitCount;
     private int enteredCarCount;
     private ResultCelebration? celebration;
@@ -93,7 +97,8 @@ public partial class RaceSessionsModal : IDisposable
         Race.TrackName,
         trackPitCount,
         enteredCarCount,
-        selectedSessionType);
+        selectedSessionType,
+        steamRunning);
 
     private ClassSettingModel? RaceClassSetting => ClassSettings.FirstOrDefault(s => s.ClassSettingId == Race.ClassSettingId);
 
@@ -128,6 +133,8 @@ public partial class RaceSessionsModal : IDisposable
     protected override async Task OnInitializedAsync()
     {
         RaceSessionChangeNotifier.Imported += OnLuaResultImported;
+        steamRunning = SteamStatus.IsRunning();
+        steamTimer = new System.Threading.Timer(_ => _ = PollSteamAsync(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
         await LoadAsync();
     }
 
@@ -462,8 +469,32 @@ public partial class RaceSessionsModal : IDisposable
         }
     }
 
+    private async Task PollSteamAsync()
+    {
+        try
+        {
+            var running = SteamStatus.IsRunning();
+
+            if (running == steamRunning)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                steamRunning = running;
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The dialog closed while the check was running.
+        }
+    }
+
     public void Dispose()
     {
         RaceSessionChangeNotifier.Imported -= OnLuaResultImported;
+        steamTimer?.Dispose();
     }
 }

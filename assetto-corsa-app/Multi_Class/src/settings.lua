@@ -4,26 +4,19 @@ local U = require("src/util")
 
 local Settings = {}
 
-local function restoreExportSettings(legacyEnabledOk, legacyEnabled, legacyFolderOk, legacyFolder)
-  if legacyEnabledOk and legacyEnabled ~= nil then
-    S.resultExportEnabled = legacyEnabled
-    S.storedSettings.resultExportEnabled = legacyEnabled
-  elseif S.storedSettings.resultExportEnabled ~= nil then
-    S.resultExportEnabled = S.storedSettings.resultExportEnabled
-  end
+local function restoreExportSettings(legacyEnabledOk, legacyEnabled)
+  -- Saving each finished session result is always on; the dashboard depends on it.
+  S.resultExportEnabled = true
+  S.storedSettings.resultExportEnabled = true
 
-  if legacyFolderOk and legacyFolder ~= nil then
-    S.resultFolder = U.NormalizePath(legacyFolder or "")
-    S.storedSettings.resultFolder = S.resultFolder
-  elseif S.storedSettings.resultFolder ~= nil then
-    S.resultFolder = U.NormalizePath(S.storedSettings.resultFolder or "")
-  end
+  -- The result folder is fixed (see Writer.ResultDefaultFolder); any folder chosen in older versions is dropped.
+  S.resultFolder = ""
+  S.storedSettings.resultFolder = ""
 end
 
 local function applySettings()
-  if S.storedSettings.enduranceEnabled ~= nil then
-    S.enduranceEnabled = S.storedSettings.enduranceEnabled
-  end
+  S.enduranceEnabled = true
+  S.storedSettings.enduranceEnabled = true
   -- Probe legacy settings independently: ac.storage rejects undeclared keys, and a
   -- failed legacy lookup must not abort restoration of the current settings below.
   local legacyEnabledOk, legacyEnabled = pcall(function()
@@ -33,7 +26,7 @@ local function applySettings()
     return S.storedSettings.qualiSaveFolder
   end)
 
-  restoreExportSettings(legacyEnabledOk, legacyEnabled, legacyFolderOk, legacyFolder)
+  restoreExportSettings(legacyEnabledOk, legacyEnabled)
 
   if legacyEnabledOk then
     pcall(function() S.storedSettings.qualiSaveEnabled = nil end)
@@ -47,7 +40,7 @@ end
 function Settings.RestoreStoredSettings()
   local okSettings, settingsErr = pcall(applySettings)
   if not okSettings then
-    U.Log("LoadManualClassesFromStorage: settings restore FAILED err=" .. tostring(settingsErr))
+    U.Log("LoadClassesFromSessionFile: settings restore FAILED err=" .. tostring(settingsErr))
   end
 end
 

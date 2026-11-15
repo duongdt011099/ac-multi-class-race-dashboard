@@ -6,6 +6,7 @@ local S = {}
 -- Persisted user settings. ac.storage rejects undeclared keys, so every key is declared here.
 S.storedSettings = ac.storage({
   enduranceEnabled = true,
+  dashboardLaunchId = "",
   resultExportEnabled = true,
   resultFolder = "",
   rollingMusicEnabled = true,
@@ -44,15 +45,11 @@ S.displayClass      = {}
 S.classOrder        = {}
 S.releaseClasses    = {}
 S.manualDriverClass = {}
-S.classAddInput     = ""
-S.classAddError     = nil
-S.carClassCache     = {}
-S.uiSourceCache     = {}
 
 -- Settings mirrored from storedSettings
 -- enduranceEnabled has to be known before the first frame: while it is off, the frame
 -- update returns early and never reaches the class-loading path that restores settings.
-S.enduranceEnabled   = S.storedSettings.enduranceEnabled ~= false
+S.enduranceEnabled   = true  -- always on: the app only runs for sessions started from the dashboard
 S.resultExportEnabled = true
 S.resultFolder       = ""
 S.rollingMusicEnabled = S.storedSettings.rollingMusicEnabled ~= false

@@ -37,3 +37,10 @@ public sealed class FakeGameConfigService : IAssettoCorsaGameConfigService
 
     public Task<bool> SaveAsync(AssettoCorsaGameConfigModel model) => Task.FromResult(true);
 }
+
+public sealed class FakeSteamStatusService : ISteamStatusService
+{
+    public bool Running { get; set; } = true;
+
+    public bool IsRunning() => Running;
+}

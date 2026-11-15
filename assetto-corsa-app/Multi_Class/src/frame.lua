@@ -126,8 +126,6 @@ local function resetAttemptState()
   S.playerStoppedState = false
   S.raceDisplayStable = nil
   S.raceDisplayPending = nil
-  S.carClassCache = {}
-  S.uiSourceCache = {}
   S.gridReordered = false
   S.classReloadAttempted = false
 end
@@ -176,8 +174,6 @@ local function handleSessionChange(sessionChanged, sessionSwitched)
   end
   if sessionChanged then
     S.firstFrame = true
-    S.carClassCache = {}
-    S.uiSourceCache = {}
     pcall(function() Pos.InvalidateLeaderboardCache() end)
   end
 end
@@ -213,9 +209,9 @@ end
 
 local function firstFrameGridSetup(sim)
   logGridCars()
-  local okLoad, loadErr = pcall(Classes.LoadManualClassesFromStorage)
+  local okLoad, loadErr = pcall(Classes.LoadClassesFromSessionFile)
   if not okLoad then
-    U.Log("FIRSTFRAME: LoadManualClassesFromStorage FAILED err=" .. tostring(loadErr))
+    U.Log("FIRSTFRAME: LoadClassesFromSessionFile FAILED err=" .. tostring(loadErr))
   end
   if Sess.IsRaceMode(sim) and not S.gridReordered then
     recordAndReorderGrid(sim)
@@ -249,7 +245,7 @@ end
 local function reloadClassesIfMissing(sim)
   if not S.classReloadAttempted and #S.releaseClasses == 0 and S.driverCount > 0 then
     S.classReloadAttempted = true
-    Classes.LoadManualClassesFromStorage()
+    Classes.LoadClassesFromSessionFile()
     if #S.releaseClasses > 0 then
       Classes.BuildClassInfo()
       if Sess.IsRaceMode(sim) then
@@ -397,7 +393,7 @@ function Frame.Update(dt)
 
   -- "Enable Multiple Class Race" unchecked: every feature of the app is off, only the
   -- enable checkbox remains in the config window.
-  if not S.enduranceEnabled then
+  if Sess.AppDisabled() then
     stopAllFeatures(sim)
     if sim.isInMainMenu == true then
       ac.setWindowOpen("cl_config", true)
@@ -465,8 +461,6 @@ function Frame.OnSessionStart(sessionIndex, restarted)
   end
 
   -- Persistent class assignments stay valid across a restart; only the derived caches go.
-  S.carClassCache = {}
-  S.uiSourceCache = {}
   pcall(function() Pos.InvalidateLeaderboardCache() end)
 
   if S.liveSessionPending then

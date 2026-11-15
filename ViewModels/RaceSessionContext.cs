@@ -21,7 +21,8 @@ public sealed record RaceSessionContext(
     string? TrackName,
     int? TrackPitCount,
     int EnteredCarCount,
-    SessionType SelectedSessionType)
+    SessionType SelectedSessionType,
+    bool SteamRunning = true)
 {
     public bool HasSessionData => Sessions?.Any(s => s.DriverStandings.Any()) == true;
 
@@ -42,7 +43,7 @@ public sealed record RaceSessionContext(
     public bool ExceedsPitCapacity => HasRaceTrack && TrackPitCount is > 0 && EnteredCarCount > TrackPitCount.Value;
 
     public bool CanStartSession =>
-        HasRaceTrack && !ExceedsPitCapacity && !HasSelectedSessionData &&
+        SteamRunning && HasRaceTrack && !ExceedsPitCapacity && !HasSelectedSessionData &&
         (SelectedSessionType != SessionType.Practice || CanOpenPractice) &&
         (SelectedSessionType != SessionType.Qualifying || CanOpenQualifying) &&
         (SelectedSessionType != SessionType.Race || CanOpenRace);
@@ -52,6 +53,11 @@ public sealed record RaceSessionContext(
     {
         get
         {
+            if (!SteamRunning)
+            {
+                return "Steam is not running. Start Steam in the background to start a session.";
+            }
+
             if (!HasRaceTrack)
             {
                 return "Select a track for this race before starting a session.";

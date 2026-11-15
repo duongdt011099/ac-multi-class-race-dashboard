@@ -76,6 +76,10 @@ public sealed class RaceIniBuilder
 
         builder.Append("[OPTIONS]\r\nUSE_MPH=0\r\n\r\n");
         builder.Append("[HEADER]\r\nVERSION=2\r\n__CM_FEATURE_SET=2\r\n");
+        // Tells the Lua app the game was started from the dashboard; without it the app switches itself off.
+        builder.Append("__MCR_DASHBOARD=1\r\n");
+        // Unique per launch: the Lua app accepts each id once, so a stale race.ini cannot pass for a dashboard launch.
+        builder.Append("__MCR_LAUNCH_ID=").AppendLine(Guid.NewGuid().ToString("N"));
         if (sessionType == SessionType.Race && rollingStartLapCompensation)
         {
             // The Lua app reads this custom header value to remove the formation segment from

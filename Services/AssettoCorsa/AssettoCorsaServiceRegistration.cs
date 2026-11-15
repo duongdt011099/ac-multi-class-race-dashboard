@@ -12,6 +12,7 @@ public static class AssettoCorsaServiceRegistration
         // The game folder is resolved once and shared; launching has no state of its own.
         services.AddSingleton<IGameSessionLauncher, GameSessionLauncher>();
         services.AddSingleton<AssettoCorsaPathResolver>();
+        services.AddSingleton<ISteamStatusService, SteamStatusService>();
 
         return services;
     }

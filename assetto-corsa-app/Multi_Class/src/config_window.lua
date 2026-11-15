@@ -8,7 +8,6 @@ local Writer = require("src/export/writer")
 local Exporter = require("src/export/exporter")
 local Audio = require("src/audio")
 local RCtl = require("src/rolling/control")
-local Detect = require("src/classes/detection")
 
 local Config = {}
 
@@ -64,8 +63,8 @@ local COL_GAP = 14
 local ROW_GAP = 14
 
 local function beginColumns(w)
-  local cols = math.floor((w - 2 * CARD_MARGIN + COL_GAP) / (MIN_CARD_W + COL_GAP))
-  layout.cols = math.max(1, math.min(3, cols))
+  local cols = 1
+  layout.cols = cols
   layout.cardW = (w - 2 * CARD_MARGIN - (layout.cols - 1) * COL_GAP) / layout.cols
 end
 
@@ -188,30 +187,6 @@ local function pushModernStyle()
   return pushed
 end
 
-local function onFolderChosen(err, path)
-  if (not err or err == "") and path and path ~= "" then
-    S.resultFolder = U.NormalizePath(path)
-    S.storedSettings.resultFolder = S.resultFolder
-    ui.toast(ui.Icons.Play, "Session result folder set")
-  elseif err and err ~= "" then
-    ui.toast(ui.Icons.Warning, "Error choosing folder: " .. err)
-  end
-end
-
-local function openFolderDialog()
-  if type(os.openFileDialog) ~= "function" then
-    ui.toast(ui.Icons.Warning, "Folder dialog is not available on this CSP version.")
-    return
-  end
-  local defaultFolder = ac.getFolder and ac.getFolder(ac.FolderID.Documents) or ""
-  os.openFileDialog({
-    title = "Choose save folder for session results",
-    defaultFolder = defaultFolder,
-    folder = (S.resultFolder ~= "") and S.resultFolder or nil,
-    flags = os.DialogFlags and bit.bor(os.DialogFlags.PickFolders, os.DialogFlags.PathMustExist) or nil
-  }, onFolderChosen)
-end
-
 -- Draws text wrapped to the card's inner width. Breaks at spaces, and inside a word that is too
 -- long on its own (such as a folder path), so nothing runs into the next column.
 local function drawWrapped(text, color)
@@ -247,67 +222,6 @@ local function drawPathField(path, color, tooltip)
   ui.textColored(shown, color or rgbm(0.92, 0.94, 1, 1))
   if ui.itemHovered() then ui.setTooltip(tooltip and (path .. "\n\n" .. tooltip) or path) end
   ui.setCursor(vec2(colX, pos.y + th + 14))
-end
-
-local function drawResultFolderLabel()
-  if S.resultFolder ~= "" then
-    ui.textColored("RESULT FOLDER", MUTED)
-    drawPathField(S.resultFolder)
-    if ui.button("Reset to Default", vec2(230, 22)) then
-      S.resultFolder = ""
-      S.storedSettings.resultFolder = ""
-    end
-    return
-  end
-  local resolved = Writer.ResultEffectiveFolder()
-  if resolved ~= "" then
-    ui.textColored("RESULT FOLDER (DEFAULT)", MUTED)
-    drawPathField(resolved, MUTED,
-        "The Multi_Class app folder (apps\\lua\\Multi_Class). Point the dashboard's 'Lua App Result Path' there, or click 'Choose result folder...' to change it.")
-  else
-    drawWrapped("Result folder: not resolved - please choose a folder", rgbm(1.0, 0.7, 0.35, 1))
-  end
-end
-
-local function drawAutoSaveCheckbox()
-  -- Available in Race, Practice and Qualifying alike.
-  if checkRow("Auto-save session result when the session finishes", S.resultExportEnabled) then
-    S.resultExportEnabled = not S.resultExportEnabled
-    S.storedSettings.resultExportEnabled = S.resultExportEnabled
-    if not S.resultExportEnabled then
-      Exporter.ResetResultExport()
-    end
-  end
-end
-
-local function drawChooseFolderButton(w)
-  ui.setCursor(vec2(colX, ui.getCursor().y + 4))
-  if ui.button("Choose result folder...", vec2(w - 48, 28)) then
-    local dlgOk, dlgErr = pcall(openFolderDialog)
-    if not dlgOk then
-      ui.toast(ui.Icons.Warning, "Error opening folder dialog: " .. tostring(dlgErr))
-    end
-  end
-end
-
-local function drawResultExportSection(w)
-  drawAutoSaveCheckbox()
-  drawChooseFolderButton(w)
-
-  ui.setCursor(vec2(colX, ui.getCursor().y + 6))
-  ui.pushFont(ui.Font.Small)
-  drawResultFolderLabel()
-
-  ui.setCursor(vec2(colX, ui.getCursor().y + 2))
-  drawWrapped("Results are split into practice, qualifying and race subfolders. Point the dashboard's 'Lua App Result Path' at the same folder.")
-  ui.setCursor(vec2(colX, ui.getCursor().y + 2))
-  if S.resultExportStatus ~= "" then
-    drawWrapped(S.resultExportStatus)
-  else
-    ui.textColored("No session result saved yet.", MUTED)
-  end
-  ui.popFont()
-  ui.dummy(vec2(0, 8))
 end
 
 local function drawMusicSection(w)
@@ -371,113 +285,42 @@ local function drawYellowFlagSection(w)
   ui.dummy(vec2(0, 8))
 end
 
--- Classes/tags found on the current grid that have not been added yet.
-local function availableClassOptions()
-  local added = {}
-  for _, name in ipairs(S.releaseClasses) do added[string.lower(name)] = true end
-  local options = {}
-  local ok, names = pcall(Detect.GetAvailableClassNames)
-  for _, name in ipairs(ok and names or {}) do
-    if not added[string.lower(name)] then options[#options + 1] = name end
-  end
-  table.sort(options, function(a, b) return string.lower(a) < string.lower(b) end)
-  return options
-end
-
-local function drawAddClassControls(w)
-  ui.setCursor(vec2(colX, ui.getCursor().y))
-  drawWrapped("Add Class (auto-assign by car tag):")
-  ui.setCursor(vec2(colX, ui.getCursor().y + 4))
-  ui.pushItemWidth(w - 48)
-  local options = availableClassOptions()
-  local current = S.classAddInput or ""
-  local stillOffered = false
-  for _, name in ipairs(options) do
-    if name == current then stillOffered = true break end
-  end
-  if not stillOffered then current = "" end
-  S.classAddInput = current
-  local preview = current ~= "" and current or (#options > 0 and "Select a class..." or "No classes left on the grid")
-  ui.combo("##NewReleaseClass", preview, function()
-    for _, name in ipairs(options) do
-      if ui.selectable(name, name == current) then S.classAddInput = name end
-    end
-  end)
-  ui.popItemWidth()
-  ui.setCursor(vec2(colX, ui.getCursor().y + 6))
-  if ui.button("Add Class", vec2(w - 48, 28)) then
-    local addOk, addErr = pcall(function()
-      Classes.AddReleaseClass(S.classAddInput)
-    end)
-    if not addOk then
-      S.classAddError = "Error adding class: " .. tostring(addErr)
-    end
-  end
-  ui.setCursor(vec2(colX, ui.getCursor().y + 6))
-  if ui.button("Verify", vec2(w - 48, 28)) then
-    pcall(Classes.VerifyClassAssignments)
-  end
-  if ui.itemHovered() then
-    ui.setTooltip("Use 'Add Class' first to assign cars by tag, then 'Verify' to check every car belongs to an added class.")
-  end
-end
-
-local function drawClassAddError()
-  if S.classAddError then
-    ui.setCursor(vec2(colX, ui.getCursor().y + 8))
-    ui.pushFont(ui.Font.Small)
-    drawWrapped(S.classAddError, rgbm.colors.red)
-    ui.popFont()
-  end
-end
-
+-- The classes come from the dashboard's session file, so this is a read-only summary.
 local function drawClassRow(ci)
   local clsName = S.releaseClasses[ci]
-  local carList = {}
-  local count = 0
+  local cars = {}
   for i = 0, S.driverCount - 1 do
     if S.manualDriverClass[i] == clsName then
-      count = count + 1
-      local cn = ac.getCarName and ac.getCarName(i) or sFormat("Car %d", i + 1)
-      carList[#carList + 1] = cn
+      local car = ac.getCarName and ac.getCarName(i) or sFormat("Car %d", i + 1)
+      local okDriver, driver = pcall(function() return ac.getDriverName and ac.getDriverName(i) end)
+      cars[#cars + 1] = (okDriver and type(driver) == "string" and driver ~= "") and (driver .. " - " .. car) or car
     end
   end
-  ui.setCursor(vec2(colX + 8, ui.getCursor().y + 2))
-  drawWrapped(sFormat("%s (%d car%s)", clsName, count, count == 1 and "" or "s"))
-  if count > 0 then
-    if ui.itemHovered() then
-      ui.setTooltip("Cars: " .. table.concat(carList, ", "))
-    end
+  ui.setCursor(vec2(colX, ui.getCursor().y + 6))
+  drawWrapped(sFormat("%s (%d car%s)", clsName, #cars, #cars == 1 and "" or "s"))
+  if #cars > 0 and ui.itemHovered() then
+    ui.setTooltip(table.concat(cars, "\n"))
   end
-  ui.sameLine()
-  ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(6, 2))
-  ui.pushStyleVar(ui.StyleVar.ButtonTextAlign, vec2(0.5, 0.5))
-  if ui.button("Remove##removeclass" .. ci, vec2(64, 20)) then
-    Classes.RemoveReleaseClass(ci)
-  end
-  ui.popStyleVar(2)
 end
 
 local function drawClassList()
   if #S.releaseClasses > 0 then
-    ui.setCursor(vec2(colX, ui.getCursor().y + 12))
-    ui.text("Classes:")
+    ui.setCursor(vec2(colX, ui.getCursor().y + 4))
+
     for ci = 1, #S.releaseClasses do
       drawClassRow(ci)
     end
+  else
+    ui.setCursor(vec2(colX, ui.getCursor().y))
+    ui.pushFont(ui.Font.Small)
+    drawWrapped("No classes loaded. Start the session from the dashboard so it can send the cars and classes.", rgbm(0.9, 0.7, 0.3, 1))
+    ui.popFont()
   end
 end
 
 local function drawEnduranceSection(w)
-  if checkRow("Enable Multiple Class Race", S.enduranceEnabled) then
-    S.enduranceEnabled = not S.enduranceEnabled
-    S.storedSettings.enduranceEnabled = S.enduranceEnabled
-  end
-
-  if S.enduranceEnabled then
+  do
     if S.driverCount > 0 then
-      drawAddClassControls(w)
-      drawClassAddError()
       drawClassList()
     else
       ui.setCursor(vec2(colX, ui.getCursor().y))
@@ -498,6 +341,26 @@ local function drawUnsupportedMessage(w, err)
   ui.dummy(vec2(0, 8))
 end
 
+-- Outside the dashboard the app has nothing to configure: no controls, only a large centered notice.
+local function drawNotFromDashboard(w, h)
+  ui.drawRectFilled(vec2(6, 6), vec2(w - 6, h - 6), rgbm(0.027, 0.027, 0.031, 0.97), 0)
+  ui.drawRect(vec2(6, 6), vec2(w - 6, h - 6), SURFACE_BORDER, 0, nil, 1)
+
+  ui.pushFont(ui.Font.Title)
+  local lines = wrapLines(Sess.NOT_FROM_DASHBOARD_MESSAGE, w - 64)
+  local lineH = ui.measureText("Ag").y + 4
+  local y = math.max(24, (h - #lines * lineH) / 2)
+  for _, line in ipairs(lines) do
+    ui.setCursor(vec2((w - ui.measureText(line).x) / 2, y))
+    ui.textColored(line, rgbm(0.95, 0.55, 0.3, 1))
+    y = y + lineH
+  end
+  ui.popFont()
+
+  ui.setCursor(vec2(layout.baseX, y))
+  ui.dummy(vec2(1, math.max(0, 200 - y)))
+end
+
 function Config.Draw()
   local valid, err = Sess.CheckSessionValidity()
   local sim = ac.getSim()
@@ -506,15 +369,19 @@ function Config.Draw()
 
   layout.baseX = ui.getCursor().x   -- the window's default line-start x
 
+  if not Sess.IsDashboardLaunch() then
+    drawNotFromDashboard(w, h)
+    return
+  end
+
   ui.pushStyleVar(ui.StyleVar.FramePadding, vec2(6, 6))
   local pushedColours = pushModernStyle()
 
   local top = drawBackgroundAndTitle(w, h)
   beginColumns(w)
 
-  local sections = { { key = "race", title = "Race mode", fn = drawEnduranceSection } }
+  local sections = { { key = "race", title = "Classes and cars", fn = drawEnduranceSection } }
   if S.enduranceEnabled then
-    sections[#sections + 1] = { key = "results", title = "Session results", fn = drawResultExportSection }
     sections[#sections + 1] = { key = "general", title = "General", fn = drawGeneralSection }
     sections[#sections + 1] = { key = "music", title = "Music", fn = drawMusicSection }
     sections[#sections + 1] = { key = "autopilot", title = "Autopilot", fn = drawAutopilotSection }

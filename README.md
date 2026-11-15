@@ -58,11 +58,7 @@ To use the dashboard you need:
 
 ## Lua App - Multiclass Leaderboard (Driver posittion)
 
-1. You have to configure the car tags in Content Manager to make the leaderboard work correctly.
-<img width="816" height="602" alt="image" src="docs/images/car-tags.png" />
-
-2. In game class-leaderboard config - You have to choose the car tag to make the leaderboard auto order by class: eg: Hyperpar
-<img width="491" height="615" alt="image" src="docs/images/leaderboard.png" />
+Lua app only available when you start from the dashboard app.
 
 ## Rolling Start
 
@@ -76,7 +72,7 @@ To use the dashboard you need:
 - One class setting is always the default and cannot be unset; to change it, open another class setting and mark it as the default instead.
 - If two drivers use the same car and skin combo, load their results once with the right driver selected so they are not mixed up.
 - If a result needs correcting, import the file again in place of the old one.
-- Results come from the Multi_Class output; make sure the folder you enter in Game Config is the one those files are saved to.
+- Results come from the Multi_Class output; they are saved to `Documents/Assetto Corsa/mcr-results` automatically.
 
 ## For contributors
 
@@ -110,4 +106,4 @@ This project is licensed under the **MIT License** with additional terms. See th
 - You may **read, study, and contribute** to the source code.
 - The **author credit** ("Duong Do") must not be removed or changed in any copy or derivative work.
 - Redistributing or publishing the **complete source code** as a standalone repository or release is **not permitted**.
-- Results come from the [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) output; make sure the folder you enter in Game Config is the one those files are saved to.
+- Results come from the [Multi Class Race Leaderboard](https://github.com/duongdt011099/ac-multi-class-race) output; they are saved to `Documents/Assetto Corsa/mcr-results` automatically.

@@ -22,30 +22,5 @@
             <InfoRow Label="Content Manager"
                      Value="@(ContentManagerPaths.IsInstalled ? ContentManagerPaths.DataRoot : "Not installed")" />
         </div>
-
-        @if (ContentManagerPaths.IsInstalled)
-        {
-            <div class="wec-config__hint">
-                Grid presets are read from <code>@ContentManagerPaths.PresetsRoot</code> and session
-                results from <code>@ContentManagerPaths.SessionsRoot</code>. Preset export and result
-                import appear only when those folders exist.
-            </div>
-        }
-    </div>
-
-    <FolderPicker FieldLabel="Lua App Result Path" Title="Select Lua App Result Path" InputId="config-lua-results-path"
-                  Value="@config.LuaResultPath" ValueChanged="SetLuaResultPath" />
-
-    <div class="wec-config__hint">
-        The Multiple Class Race Lua app writes finished session results here. The dashboard watches this
-        folder and offers to import each result when Assetto Corsa closes. Results are split into
-        <code>practice</code>, <code>qualifying</code> and <code>race</code> subfolders.
-        Leave empty to use the default location: <code>@DefaultLuaResultPath</code>.
-    </div>
-
-    <div class="wec-config__actions">
-        <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="SaveAsync" disabled="@isSaving">
-            @(isSaving ? "Saving..." : "Save Configuration")
-        </button>
     </div>
 </div>

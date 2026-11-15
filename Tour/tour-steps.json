@@ -36,16 +36,8 @@
       "message": "We will set things up in this order: class settings, point settings, a championship, teams, drivers, and finally races. You can skip any step, or the whole tour, at any time."
     },
     {
-      "id": "game-config",
-      "title": "1. Point me at the game",
-      "message": "First make sure the dashboard knows where Assetto Corsa is installed. You do that on the Game Config page. Click it to take a look.",
-      "route": "",
-      "target": "[data-tour='nav-gameconfig']",
-      "passThrough": true
-    },
-    {
       "id": "class-settings",
-      "title": "2. Define your classes",
+      "title": "1. Define your classes",
       "message": "Classes are the categories your cars race in, like Hypercar or GT3. Open Class Settings to create them.",
       "target": "[data-tour='nav-class-settings']",
       "passThrough": true
@@ -59,7 +51,7 @@
     },
     {
       "id": "point-settings",
-      "title": "3. Decide how points work",
+      "title": "2. Decide how points work",
       "message": "Every race needs a point system. Head to Point Settings.",
       "target": "[data-tour='nav-pointsettings']",
       "passThrough": true
@@ -73,7 +65,7 @@
     },
     {
       "id": "championship",
-      "title": "4. Create your championship",
+      "title": "3. Create your championship",
       "message": "Now the main event. Open the Championship page.",
       "target": "[data-tour='nav-championship']",
       "passThrough": true
@@ -87,7 +79,7 @@
     },
     {
       "id": "teams",
-      "title": "5. Build the teams",
+      "title": "4. Build the teams",
       "message": "Teams are who you race against. Open the Teams page.",
       "target": "[data-tour='nav-teams']",
       "passThrough": true
@@ -101,7 +93,7 @@
     },
     {
       "id": "drivers",
-      "title": "6. Sign the drivers",
+      "title": "5. Sign the drivers",
       "message": "Every team needs drivers. Open the Drivers page.",
       "target": "[data-tour='nav-drivers']",
       "passThrough": true
@@ -115,7 +107,7 @@
     },
     {
       "id": "races",
-      "title": "7. Schedule the races",
+      "title": "6. Schedule the races",
       "message": "Last stop: the race calendar. Open the Races page.",
       "target": "[data-tour='nav-races']",
       "passThrough": true

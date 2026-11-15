@@ -120,7 +120,7 @@ end
 -- already gone. The results-screen check is kept as a secondary trigger for the case
 -- where the app starts while results are already on screen.
 function Exporter.CheckForFinishedSession(sim)
-  if not S.enduranceEnabled then return end
+  if Sess.AppDisabled() then return end
   if U.IsReplayActive(sim) then return end
   if not S.resultExportEnabled then return end
   if S.liveSessionType == nil then return end
@@ -206,7 +206,7 @@ function Exporter.ExportExpiredSessionOnRelease()
     S.liveSessionCarCount, tostring(S.liveSessionHadCountdown), tostring(currentTimeLeft),
     tostring(S.exportedSessionKey == S.liveSessionKey)))
 
-  if not S.enduranceEnabled then return end
+  if Sess.AppDisabled() then return end
   if U.IsReplayActive() then return end
   if not S.resultExportEnabled then return end
   if S.liveSessionType == nil or S.liveSessionCarCount <= 0 then return end
@@ -450,7 +450,7 @@ end
 -- yet because other cars are still on track (timed sessions: the clock is at zero; races: the
 -- player has completed the race distance).
 function Exporter.IsPlayerWaitingForOthers(sim)
-  if not S.enduranceEnabled or S.liveSessionType == nil then return false end
+  if Sess.AppDisabled() or S.liveSessionType == nil then return false end
   if U.IsReplayActive(sim) then return false end
   if S.liveSessionType == C.SUBFOLDER_RACE then
     -- In a race AC flags the session "over" as soon as the player takes the flag, while other

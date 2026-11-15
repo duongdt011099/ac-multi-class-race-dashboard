@@ -49,6 +49,7 @@ public class PageTestContext : TestContext
         Services.AddSingleton<IRaceResultService>(RaceService);
         Services.AddSingleton<IGridPresetService>(RaceService);
         Services.AddSingleton<ITrackService>(TrackService);
+        Services.AddSingleton<ISteamStatusService>(new FakeSteamStatusService());
         Services.AddSingleton<ILuaResultImportService>(new FakeLuaResultImportService());
         Services.AddSingleton<RaceSessionChangeNotifier>();
         Services.AddScoped<BrowserStorage>();

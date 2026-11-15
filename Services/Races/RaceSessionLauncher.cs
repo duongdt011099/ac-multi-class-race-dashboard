@@ -15,6 +15,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
     private readonly SessionLaunchTracker _launchTracker;
     private readonly AssettoCorsaPathResolver _pathResolver;
     private readonly IAssettoCorsaGameConfigService? _configService;
+    private readonly ISteamStatusService? _steamStatus;
 
     public RaceSessionLauncher(
         IRaceRepository raceRepository,
@@ -22,7 +23,8 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         IGameSessionLauncher gameSessionLauncher,
         SessionLaunchTracker launchTracker,
         AssettoCorsaPathResolver pathResolver,
-        IAssettoCorsaGameConfigService? configService = null)
+        IAssettoCorsaGameConfigService? configService = null,
+        ISteamStatusService? steamStatus = null)
     {
         _raceRepository = raceRepository;
         _trackService = trackService;
@@ -30,6 +32,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         _launchTracker = launchTracker;
         _pathResolver = pathResolver;
         _configService = configService;
+        _steamStatus = steamStatus;
     }
 
     public async Task LaunchSessionAsync(
@@ -47,6 +50,11 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         }
 
         SeasonRules.EnsureOpen(race.Season);
+
+        if (_steamStatus is { } steam && !steam.IsRunning())
+        {
+            throw new InvalidOperationException("Steam is not running. Start Steam before starting a session.");
+        }
 
         if (string.IsNullOrWhiteSpace(race.TrackName))
         {
@@ -173,7 +181,10 @@ public class RaceSessionLauncher : IRaceSessionLauncher
             // Season/Championship are not eagerly loaded here; the context is optional.
         }
 
-        await _gameSessionLauncher.LaunchAsync(gamePath, executable, raceIni);
+        var sessionManifest = SessionManifestBuilder.Build(
+            race, sessionType, human, drivers.Where(d => !d.IsHuman).ToList());
+
+        await _gameSessionLauncher.LaunchAsync(gamePath, executable, raceIni, sessionManifest);
 
         _launchTracker.Record(new SessionLaunch(
             raceId,

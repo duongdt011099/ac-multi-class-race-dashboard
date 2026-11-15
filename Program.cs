@@ -48,7 +48,12 @@ app.UseAppAccessGuard();
 
 using (var scope = app.Services.CreateScope())
 {
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+
+    // The Lua app always saves results to the default folder now, so a folder chosen in older versions is dropped.
+    await db.AssettoCorsaGameConfigs.Where(c => c.LuaResultPath != "")
+        .ExecuteUpdateAsync(s => s.SetProperty(c => c.LuaResultPath, ""));
 }
 
 if (!app.Environment.IsDevelopment())

@@ -4,30 +4,11 @@ local U = require("src/util")
 
 local Writer = {}
 
+-- Fixed location shared with the dashboard (LuaResultPaths.DefaultRoot): Documents/Assetto Corsa/mcr-results.
 function Writer.ResultDefaultFolder()
-  -- Defaults to the app's own folder, which is always writable.
-  local okApps, apps = pcall(function() return ac.getFolder(ac.FolderID.ACApps) end)
-  if okApps and type(apps) == "string" and apps ~= "" then
-    return U.NormalizePath(apps .. "/lua/Multi_Class")
-  end
-
-  local candidates = {}
-
-  local ok1, d1 = pcall(function() return ac.dirname() end)
-  if ok1 and type(d1) == "string" and d1 ~= "" then
-    candidates[#candidates + 1] = d1
-  end
-
-  local ok2, d2 = pcall(function() return ac.getFolder(ac.FolderID.ExtLua) end)
-  if ok2 and type(d2) == "string" and d2 ~= "" then
-    candidates[#candidates + 1] = d2
-  end
-
-  for _, c in ipairs(candidates) do
-    local n = U.NormalizePath(c)
-    if n ~= "" then
-      return n
-    end
+  local ok, docs = pcall(function() return ac.getFolder(ac.FolderID.Documents) end)
+  if ok and type(docs) == "string" and docs ~= "" then
+    return U.NormalizePath(docs .. "/Assetto Corsa/mcr-results")
   end
   return ""
 end
@@ -66,9 +47,6 @@ function Writer.ResultFolderWritable(folder)
 end
 
 function Writer.ResultEffectiveFolder()
-  if S.resultFolder and S.resultFolder ~= "" then
-    return S.resultFolder
-  end
   return Writer.ResultDefaultFolder()
 end
 

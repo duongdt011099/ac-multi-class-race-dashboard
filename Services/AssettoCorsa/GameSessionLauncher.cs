@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using MulticlassRace.Builders;
 
 namespace MulticlassRace.Services.AssettoCorsa;
 
@@ -19,7 +20,7 @@ public sealed class GameSessionLauncher : IGameSessionLauncher
         _logger = logger;
     }
 
-    public Task LaunchAsync(string gamePath, string executablePath, string raceIni)
+    public Task LaunchAsync(string gamePath, string executablePath, string raceIni, string? sessionManifest = null)
     {
         var gameDirectory = Path.GetFullPath(gamePath);
         var executable = Path.GetFullPath(executablePath);
@@ -49,6 +50,11 @@ public sealed class GameSessionLauncher : IGameSessionLauncher
         var configDirectory = Path.Combine(documents, "Assetto Corsa", "cfg");
         Directory.CreateDirectory(configDirectory);
         File.WriteAllText(Path.Combine(configDirectory, "race.ini"), raceIni);
+
+        if (sessionManifest is not null)
+        {
+            File.WriteAllText(Path.Combine(configDirectory, SessionManifestBuilder.FileName), sessionManifest);
+        }
 
         using var process = Process.Start(new ProcessStartInfo
         {

@@ -1,24 +1,18 @@
 using Microsoft.AspNetCore.Components;
-using MulticlassRace.ViewModels;
 using MulticlassRace.Services.AssettoCorsa;
-using MulticlassRace.Services.Results;
 
 namespace multi_class_race_dashboard.Components.Pages;
 
+/// <summary>
+/// Read-only: shows where the game was found. It is no longer in the menu; it is only reached when the
+/// game folder is missing, which is when the gate redirects here.
+/// </summary>
 public partial class GameConfig
 {
-    [Inject] private IAssettoCorsaGameConfigService ConfigService { get; set; } = default!;
-
     [Inject] private AssettoCorsaPathResolver PathResolver { get; set; } = default!;
 
-    [Inject] private GameConfigChangeNotifier ConfigNotifier { get; set; } = default!;
-
-    private AssettoCorsaGameConfigModel config = new();
-    private bool isSaving;
     private string? gameFolder;
     private AssettoCorsaPathSource source;
-
-    private static string DefaultLuaResultPath => LuaResultPaths.DefaultRoot;
 
     private string GameFolderSourceText => source switch
     {
@@ -30,13 +24,6 @@ public partial class GameConfig
 
     protected override async Task OnInitializedAsync()
     {
-        var existing = await ConfigService.GetAsync();
-
-        if (existing is not null)
-        {
-            config = existing;
-        }
-
         await ReadLocationAsync();
     }
 
@@ -45,32 +32,5 @@ public partial class GameConfig
         var location = await PathResolver.GetAsync();
         gameFolder = location.Path;
         source = location.Source;
-    }
-
-    private Task SetLuaResultPath(string? value)
-    {
-        config.LuaResultPath = value ?? string.Empty;
-        return Task.CompletedTask;
-    }
-
-    private async Task SaveAsync()
-    {
-        if (isSaving)
-        {
-            return;
-        }
-
-        isSaving = true;
-
-        try
-        {
-            var created = await ConfigService.SaveAsync(config);
-            ConfigNotifier.NotifyChanged();
-            Toast.Show(created ? "Configuration created." : "Configuration saved.");
-        }
-        finally
-        {
-            isSaving = false;
-        }
     }
 }
