@@ -5,7 +5,7 @@
 
 @if (isOpen && result is not null)
 {
-    <Modal Title="@HeaderTitle" OnClose="DismissAsync">
+    <Modal Title="@HeaderTitle" Size="ModalSize.Wide" OnClose="DismissAsync">
         <ChildContent>
             @if (result.IsUpdateAvailable)
             {
