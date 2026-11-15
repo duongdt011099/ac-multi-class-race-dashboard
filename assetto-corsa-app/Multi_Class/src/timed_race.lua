@@ -29,12 +29,15 @@ local teleported = {}
 local finishClock = 0.0
 local pitDone, pitHoldTeleportAt = {}, {}
 local pitHoldClock, nextPitHoldAt = 0.0, 0.0
+local retiredHoldAt, retiredTeleportAt = 0.0, -1000.0
 
 local function resetRace()
   finishedAt, teleported, finishClock = {}, {}, 0.0
   pitDone, pitHoldTeleportAt = {}, {}
   pitHoldClock, nextPitHoldAt = 0.0, 0.0
+  retiredHoldAt, retiredTeleportAt = 0.0, -1000.0
   S.raceLeaderFinished = false
+  S.playerRetired = false
   S.timedRaceSeconds = 0.0
   S.timedRaceTimeUp = false
   S.timedFinishLaps = nil
@@ -205,6 +208,34 @@ local function holdPitCars(dt)
   end
 end
 
+-- A human who goes back to the pits (pause menu) on the final lap, or after the leader has finished,
+-- is out of the race: it counts as finished and is held in the pits instead of driving on.
+local function updateRetiredPlayer(sim, dt)
+  if sim.isSessionStarted ~= true or not Sess.IsRaceMode(sim) then return end
+  if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return end
+  local okCar, car = pcall(getCar, 0)
+  if not okCar or not car then return end
+  retiredHoldAt = retiredHoldAt + dt
+  if not S.playerRetired then
+    if (S.timedRaceSeconds or 0) < 5.0 then return end
+    if U.SafeBool(car, "isInPit") ~= true then return end
+    local total = T.IsTimedRace() and (S.timedFinishLaps or 0) or (S.liveTotalLaps or 0)
+    local lc = lapCountOf(0)
+    local finalLap = total > 0 and lc >= total - 1
+    if finalLap or S.raceLeaderFinished or S.playerOnFinalLap == true then
+      S.playerRetired = true
+      U.Log(sFormat("RACE: player went back to the pits at lap count %d (final lap / leader finished); finished and locked", lc))
+    end
+    return
+  end
+  if not carInPits(car) and physics.teleportCarTo and ac.SpawnSet
+      and retiredHoldAt - retiredTeleportAt >= 1.0 then
+    retiredTeleportAt = retiredHoldAt
+    pcall(physics.teleportCarTo, 0, ac.SpawnSet.Pits)
+    U.Log("RACE: retired player was back on track; sent to the pits again")
+  end
+end
+
 local function carDone(i)
   if pitDone[i] then return true end
   local okCar, car = pcall(getCar, i)
@@ -245,6 +276,7 @@ function T.Update(sim, dt)
       U.Log(sFormat("TIMED: timed race of %d minutes", S.timedRaceMinutes))
     end
   end
+  updateRetiredPlayer(sim, dt)
   if not T.IsTimedRace() then
     -- Lap race: the leader has finished once any car has completed the race distance.
     local laps = S.liveTotalLaps or 0

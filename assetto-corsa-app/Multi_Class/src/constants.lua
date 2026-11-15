@@ -275,14 +275,52 @@ C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
 C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS = 5.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 
--- Multi-class overtaking assist (overtake/overtake.lua): a faster-class AI car within RANGE_M of a
--- slower-class car (inside LATERAL_M sideways) with a clear side lowers its caution to CAUTION and
--- raises aggression so it commits to the pass instead of tailgating.
+-- Multi-class pass (ai/modifiers.lua): a faster-class AI car within RANGE_M of a slower-class car
+-- (inside LATERAL_M sideways) with a clear side lowers its caution to CAUTION and raises aggression
+-- to AGGRESSION so it commits to the pass instead of tailgating.
 C.OVERTAKE_RANGE_M           = 70
 C.OVERTAKE_LATERAL_M         = 2.5
 C.OVERTAKE_CAUTION           = 0.5
 C.OVERTAKE_AGGRESSION        = 0.8
-C.OVERTAKE_SCAN_SECONDS      = 0.15
+
+-- AI enhancement (ai/*.lua). The field is scanned every FIELD_SCAN_SECONDS and
+-- every car's AI settings are re-applied every APPLY_SECONDS; values ease toward their target at
+-- SMOOTH_PER_SECOND (more caution / grip is taken at once). A car's base values are its own ai.ini
+-- scaled by its class profile: PROFILE_DEFAULT, or CLASS_PROFILES[<lowercase class name>] -- grip,
+-- caution, brake, lookahead and steer are multipliers/absolute levels as in tuning.lua, aggression
+-- is added to the car's own. SAFE_START_SECONDS: extra caution right after the green.
+C.AI_FIELD_SCAN_SECONDS      = 0.1
+C.AI_APPLY_SECONDS           = 0.1
+C.AI_SMOOTH_PER_SECOND       = 8.0
+C.AI_SAFE_START_SECONDS      = 12.0
+C.AI_ELASTICAUTION_ENABLED   = true
+C.AI_ELASTICAUTION_RANGE_M   = 85
+-- A slower-class car with a faster-class car within YIELD_RANGE_M behind it (or beside it) gives way:
+-- its aggression drops by YIELD_AGGRESSION and its caution rises by YIELD_CAUTION, and it takes no
+-- defending / clear-road boosts.
+C.AI_YIELD_RANGE_M           = 70
+C.AI_YIELD_AGGRESSION        = -0.12
+C.AI_YIELD_CAUTION           = 0.0   -- no extra caution: a slower car braking early in front of a hypercar gets rear-ended
+-- Closing safety: on a car ahead on the same line within CLOSE_RANGE_M, caution rises from 0 (at
+-- CLOSE_TTC_S seconds to contact) to CLOSE_CAUTION (at contact). The class pass discount is off under
+-- PASS_MIN_TTC_S and fades out as the gap closes.
+C.AI_CLOSE_RANGE_M           = 150
+C.AI_CLOSE_TTC_S             = 4.0
+C.AI_CLOSE_CAUTION           = 0.6
+C.AI_PASS_MIN_TTC_S          = 3.0
+C.AI_PROFILE_DEFAULT         = { grip = 1.0, caution = 1.0, brake = 1.0, aggression = 0.0, lookahead = 1.0, steer = 1.0 }
+C.AI_CLASS_PROFILES          = {}
+-- Stuck cars: under STUCK_KMH for STUCK_SECONDS (after GRACE_SECONDS of racing, under green, with no
+-- car under QUEUE_KMH within AHEAD_M in front of it) is sent to the pits and held FREEZE_SECONDS.
+C.AI_STUCK_KMH               = 35
+C.AI_STUCK_SECONDS           = 14.0
+C.AI_STUCK_GRACE_SECONDS     = 20.0
+C.AI_STUCK_AHEAD_M           = 60
+C.AI_STUCK_QUEUE_KMH         = 60
+C.AI_STUCK_FREEZE_SECONDS    = 10.0
+-- Diagnostics: a car under SLOWLOG_KMH for SLOWLOG_SECONDS is logged once ("AI: ... slow at").
+C.AI_SLOWLOG_KMH             = 60
+C.AI_SLOWLOG_SECONDS         = 5.0
 
 -- Safety car (safetycar/safetycar.lua): placed AHEAD_M in front of the first row of the first class,
 -- leads the formation lap at the race cars' formation speed, slowing when the leader is more than

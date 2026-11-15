@@ -125,9 +125,11 @@ function M.Draw(dt)
       local finished = lc >= totalLaps or (leaderDoneLc ~= nil and lc > leaderDoneLc)
       lastLap = onFinalLap and not finished
       playerFinished = finished
+      S.playerOnFinalLap = lastLap
     end
   end
-  lastLap = lastLap and not showing and not covered
+  playerFinished = playerFinished or S.playerRetired == true
+  lastLap = lastLap and not showing and not covered and not S.playerRetired
   lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
 
   -- Race-finish notice: a few seconds from the moment the human car takes the flag.

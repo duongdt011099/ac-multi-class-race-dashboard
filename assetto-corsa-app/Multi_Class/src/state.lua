@@ -130,6 +130,8 @@ S.timedRaceTimeUp    = false
 S.timedFinishLaps    = nil     -- AC lap count at which the race ends, known once the time is up
 S.timedRaceComplete  = false
 S.raceLeaderFinished = false   -- the race leader has taken the flag: the pits are closed
+S.playerRetired      = false   -- the human went back to the pits on the final lap: counted as finished, held there
+S.playerOnFinalLap   = false   -- set by the last-lap banner logic (covers lapped cars)
 
 -- Rolling start
 S.rollingStartState          = "idle"

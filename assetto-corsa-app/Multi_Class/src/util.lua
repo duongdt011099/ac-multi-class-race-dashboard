@@ -46,6 +46,16 @@ function U.SafeGet(obj, key)
   return nil
 end
 
+-- One-line dump of a car's drivetrain / input / damage state for the debug log.
+function U.CarDiag(car)
+  local function n(key)
+    local v = U.SafeNumber(car, key)
+    return v and sFormat("%.2f", v) or "n/a"
+  end
+  return sFormat("gear=%s rpm=%s gas=%s brake=%s clutch=%s handbrake=%s engineLife=%s",
+      n("gear"), n("rpm"), n("gas"), n("brake"), n("clutch"), n("handbrake"), n("engineLifeLeft"))
+end
+
 -- Reads a numeric field. Returns nil unless the value is a number.
 function U.SafeNumber(obj, key)
   local value = U.SafeGet(obj, key)

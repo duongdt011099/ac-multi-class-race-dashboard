@@ -472,6 +472,7 @@ function Exporter.IsPlayerWaitingForOthers(sim)
   if S.liveSessionType == C.SUBFOLDER_RACE then
     local laps = S.liveTotalLaps or 0
     local okCar, car = pcall(ac.getCar, 0)
+    if S.playerRetired then return true end
     if laps > 0 and okCar and car and (car.lapCount or 0) >= laps then return true end
   end
   return false

@@ -13,7 +13,7 @@ local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
 local CrashGuard = require("src/crashguard/crashguard")
-local Overtake = require("src/overtake/overtake")
+local AITuning = require("src/ai/tuning")
 local SafetyCar = require("src/safetycar/safetycar")
 local Pos = require("src/leaderboard/positions")
 local TimedRace = require("src/timed_race")
@@ -108,7 +108,7 @@ local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(CrashGuard.Reset)
-  pcall(Overtake.Reset)
+  pcall(AITuning.Reset)
   pcall(SafetyCar.Reset)
   pcall(Audio.ResetAll)
   pcall(TimedRace.OnSessionStart)
@@ -302,10 +302,10 @@ local function updateRolling(sim, dt)
   end
   local cgOk, cgErr = pcall(CrashGuard.Update, sim, dt)
   if not cgOk then U.Log("CRASH: update failed: " .. tostring(cgErr)) end
-  local otOk, otErr = pcall(Overtake.Update, sim, dt)
-  if not otOk then
-    U.Log("OVERTAKE: update failed: " .. tostring(otErr))
-    pcall(Overtake.Reset)
+  local aiOk, aiErr = pcall(AITuning.Update, sim, dt)
+  if not aiOk then
+    U.Log("AI: update failed: " .. tostring(aiErr))
+    pcall(AITuning.Reset)
   end
   local scOk, scErr = pcall(SafetyCar.Update, sim, dt)
   if not scOk then
@@ -318,7 +318,7 @@ local function stopAllFeatures(sim, keepRaceState)
   RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
-  pcall(Overtake.Reset)
+  pcall(AITuning.Reset)
   pcall(SafetyCar.Reset)
   -- A race that is already under way keeps its "complete" / "unavailable" state through a replay:
   -- the race clock only runs in those states, and nothing re-stages a race that has started.
@@ -374,7 +374,7 @@ function Frame.Update(dt)
         RCtl.SetPlayerAutopilot(false)
       end
       pcall(Yellow.Reset)
-      pcall(Overtake.Reset)
+      pcall(AITuning.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
       ac.setWindowOpen("cl_greenlights", false)
     else
