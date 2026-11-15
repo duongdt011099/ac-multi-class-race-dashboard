@@ -34,15 +34,16 @@ public class AchievementModel
 
     public DateTime EarnedAt { get; set; }
 
-    public bool IsSeasonTrophy => Type != AchievementType.RaceWin;
+    public bool IsSeasonTrophy => Type is AchievementType.SeasonChampion
+        or AchievementType.SeasonRunnerUp or AchievementType.SeasonThird;
 
     public bool IsChampion => Type == AchievementType.SeasonChampion;
 
     public TrophyTier Tier => Type switch
     {
         AchievementType.SeasonChampion => TrophyTier.Diamond,
-        AchievementType.SeasonRunnerUp => TrophyTier.Silver,
-        AchievementType.SeasonThird => TrophyTier.Bronze,
+        AchievementType.SeasonRunnerUp or AchievementType.RaceSecond => TrophyTier.Silver,
+        AchievementType.SeasonThird or AchievementType.RaceThird => TrophyTier.Bronze,
         _ => TrophyTier.Gold
     };
 
@@ -52,11 +53,13 @@ public class AchievementModel
         AchievementType.SeasonChampion => "World Champion",
         AchievementType.SeasonRunnerUp => "Runner-up",
         AchievementType.SeasonThird => "Third place",
+        AchievementType.RaceSecond => "Race runner-up",
+        AchievementType.RaceThird => "Race third",
         _ => "Race winner"
     };
 
     /// <summary>The main text engraved on the cup: the race for a win, the season for a season trophy.</summary>
-    public string Engraving => Type == AchievementType.RaceWin
+    public string Engraving => !IsSeasonTrophy
         ? (string.IsNullOrWhiteSpace(RaceName) ? SeasonName : RaceName)
         : SeasonName;
 
@@ -67,6 +70,8 @@ public class AchievementModel
         AchievementType.SeasonChampion => $"Won the {SeasonName} world championship",
         AchievementType.SeasonRunnerUp => $"Second in the {SeasonName} championship",
         AchievementType.SeasonThird => $"Third in the {SeasonName} championship",
+        AchievementType.RaceSecond => $"Finished second in {Engraving} in {SeasonName}",
+        AchievementType.RaceThird => $"Finished third in {Engraving} in {SeasonName}",
         _ => $"Won {Engraving} in {SeasonName}"
     };
 }

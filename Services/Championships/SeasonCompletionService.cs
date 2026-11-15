@@ -61,7 +61,7 @@ public class SeasonCompletionService : ISeasonCompletionService
             .OrderByDescending(s => s.SessionDate)
             .FirstOrDefault();
 
-        var win = raceSession?.DriverStandings.FirstOrDefault(s => s.Driver.IsHuman && s.ClassPosition == 1);
+        var win = raceSession?.DriverStandings.FirstOrDefault(s => s.Driver.IsHuman && s.ClassPosition is >= 1 and <= 3);
 
         if (existing.Count > 0)
         {
@@ -76,7 +76,12 @@ public class SeasonCompletionService : ISeasonCompletionService
         await _achievementRepository.AddAsync(new Achievement
         {
             AchievementId = Guid.NewGuid(),
-            Type = AchievementType.RaceWin,
+            Type = win.ClassPosition switch
+            {
+                1 => AchievementType.RaceWin,
+                2 => AchievementType.RaceSecond,
+                _ => AchievementType.RaceThird
+            },
             DriverId = win.Driver.DriverId,
             DriverName = win.DriverName,
             SeasonId = season.SeasonId,
@@ -87,7 +92,7 @@ public class SeasonCompletionService : ISeasonCompletionService
             TrackName = race.TrackName,
             ClassName = win.TeamClassName,
             Points = win.Points,
-            Position = 1,
+            Position = win.ClassPosition,
             EarnedAt = DateTime.Now
         });
     }

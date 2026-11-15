@@ -12,7 +12,13 @@ public enum AchievementType
     SeasonRunnerUp,
 
     /// <summary>Finished a completed season third in class.</summary>
-    SeasonThird
+    SeasonThird,
+
+    /// <summary>Finished a race second in the human driver's class.</summary>
+    RaceSecond,
+
+    /// <summary>Finished a race third in the human driver's class.</summary>
+    RaceThird
 }
 
 /// <summary>A trophy earned by the human driver. Names are copied so the trophy still reads right if the driver is renamed or removed.</summary>

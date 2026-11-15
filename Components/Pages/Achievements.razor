@@ -31,6 +31,9 @@ else
         <div class="wec-trophy-summary__stat wec-trophy-summary__stat--gold">
             <strong>@Count(AchievementType.RaceWin)</strong><span>Race wins</span>
         </div>
+        <div class="wec-trophy-summary__stat wec-trophy-summary__stat--silver">
+            <strong>@(Count(AchievementType.RaceSecond) + Count(AchievementType.RaceThird))</strong><span>Race podiums</span>
+        </div>
     </div>
 
     @if (achievements.Count == 0)
@@ -60,12 +63,12 @@ else
 
         @if (RaceWins.Any())
         {
-            <h2 class="wec-trophy-heading">Race wins</h2>
+            <h2 class="wec-trophy-heading">Race wins &amp; podiums</h2>
             <div class="wec-trophy-grid">
                 @foreach (var trophy in RaceWins)
                 {
                     var current = trophy;
-                    <button type="button" class="wec-trophy-card wec-trophy-card--gold" title="@current.Description"
+                    <button type="button" class="wec-trophy-card wec-trophy-card--@(current.Tier.ToString().ToLowerInvariant())" title="@current.Description"
                             @onclick="() => viewing = current">
                         <TrophyCup Achievement="current" />
                         <span class="wec-trophy-card__title">@(current.TrackName ?? current.ChampionshipName)</span>

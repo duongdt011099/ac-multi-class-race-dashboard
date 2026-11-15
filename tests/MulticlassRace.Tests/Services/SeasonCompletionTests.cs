@@ -72,7 +72,7 @@ public class SeasonCompletionTests : IDisposable
         Assert.Equal("Monza", win.RaceName);
         Assert.Equal(race.RaceId, win.RaceId);
 
-        // The result is imported again and the AI wins this time: the trophy goes away.
+        // The result is imported again and the AI wins this time: the win becomes a runner-up trophy.
         var session = _fx.Context.Set<Session>().Include(s => s.DriverStandings).ThenInclude(d => d.Driver).Single();
         foreach (var standing in session.DriverStandings)
         {
@@ -82,18 +82,31 @@ public class SeasonCompletionTests : IDisposable
         _fx.Context.SaveChanges();
         await _fx.SeasonCompletion.OnRaceFinishedAsync(race.RaceId);
 
+        var second = Assert.Single(Trophies());
+        Assert.Equal(AchievementType.RaceSecond, second.Type);
+        Assert.Equal(2, second.Position);
+
+        // Outside the podium nothing is kept.
+        foreach (var standing in session.DriverStandings)
+        {
+            standing.ClassPosition = standing.Driver.IsHuman ? 4 : 1;
+        }
+
+        _fx.Context.SaveChanges();
+        await _fx.SeasonCompletion.OnRaceFinishedAsync(race.RaceId);
+
         Assert.Empty(Trophies());
     }
 
     [Fact]
-    public async Task AiWin_GivesNoTrophy()
+    public async Task AiWin_GivesNoWinTrophy()
     {
         var season = SeasonWithRounds(8);
         var race = FinishRace(season, "Monza", humanWins: false);
 
         await _fx.SeasonCompletion.OnRaceFinishedAsync(race.RaceId);
 
-        Assert.Empty(Trophies());
+        Assert.DoesNotContain(Trophies(), t => t.Type == AchievementType.RaceWin);
     }
 
     [Fact]

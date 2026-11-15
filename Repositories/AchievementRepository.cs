@@ -25,7 +25,7 @@ public class AchievementRepository : GenericRepository<Achievement>, IAchievemen
 
         if (seasonTrophiesOnly)
         {
-            query = query.Where(a => a.Type != AchievementType.RaceWin);
+            query = query.Where(a => a.RaceId == null);
         }
 
         return await query.ToListAsync();
