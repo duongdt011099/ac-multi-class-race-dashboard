@@ -18,6 +18,18 @@ public partial class UpdateNotification : IDisposable
 
     [Inject] private IAppUpdatePreferenceService UpdatePreferences { get; set; } = default!;
 
+    [Inject] private UpdateInstallerService Installer { get; set; } = default!;
+
+    private string? installerMessage;
+
+    // The installer service tracks one release at a time; ignore its state when it is about another one.
+    private UpdateInstallPhase InstallPhase =>
+        result is { TagName: { } tag } && string.Equals(Installer.Tag, tag, StringComparison.OrdinalIgnoreCase)
+            ? Installer.Phase
+            : UpdateInstallPhase.Idle;
+
+    private string? InstallError => installerMessage ?? (InstallPhase == UpdateInstallPhase.Failed ? Installer.Error : null);
+
     private UpdateCheckResult? result;
     private string? truncatedNotes;
     private bool CheckBlocked => isChecking || DateTime.UtcNow < blockedUntilUtc;
@@ -39,6 +51,30 @@ public partial class UpdateNotification : IDisposable
         ApplyResult(StateService.Current);
         StateService.AvailabilityChanged += OnAvailabilityChanged;
         UpdateRequest.Requested += OnOpenRequested;
+        Installer.Changed += OnInstallerChanged;
+    }
+
+    private void OnInstallerChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void StartDownloadAsync()
+    {
+        installerMessage = null;
+
+        if (result is not { IsUpdateAvailable: true } available)
+        {
+            return;
+        }
+
+        // Runs on in the background; the modal follows it through the Changed event.
+        _ = Installer.DownloadAsync(available);
+    }
+
+    private void InstallAsync()
+    {
+        installerMessage = Installer.TryInstall(out var error) ? null : error;
     }
 
     protected override async Task OnInitializedAsync()
@@ -223,5 +259,6 @@ public partial class UpdateNotification : IDisposable
     {
         StateService.AvailabilityChanged -= OnAvailabilityChanged;
         UpdateRequest.Requested -= OnOpenRequested;
+        Installer.Changed -= OnInstallerChanged;
     }
 }

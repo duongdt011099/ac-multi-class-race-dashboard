@@ -44,6 +44,20 @@ public class ServiceRegistrationTests
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => default;
     }
 
+    /// <summary>The generic host supplies the real one; registrations only need something to inject.</summary>
+    private sealed class NullLifetime : IHostApplicationLifetime
+    {
+        public CancellationToken ApplicationStarted => CancellationToken.None;
+
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+
+        public void StopApplication()
+        {
+        }
+    }
+
     private static ServiceProvider Build(bool validate = true)
     {
         var configuration = new ConfigurationBuilder()
@@ -58,6 +72,7 @@ public class ServiceRegistrationTests
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<IWebHostEnvironment>(new TestEnvironment());
         services.AddSingleton<IJSRuntime, NullJsRuntime>();
+        services.AddSingleton<IHostApplicationLifetime, NullLifetime>();
         services.RegisterDbContext(configuration, Path.GetTempPath());
         services.RegisterRepositories();
         services.RegisterServices(configuration);
@@ -116,6 +131,7 @@ public class ServiceRegistrationTests
     [InlineData(typeof(LuaResultSweeper))]
     [InlineData(typeof(AppVersionProvider))]
     [InlineData(typeof(UpdateStateService))]
+    [InlineData(typeof(UpdateInstallerService))]
     public void SharedStateServicesAreSingletons(Type serviceType)
     {
         using var provider = Build();
@@ -149,6 +165,7 @@ public class ServiceRegistrationTests
         Assert.Contains("UpdateCheckWorker", hosted);
         Assert.Contains("LuaResultImportWorker", hosted);
         Assert.Contains("LuaResultCleanupService", hosted);
+        Assert.Contains("UpdateInstallerService", hosted);
     }
 
     [Fact]

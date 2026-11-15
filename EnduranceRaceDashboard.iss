@@ -100,8 +100,16 @@ Filename: "{sys}\sc.exe"; Parameters: "delete {#MyLegacyServiceName}"; Flags: ru
 ; port. Only possible with administrator rights, hence the dialog on the setup page.
 Filename: "{sys}\sc.exe"; Parameters: "stop {#MyLegacyServiceName}"; Flags: runhidden waituntilterminated skipifdoesntexist; Check: IsAdminInstallMode
 Filename: "{sys}\sc.exe"; Parameters: "delete {#MyLegacyServiceName}"; Flags: runhidden waituntilterminated skipifdoesntexist; Check: IsAdminInstallMode
+; An in-app update runs this setup silently with /RELAUNCH=1 and has already shut the app down, so the
+; setup is what brings it back. A normal install is left alone: the user starts it from the shortcut.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
 
 [Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
 var
   AcPage: TInputDirWizardPage;
   AcFolder: String;

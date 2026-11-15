@@ -1,6 +1,7 @@
 namespace MulticlassRace.Services.Updates;
 
-public sealed record ReleaseAsset(string Name, string DownloadUrl, long SizeInBytes);
+/// <param name="Sha256">Hex SHA-256 of the file as published by GitHub, or null when the release has no digest.</param>
+public sealed record ReleaseAsset(string Name, string DownloadUrl, long SizeInBytes, string? Sha256 = null);
 
 public sealed record UpdateCheckResult(
     string CurrentVersion,

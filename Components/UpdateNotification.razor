@@ -1,5 +1,6 @@
 @rendermode Interactive
 @using System.Globalization
+@using MulticlassRace.Services.Updates
 @implements IDisposable
 
 @if (isOpen && result is not null)
@@ -24,6 +25,24 @@
                         <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
                         <span>@result.Installer.Name (@FormatSize(result.Installer.SizeInBytes))</span>
                     </p>
+                }
+                @if (InstallPhase == UpdateInstallPhase.Downloading)
+                {
+                    <p class="wec-update__asset" role="status">
+                        <i class="bi bi-cloud-arrow-down" aria-hidden="true"></i>
+                        <span>Downloading update... @Installer.ProgressPercent%</span>
+                    </p>
+                }
+                else if (InstallPhase == UpdateInstallPhase.Ready)
+                {
+                    <p class="wec-update__asset" role="status">
+                        <i class="bi bi-check-circle" aria-hidden="true"></i>
+                        <span>Update downloaded and verified. The dashboard will restart to install it.</span>
+                    </p>
+                }
+                @if (!string.IsNullOrWhiteSpace(InstallError))
+                {
+                    <p class="wec-update__error">@InstallError</p>
                 }
                 @if (!string.IsNullOrWhiteSpace(truncatedNotes))
                 {
@@ -62,10 +81,34 @@
                 </a>
                 @if (result.Installer is not null)
                 {
-                    <a class="wec-modal__btn wec-modal__btn--primary" href="@result.Installer.DownloadUrl" target="_blank" rel="noopener"
-                       @onclick="DismissAsync">
-                        Download Update
-                    </a>
+                    @if (InstallPhase == UpdateInstallPhase.Ready)
+                    {
+                        <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="InstallAsync">
+                            Restart &amp; Update
+                        </button>
+                    }
+                    else if (InstallPhase == UpdateInstallPhase.Downloading)
+                    {
+                        <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled>
+                            Downloading...
+                        </button>
+                    }
+                    else if (InstallPhase == UpdateInstallPhase.Failed)
+                    {
+                        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="StartDownloadAsync">
+                            Retry
+                        </button>
+                        <a class="wec-modal__btn wec-modal__btn--primary" href="@result.Installer.DownloadUrl" target="_blank" rel="noopener"
+                           @onclick="DismissAsync">
+                            Download Manually
+                        </a>
+                    }
+                    else
+                    {
+                        <button type="button" class="wec-modal__btn wec-modal__btn--primary" @onclick="StartDownloadAsync">
+                            Download &amp; Install
+                        </button>
+                    }
                 }
             }
         </Footer>

@@ -218,7 +218,22 @@ public class UpdateCheckWorker : BackgroundService
             return null;
         }
 
-        return new ReleaseAsset(match.Name!.Trim(), match.BrowserDownloadUrl, match.Size);
+        return new ReleaseAsset(match.Name!.Trim(), match.BrowserDownloadUrl, match.Size, ParseDigest(match.Digest));
+    }
+
+    /// <summary>GitHub publishes asset digests as "sha256:&lt;hex&gt;". Anything else is treated as absent.</summary>
+    internal static string? ParseDigest(string? digest)
+    {
+        const string prefix = "sha256:";
+
+        if (string.IsNullOrWhiteSpace(digest) || !digest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var hex = digest[prefix.Length..].Trim();
+
+        return hex.Length == 64 && hex.All(Uri.IsHexDigit) ? hex.ToLowerInvariant() : null;
     }
 
     private async Task MarkCheckedAsync()
@@ -302,5 +317,8 @@ public class UpdateCheckWorker : BackgroundService
 
         [JsonPropertyName("size")]
         public long Size { get; set; }
+
+        [JsonPropertyName("digest")]
+        public string? Digest { get; set; }
     }
 }
