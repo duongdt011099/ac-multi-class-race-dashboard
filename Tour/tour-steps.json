@@ -1,0 +1,137 @@
+{
+  // Guided tour script. Edit freely: it is re-read every time the tour starts, so no rebuild is needed.
+  // Comments and trailing commas are allowed.
+  //
+  // Step fields:
+  //   id           unique name for the step (required)
+  //   title        small heading shown above the message (optional)
+  //   message      what the engineer says (required)
+  //   route        page to open first, e.g. "teams" ("" = home / Championship). Omit to stay where you are
+  //   target       CSS selector of the element to highlight with a glowing ring. Omit for no highlight
+  //   passThrough  true = clicking the highlighted element moves to the next step
+  //
+  // The data-tour="..." attributes in the app are stable hooks you can target with [data-tour='name'].
+
+  "welcome": {
+    "title": "Hi, I'm Rex, your race engineer!",
+    "message": "Looks like this is your first time here and there is no data yet. Want me to walk you through setting up your first championship, teams, drivers and races?",
+    "startLabel": "Yes, show me around",
+    "declineLabel": "No thanks, don't show again"
+  },
+
+  "steps": [
+    {
+      "id": "hello",
+      "title": "Hello, driver!",
+      "message": "Hello and welcome to the pit wall! I'm Rex, your race engineer. I'll be on the radio with you for the next few minutes to get your first championship up and running."
+    },
+    {
+      "id": "requirements",
+      "title": "Before we start: one requirement",
+      "message": "Please remove all other Assetto Corsa AI enhancement Lua apps. They can stop the AI from behaving properly during the rolling start. This dashboard ships its own AI handling, so it works best on its own."
+    },
+    {
+      "id": "intro",
+      "title": "The plan",
+      "message": "We will set things up in this order: class settings, point settings, a championship, teams, drivers, and finally races. You can skip any step, or the whole tour, at any time."
+    },
+    {
+      "id": "game-config",
+      "title": "1. Point me at the game",
+      "message": "First make sure the dashboard knows where Assetto Corsa is installed. You do that on the Game Config page. Click it to take a look.",
+      "route": "",
+      "target": "[data-tour='nav-gameconfig']",
+      "passThrough": true
+    },
+    {
+      "id": "class-settings",
+      "title": "2. Define your classes",
+      "message": "Classes are the categories your cars race in, like Hypercar or GT3. Open Class Settings to create them.",
+      "target": "[data-tour='nav-class-settings']",
+      "passThrough": true
+    },
+    {
+      "id": "new-class-setting",
+      "title": "Create a class setting",
+      "message": "Press New Class Setting (go on, try it), name your classes, give each one a colour, and mark one set as the default.",
+      "route": "class-settings",
+      "target": "[data-tour='new-class-setting']"
+    },
+    {
+      "id": "point-settings",
+      "title": "3. Decide how points work",
+      "message": "Every race needs a point system. Head to Point Settings.",
+      "target": "[data-tour='nav-pointsettings']",
+      "passThrough": true
+    },
+    {
+      "id": "new-point-setting",
+      "title": "Add a point system",
+      "message": "Use Add Point Setting to define how many points each finishing position earns.",
+      "route": "pointsettings",
+      "target": "[data-tour='new-point-setting']"
+    },
+    {
+      "id": "championship",
+      "title": "4. Create your championship",
+      "message": "Now the main event. Open the Championship page.",
+      "target": "[data-tour='nav-championship']",
+      "passThrough": true
+    },
+    {
+      "id": "new-championship",
+      "title": "New championship",
+      "message": "Press New Championship and give it a name. Afterwards click its row to add a season with a class system and number of rounds.",
+      "route": "",
+      "target": "[data-tour='new-championship']"
+    },
+    {
+      "id": "teams",
+      "title": "5. Build the teams",
+      "message": "Teams are who you race against. Open the Teams page.",
+      "target": "[data-tour='nav-teams']",
+      "passThrough": true
+    },
+    {
+      "id": "new-team",
+      "title": "Add a team",
+      "message": "Press New Team, then give it a name, a logo and its classes.",
+      "route": "teams",
+      "target": "[data-tour='new-team']"
+    },
+    {
+      "id": "drivers",
+      "title": "6. Sign the drivers",
+      "message": "Every team needs drivers. Open the Drivers page.",
+      "target": "[data-tour='nav-drivers']",
+      "passThrough": true
+    },
+    {
+      "id": "new-driver",
+      "title": "Add a driver",
+      "message": "Press New Driver to set the car, skin, AI strength and aggression. Tick the human driver option for yourself. You can also import a whole batch from a preset file.",
+      "route": "drivers",
+      "target": "[data-tour='new-driver']"
+    },
+    {
+      "id": "races",
+      "title": "7. Schedule the races",
+      "message": "Last stop: the race calendar. Open the Races page.",
+      "target": "[data-tour='nav-races']",
+      "passThrough": true
+    },
+    {
+      "id": "add-race",
+      "title": "Add a race",
+      "message": "Pick your championship and season at the top, then press Add Race. Choose the track, the point system, and which teams take part.",
+      "route": "races",
+      "target": "[data-tour='add-race']"
+    },
+    {
+      "id": "guide",
+      "title": "That's the pit stop!",
+      "message": "You are ready to race. The User Guide holds the full written manual. If you ever want me back, press the ? button at the top right, or Guided Tour here. Good luck out there!",
+      "target": "[data-tour='nav-tour']"
+    }
+  ]
+}

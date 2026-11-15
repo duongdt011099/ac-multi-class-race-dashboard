@@ -1,0 +1,233 @@
+@rendermode Interactive
+@implements IAsyncDisposable
+@using Microsoft.JSInterop
+@using MulticlassRace.Services.Browser
+@using MulticlassRace.Services.Championships
+@using MulticlassRace.Services.Tour
+
+@if (phase != TourPhase.Hidden)
+{
+    <div class="wec-tour @($"wec-tour--{side}") @(phase == TourPhase.Prompt ? "wec-tour--welcome" : null)" role="dialog" aria-label="Guided tour">
+        <div class="wec-tour__bubble">
+            @if (phase == TourPhase.Prompt)
+            {
+                <h2 class="wec-tour__title">@tour!.Welcome.Title</h2>
+                <p class="wec-tour__message">@tour.Welcome.Message</p>
+                <div class="wec-tour__footer">
+                    <button type="button" class="wec-tour__btn wec-tour__btn--primary" @onclick="StartAsync">@tour.Welcome.StartLabel</button>
+                    <button type="button" class="wec-tour__btn wec-tour__btn--ghost" @onclick="DeclineAsync">@tour.Welcome.DeclineLabel</button>
+                </div>
+            }
+            else if (CurrentStep is { } step)
+            {
+                @if (!string.IsNullOrWhiteSpace(step.Title))
+                {
+                    <h2 class="wec-tour__title">@step.Title</h2>
+                }
+                <p class="wec-tour__message">@step.Message</p>
+                <div class="wec-tour__footer">
+                    <div class="wec-tour__dots" aria-hidden="true">
+                        @for (var i = 0; i < tour!.Steps.Count; i++)
+                        {
+                            <span class="wec-tour__dot @(i < index ? "wec-tour__dot--done" : i == index ? "wec-tour__dot--current" : null)"></span>
+                        }
+                    </div>
+                    @if (index > 0)
+                    {
+                        <button type="button" class="wec-tour__btn wec-tour__btn--ghost" @onclick="BackAsync">Back</button>
+                    }
+                    @if (!IsLast)
+                    {
+                        <button type="button" class="wec-tour__btn wec-tour__btn--ghost" @onclick="NextAsync" title="Skip this step">Skip step</button>
+                    }
+                    <button type="button" class="wec-tour__btn wec-tour__btn--primary" @onclick="NextAsync">@(IsLast ? "Finish" : "Next")</button>
+                </div>
+                @if (!IsLast)
+                {
+                    <div class="mt-2 text-end">
+                        <button type="button" class="wec-tour__link" @onclick="FinishAsync">Skip the whole tour</button>
+                    </div>
+                }
+            }
+        </div>
+        <img class="wec-tour__engineer" src="images/engineer.svg" alt="Rex, the race engineer" />
+    </div>
+}
+
+@code {
+    private const string DoneKey = "wec.tour.done";
+
+    private enum TourPhase { Hidden, Prompt, Running }
+
+    [Inject] private GuidedTourRequest TourRequest { get; set; } = default!;
+
+    [Inject] private ITourDefinitionProvider Provider { get; set; } = default!;
+
+    [Inject] private IChampionshipService ChampionshipService { get; set; } = default!;
+
+    [Inject] private BrowserStorage Storage { get; set; } = default!;
+
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
+    private TourPhase phase = TourPhase.Hidden;
+    private TourDefinition? tour;
+    private int index;
+    private string side = "right";
+    private DotNetObjectReference<GuidedTour>? self;
+
+    // Bumped on every step change so a slow focus lookup from an earlier step cannot move the engineer.
+    private int stepVersion;
+
+    private TourStep? CurrentStep => tour is not null && index >= 0 && index < tour.Steps.Count ? tour.Steps[index] : null;
+
+    private bool IsLast => tour is not null && index >= tour.Steps.Count - 1;
+
+    protected override void OnInitialized()
+    {
+        TourRequest.Requested += OnRequested;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // First run only: an empty database and a tour that was never answered on this machine.
+        try
+        {
+            if (await Storage.GetAsync(DoneKey) is null
+                && !(await ChampionshipService.GetActiveChampionshipsAsync()).Any())
+            {
+                tour = await Provider.LoadAsync();
+
+                if (tour is not null)
+                {
+                    await ShowPromptAsync();
+                }
+            }
+        }
+        catch
+        {
+            // The tour is a nicety; never let it break the layout.
+        }
+    }
+
+    private void OnRequested() => _ = InvokeAsync(async () =>
+    {
+        // Started from the sidebar: reload the script so edits to the JSON show up straight away.
+        var loaded = await Provider.LoadAsync();
+
+        if (loaded is null)
+        {
+            return;
+        }
+
+        tour = loaded;
+        await StartAsync();
+    });
+
+    private async Task ShowPromptAsync()
+    {
+        phase = TourPhase.Prompt;
+        side = "right";
+        await Js.InvokeVoidAsync("wecTour.focus", null, false, null);
+        StateHasChanged();
+    }
+
+    private async Task StartAsync()
+    {
+        phase = TourPhase.Running;
+        await ShowStepAsync(0);
+    }
+
+    /// <summary>"No thanks": hide the tour and never offer it on its own again.</summary>
+    private async Task DeclineAsync() => await FinishAsync();
+
+    private Task NextAsync() => IsLast ? FinishAsync() : ShowStepAsync(index + 1);
+
+    private Task BackAsync() => index > 0 ? ShowStepAsync(index - 1) : Task.CompletedTask;
+
+    private async Task ShowStepAsync(int newIndex)
+    {
+        if (tour is null || newIndex < 0 || newIndex >= tour.Steps.Count)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        var version = ++stepVersion;
+        index = newIndex;
+        var step = tour.Steps[newIndex];
+
+        if (step.Route is not null && !IsOnRoute(step.Route))
+        {
+            Nav.NavigateTo(step.Route);
+        }
+
+        StateHasChanged();
+
+        self ??= DotNetObjectReference.Create(this);
+        var found = await Js.InvokeAsync<string?>("wecTour.focus", step.Target, step.PassThrough, self);
+
+        if (version != stepVersion)
+        {
+            return;
+        }
+
+        // No side means the target never appeared; the screen stays dark and the engineer just talks.
+        side = found ?? side;
+        StateHasChanged();
+    }
+
+    /// <summary>Called by the spotlight when the user clicks a lit element on a pass-through step.</summary>
+    [JSInvokable]
+    public async Task OnTargetClicked()
+    {
+        // Give the click a moment to do its job (a navigation, say) before the next step looks for its target.
+        await Task.Delay(250);
+        await InvokeAsync(NextAsync);
+    }
+
+    private async Task FinishAsync()
+    {
+        stepVersion++;
+        phase = TourPhase.Hidden;
+        await Storage.SetAsync(DoneKey, "1");
+        await ClearSpotlightAsync();
+        StateHasChanged();
+    }
+
+    private bool IsOnRoute(string route)
+    {
+        static string Normalize(string value)
+        {
+            var end = value.IndexOfAny(new[] { '?', '#' });
+            return (end >= 0 ? value[..end] : value).Trim('/');
+        }
+
+        return string.Equals(Normalize(Nav.ToBaseRelativePath(Nav.Uri)), Normalize(route), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task ClearSpotlightAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("wecTour.clear");
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException or JSDisconnectedException)
+        {
+            // The circuit is already gone; there is no layer left to remove.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        TourRequest.Requested -= OnRequested;
+        self?.Dispose();
+        await ClearSpotlightAsync();
+    }
+}

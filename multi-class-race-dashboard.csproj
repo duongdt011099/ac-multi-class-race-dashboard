@@ -5,7 +5,7 @@
     <!-- Must match MyAppVersion in EnduranceRaceDashboard.iss. The update check compares this
          against the published release, so a mismatch here makes the app nag about an update it is
          already running. -->
-    <Version>1.7.1.1</Version>
+    <Version>1.8.0</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>multi_class_race_dashboard</RootNamespace>
@@ -33,6 +33,14 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\favicon.ico" LogicalName="EnduranceRace.favicon.ico" />
+  </ItemGroup>
+
+  <!-- The guided tour script stays a loose file next to the executable so it can be edited by hand. -->
+  <ItemGroup>
+    <None Update="Tour\tour-steps.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

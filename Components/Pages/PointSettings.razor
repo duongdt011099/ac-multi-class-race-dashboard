@@ -6,7 +6,7 @@
 <PageHeader Title="Point Settings" />
 
 <div class="wec-toolbar">
-    <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">Add Point Setting</ToolbarButton>
+    <ToolbarButton data-tour="new-point-setting" Icon="bi-plus-lg" OnClick="OpenCreate">Add Point Setting</ToolbarButton>
 </div>
 
 <DataTable IsEmpty="@(settings is null || !settings.Any())" ColumnCount="4"

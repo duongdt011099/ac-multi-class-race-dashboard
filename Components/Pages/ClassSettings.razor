@@ -12,7 +12,7 @@
 else
 {
     <div class="wec-toolbar">
-        <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Class Setting</ToolbarButton>
+        <ToolbarButton data-tour="new-class-setting" Icon="bi-plus-lg" OnClick="OpenCreate">New Class Setting</ToolbarButton>
     </div>
 
     <DataTable IsEmpty="@(!settings.Any())" ColumnCount="4" EmptyText="No class settings configured.">

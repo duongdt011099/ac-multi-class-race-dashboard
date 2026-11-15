@@ -51,7 +51,7 @@ else if (selectedSeason is not null)
 {
     <div class="wec-toolbar">
         <ToolbarButton Icon="bi-trophy-fill" Disabled="!HasSeason" OnClick="OpenStandings">Standings</ToolbarButton>
-        <ToolbarButton Icon="bi-plus-lg" Disabled="!CanAddRace" OnClick="OpenRaceCreate">Add Race</ToolbarButton>
+        <ToolbarButton data-tour="add-race" Icon="bi-plus-lg" Disabled="!CanAddRace" OnClick="OpenRaceCreate">Add Race</ToolbarButton>
     </div>
 }
 

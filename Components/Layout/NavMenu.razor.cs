@@ -4,6 +4,7 @@ using MulticlassRace.ViewModels;
 using MulticlassRace.Services.AssettoCorsa;
 using MulticlassRace.Services.Drivers;
 using MulticlassRace.Services.Notifications;
+using MulticlassRace.Services.Tour;
 using MulticlassRace.Services.Updates;
 
 namespace multi_class_race_dashboard.Components.Layout;
@@ -33,6 +34,8 @@ public partial class NavMenu : IDisposable
     [Inject] private UpdateNotificationRequest UpdateRequest { get; set; } = default!;
 
     [Inject] private UserGuideRequest GuideRequest { get; set; } = default!;
+
+    [Inject] private GuidedTourRequest TourRequest { get; set; } = default!;
 
     private bool isConfigured;
     private bool hasUpdate;
@@ -113,6 +116,8 @@ public partial class NavMenu : IDisposable
     }
 
     private void OpenGuide() => GuideRequest.Request();
+
+    private void StartTour() => TourRequest.Request();
 
     private void OpenUpdateDialog()
     {

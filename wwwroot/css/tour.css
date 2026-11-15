@@ -1,0 +1,186 @@
+/* Guided tour: a glowing ring around the target (built by js/tour.js) and the engineer with his thought bubble. */
+
+.wec-tour-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    pointer-events: none;
+}
+
+
+/* The highlight frame around the target. It draws no fill, only a glow, and never takes clicks. */
+.wec-tour-ring {
+    display: none;
+    position: absolute;
+    border-radius: 10px;
+    border: 2px solid var(--wec-red-hot, #ff2e24);
+    box-shadow: 0 0 0 4px rgba(255, 46, 36, 0.25), 0 0 28px 6px var(--wec-red-glow, rgba(255, 46, 36, 0.45));
+    pointer-events: none;
+    transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease;
+    animation: wec-tour-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes wec-tour-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255, 46, 36, 0.25), 0 0 20px 4px rgba(255, 46, 36, 0.35); }
+    50%      { box-shadow: 0 0 0 7px rgba(255, 46, 36, 0.12), 0 0 34px 10px rgba(255, 46, 36, 0.55); }
+}
+
+/* ---- Engineer and bubble ---- */
+
+.wec-tour {
+    position: fixed;
+    bottom: 0;
+    z-index: 3010;
+    width: 380px;
+    max-width: calc(100vw - 24px);
+    pointer-events: none;
+    animation: wec-tour-enter 0.45s var(--wec-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+}
+
+.wec-tour--right { right: 24px; }
+.wec-tour--left  { left: 24px; }
+
+@keyframes wec-tour-enter {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.wec-tour__engineer {
+    display: block;
+    height: 300px;
+    width: auto;
+    margin-top: 12px;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5));
+    animation: wec-tour-bob 3s ease-in-out infinite;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* He faces left by default, toward targets on the left. On the left side he turns to face right. */
+.wec-tour--right .wec-tour__engineer { margin-left: auto; }
+.wec-tour--left .wec-tour__engineer { transform: scaleX(-1); animation-name: wec-tour-bob-flipped; }
+
+@keyframes wec-tour-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+
+@keyframes wec-tour-bob-flipped {
+    0%, 100% { transform: scaleX(-1) translateY(0); }
+    50%      { transform: scaleX(-1) translateY(-6px); }
+}
+
+/* The thought bubble sits over his head, with trailing dots that lead down to it. */
+.wec-tour__bubble {
+    position: relative;
+    margin-bottom: 38px;
+    padding: 18px 20px 16px;
+    border-radius: 26px;
+    background: #fbfbfd;
+    color: #17171c;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+}
+
+.wec-tour__bubble::before,
+.wec-tour__bubble::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: #fbfbfd;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.wec-tour__bubble::before { width: 20px; height: 20px; bottom: -26px; }
+.wec-tour__bubble::after  { width: 11px; height: 11px; bottom: -42px; }
+
+.wec-tour--right .wec-tour__bubble::before { right: 112px; }
+.wec-tour--right .wec-tour__bubble::after  { right: 102px; }
+.wec-tour--left .wec-tour__bubble::before  { left: 112px; }
+.wec-tour--left .wec-tour__bubble::after   { left: 102px; }
+
+.wec-tour__title {
+    margin: 0 0 6px;
+    font-family: "Racing Sans One", "Inter", sans-serif;
+    font-size: 1.15rem;
+    letter-spacing: 0.02em;
+    color: var(--wec-red, #e10600);
+}
+
+.wec-tour__message {
+    margin: 0 0 14px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: #2a2a32;
+}
+
+.wec-tour__footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.wec-tour__dots {
+    display: flex;
+    gap: 4px;
+    margin-right: auto;
+}
+
+.wec-tour__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #cfd0d8;
+}
+
+.wec-tour__dot--done { background: #f0a09b; }
+.wec-tour__dot--current { background: var(--wec-red, #e10600); transform: scale(1.4); }
+
+.wec-tour__btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.wec-tour__btn:hover { transform: translateY(-1px); }
+
+.wec-tour__btn--primary { background: var(--wec-red, #e10600); color: #fff; }
+.wec-tour__btn--primary:hover { background: var(--wec-red-hot, #ff2e24); }
+.wec-tour__btn--ghost { background: #ececf1; color: #3a3a44; }
+.wec-tour__btn--ghost:hover { background: #dedee6; }
+
+.wec-tour__link {
+    border: 0;
+    background: none;
+    padding: 4px 2px;
+    font-size: 0.78rem;
+    color: #70707c;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.wec-tour__link:hover { color: var(--wec-red, #e10600); }
+
+/* The first-launch question has no hole to look through, so it centres on the screen instead. */
+.wec-tour--welcome { bottom: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .wec-tour, .wec-tour__engineer, .wec-tour-ring { animation: none; }
+}
+
+/* The "?" in the window controls, accented so a skipped tour is easy to find again. */
+.wec-window-btn--tour { color: var(--wec-red-hot, #ff2e24); font-weight: 700; }
+
+/* Short windows: a smaller engineer keeps the bubble clear of the lit element. */
+@media (max-height: 780px) {
+    .wec-tour__engineer { height: 210px; }
+    .wec-tour__bubble { margin-bottom: 32px; padding: 14px 16px 12px; }
+}
+
+/* While a dialog is open the engineer tucks underneath it instead of floating over the form. */
+body:has(.wec-modal-overlay:not(.wec-modal-overlay--closing)) .wec-tour { z-index: 1990; }

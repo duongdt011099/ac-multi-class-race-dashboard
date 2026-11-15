@@ -13,6 +13,7 @@ local Sess = require("src/session")
 local RCtl = require("src/rolling/control")
 local Field = require("src/ai/field")
 local Mods = require("src/ai/modifiers")
+local Passing = require("src/ai/passing")
 
 local sFormat = string.format
 local getCar = ac.getCar
@@ -182,7 +183,9 @@ end
 local function tune(i, car, applyDt)
   local b = baseFor(i, car)
   local p = profileFor(i)
-  local m = Mods.Compute(i, car, clock) or {}
+  local fd = Field.Get(i)
+  local attack = fd and Passing.Step(i, car, fd, applyDt) or false
+  local m = Mods.Compute(i, car, clock, attack) or {}
 
   cur[i] = cur[i] or {}
   applied[i] = applied[i] or {}
@@ -221,6 +224,7 @@ function M.Reset()
   end
   base, cur, applied, stuck, frozen, slowT, slowLogged = {}, {}, {}, {}, {}, {}, {}
   clock, nextApplyAt = 0.0, 0.0
+  Passing.Reset()
   Field.Reset()
 end
 
@@ -247,6 +251,7 @@ function M.Update(sim, dt)
       if controlled(i, car) then
         -- Someone else steers this car: forget what we set, so it is re-tuned when it is free.
         if applied[i] then applied[i], cur[i] = nil, nil end
+        Passing.Release(i)
       elseif not frozen[i] then
         tune(i, car, applyDt)
       end

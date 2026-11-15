@@ -15,7 +15,7 @@ else
     var paged = PagedTeams;
 
     <div class="wec-toolbar">
-        <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Team</ToolbarButton>
+        <ToolbarButton data-tour="new-team" Icon="bi-plus-lg" OnClick="OpenCreate">New Team</ToolbarButton>
         <ToolbarButton Icon="@(isBatchMode ? (selectedIds.Count == 0 ? "bi-x-lg" : "bi-check-lg") : "bi-pencil-square")"
                        OnClick="HandleBatchButton">
             @(!isBatchMode ? "Batch Edit" : selectedIds.Count == 0 ? "Cancel Edit" : "Open Editor")

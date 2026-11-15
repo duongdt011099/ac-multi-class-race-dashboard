@@ -1,7 +1,5 @@
 @rendermode Interactive
 @implements IDisposable
-@using MulticlassRace.Services.Browser
-@using MulticlassRace.Services.Championships
 @using MulticlassRace.Services.Notifications
 
 @if (isOpen)
@@ -29,6 +27,7 @@
             <li>Assetto Corsa installed</li>
             <li>Content Manager installed</li>
             <li>The dashboard installed</li>
+            <li><strong>No other AI enhancement Lua apps.</strong> Remove every other Assetto Corsa AI enhancement Lua app; they can stop the AI from behaving properly during the rolling start.</li>
         </ul>
 
         <h3>First-time setup</h3>
@@ -74,43 +73,14 @@
 }
 
 @code {
-    private const string SeenKey = "wec.guide.seen";
-
     [Inject] private UserGuideRequest GuideRequest { get; set; } = default!;
-
-    [Inject] private IChampionshipService ChampionshipService { get; set; } = default!;
-
-    [Inject] private BrowserStorage Storage { get; set; } = default!;
 
     private bool isOpen;
 
+    // The first-run welcome now belongs to <GuidedTour />; this written guide opens on request only.
     protected override void OnInitialized()
     {
         GuideRequest.Requested += OnRequested;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        // First run: an empty database and a guide that was never shown on this machine.
-        try
-        {
-            if (await Storage.GetAsync(SeenKey) is null
-                && !(await ChampionshipService.GetActiveChampionshipsAsync()).Any())
-            {
-                isOpen = true;
-                await Storage.SetAsync(SeenKey, "1");
-                StateHasChanged();
-            }
-        }
-        catch
-        {
-            // The guide is a nicety; never let it break the layout.
-        }
     }
 
     private void OnRequested() => InvokeAsync(() =>

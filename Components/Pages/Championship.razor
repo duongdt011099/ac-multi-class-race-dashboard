@@ -12,7 +12,7 @@
 else
 {
     <div class="wec-toolbar">
-        <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Championship</ToolbarButton>
+        <ToolbarButton data-tour="new-championship" Icon="bi-plus-lg" OnClick="OpenCreate">New Championship</ToolbarButton>
     </div>
 
     <DataTable IsEmpty="@(!DisplayChampionships.Any())" ColumnCount="5" EmptyText="No championships found">

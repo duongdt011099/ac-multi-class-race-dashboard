@@ -1,4 +1,4 @@
-<button type="button" class="wec-toolbar__btn @(Disabled ? "wec-toolbar__btn--disabled" : "")" disabled="@Disabled" @onclick="OnClick">
+<button type="button" class="wec-toolbar__btn @(Disabled ? "wec-toolbar__btn--disabled" : "")" disabled="@Disabled" @onclick="OnClick" @attributes="Attributes">
     @if (!string.IsNullOrEmpty(Icon))
     {
         <i class="bi @Icon"></i>
@@ -14,4 +14,7 @@
     [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Anything else (for example data-tour) lands on the button element.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
 }

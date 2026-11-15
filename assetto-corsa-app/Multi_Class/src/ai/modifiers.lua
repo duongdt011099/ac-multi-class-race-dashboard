@@ -246,7 +246,7 @@ end
 -- Returns the summed modifiers for car i (a table with caution / grip / aggression / brake /
 -- lookahead / tyre / spike fields), or nil when no situation applies. `raceTime` is the seconds
 -- since the race went green.
-function M.Compute(i, car, raceTime)
+function M.Compute(i, car, raceTime, attack)
   local d = Field.Get(i)
   if not d then return nil end
   local m = {}
@@ -294,14 +294,9 @@ function M.Compute(i, car, raceTime)
 
   -- Closing on a car ahead too fast: build caution before the braking zone, not after (the spike
   -- rule above only reacts once the gap is a few metres).
-  local closeCaution = closingCaution(d)
-  if closeCaution > 0 then
-    m.aiCaution = (m.aiCaution or 0) + closeCaution
-    any = true
-  end
-
   -- Class pass: commit only while there is time and room. The discount fades with the gap and is off
   -- once the time to contact drops under PASS_MIN_TTC_S (a hard-closing hypercar must brake).
+  local passing = false
   if S.overtakeAssistEnabled and not hairpin then
     local fwd, closing = classPass(i, car)
     if fwd then
@@ -310,8 +305,24 @@ function M.Compute(i, car, raceTime)
         local scale = max(0.2, min(1.0, (fwd - 20.0) / (C.OVERTAKE_RANGE_M - 20.0)))
         add(m, { aiCaution = (C.OVERTAKE_CAUTION - 1.0) * scale, aggression = (C.OVERTAKE_AGGRESSION - 0.3) * scale })
         any = true
+        passing = true
       end
     end
+  end
+
+  -- Attacking (ai/passing.lua has steered the car out to go round a slower class): commit to it.
+  if attack then
+    add(m, { aggression = C.AI_ATTACK_AGGRESSION, aiCaution = -C.AI_ATTACK_CAUTION, aiGrip = C.AI_ATTACK_GRIP })
+    any = true
+    passing = true
+  end
+
+  -- Closing on a car ahead too fast: build caution before the braking zone. A car that is passing a
+  -- slower class keeps only a fraction of it (it is going round, not into the back).
+  local closeCaution = closingCaution(d)
+  if closeCaution > 0 then
+    m.aiCaution = (m.aiCaution or 0) + closeCaution * (passing and C.AI_CLOSE_WHILE_PASSING or 1.0)
+    any = true
   end
 
   return any and m or nil

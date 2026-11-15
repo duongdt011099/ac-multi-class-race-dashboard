@@ -8,6 +8,7 @@ using MulticlassRace.Services.Races;
 using MulticlassRace.Services.Results;
 using MulticlassRace.Services.Settings;
 using MulticlassRace.Services.Teams;
+using MulticlassRace.Services.Tour;
 using MulticlassRace.Services.Updates;
 
 namespace MulticlassRace.Services;
@@ -28,6 +29,7 @@ public static class ServiceRegistration
             .AddResultServices()
             .AddUpdateServices(configuration)
             .AddNotificationServices()
+            .AddTourServices()
             .AddBackgroundServices();
     }
 }

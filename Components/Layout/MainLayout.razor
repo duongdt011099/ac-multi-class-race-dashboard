@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 
 <div class="wec-window-controls">
+    <TourLauncher />
     <button type="button" class="wec-window-btn" title="Minimize" aria-label="Minimize window"
             onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('minimize')">
         <i class="bi bi-dash-lg"></i>
@@ -25,6 +26,7 @@
 
 <UpdateNotification />
 <UserGuide />
+<GuidedTour />
 <SafetyCarPanelHost />
 <LuaResultImportPrompt />
 <SeasonCompletionHost />

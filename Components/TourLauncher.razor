@@ -1,0 +1,11 @@
+@rendermode Interactive
+@using MulticlassRace.Services.Tour
+
+<button type="button" class="wec-window-btn wec-window-btn--tour" title="Guided tour" aria-label="Start the guided tour"
+        data-tour="window-tour" @onclick="TourRequest.Request">
+    <i class="bi bi-question-lg"></i>
+</button>
+
+@code {
+    [Inject] private GuidedTourRequest TourRequest { get; set; } = default!;
+}

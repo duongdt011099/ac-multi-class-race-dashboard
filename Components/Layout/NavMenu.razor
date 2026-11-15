@@ -89,16 +89,21 @@
             }
         </div>
 
-        <NavItem Href="achievements" Icon="bi-medal-nav-menu" Text="Achievements" Enabled="isConfigured" />
-        <NavItem Href="" Icon="bi-trophy-nav-menu" Text="Championship" Match="NavLinkMatch.All" Enabled="isConfigured" />
-        <NavItem Href="teams" Icon="bi-car-nav-menu" Text="Teams" Enabled="isConfigured" />
-        <NavItem Href="drivers" Icon="bi-helmet-nav-menu" Text="Drivers" Enabled="isConfigured" />
-        <NavItem Href="races" Icon="bi-checkered-flag-nav-menu" Text="Races" Enabled="isConfigured" />
-        <NavItem Href="gameconfig" Icon="bi-controller-nav-menu" Text="Game Config" />
+        <NavItem Href="achievements" TourKey="achievements"Icon="bi-medal-nav-menu" Text="Achievements" Enabled="isConfigured" />
+        <NavItem Href="" TourKey="championship" Icon="bi-trophy-nav-menu" Text="Championship" Match="NavLinkMatch.All" Enabled="isConfigured" />
+        <NavItem Href="teams" TourKey="teams"Icon="bi-car-nav-menu" Text="Teams" Enabled="isConfigured" />
+        <NavItem Href="drivers" TourKey="drivers"Icon="bi-helmet-nav-menu" Text="Drivers" Enabled="isConfigured" />
+        <NavItem Href="races" TourKey="races"Icon="bi-checkered-flag-nav-menu" Text="Races" Enabled="isConfigured" />
+        <NavItem Href="gameconfig" TourKey="gameconfig"Icon="bi-controller-nav-menu" Text="Game Config" />
         <NavItem Href="database" Icon="bi-database-nav-menu" Text="Database" />
-        <NavItem Href="class-settings" Icon="bi-diagram-3-fill-nav-menu" Text="Class Settings" Enabled="isConfigured" />
-        <NavItem Href="pointsettings" Icon="bi-scoreboard-nav-menu" Text="Point Settings" Enabled="isConfigured" />
-        <div class="nav-item px-3">
+        <NavItem Href="class-settings" TourKey="class-settings"Icon="bi-diagram-3-fill-nav-menu" Text="Class Settings" Enabled="isConfigured" />
+        <NavItem Href="pointsettings" TourKey="pointsettings"Icon="bi-scoreboard-nav-menu" Text="Point Settings" Enabled="isConfigured" />
+        <div class="nav-item px-3" data-tour="nav-tour">
+            <button type="button" class="nav-link wec-nav-guide" @onclick="StartTour">
+                <span class="bi bi-book-nav-menu" aria-hidden="true"></span> Guided Tour
+            </button>
+        </div>
+        <div class="nav-item px-3" data-tour="nav-guide">
             <button type="button" class="nav-link wec-nav-guide" @onclick="OpenGuide">
                 <span class="bi bi-book-nav-menu" aria-hidden="true"></span> User Guide
             </button>

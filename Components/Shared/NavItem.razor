@@ -1,4 +1,4 @@
-<div class="nav-item px-3">
+<div class="nav-item px-3" data-tour="@TourId">
     @if (Enabled)
     {
         <NavLink class="nav-link" href="@Href" Match="Match">
@@ -23,6 +23,11 @@
 
     /// <summary>When false the entry is shown greyed out and cannot be followed.</summary>
     [Parameter] public bool Enabled { get; set; } = true;
+
+    /// <summary>Lets the guided tour find this entry, as data-tour="nav-{TourKey}".</summary>
+    [Parameter] public string? TourKey { get; set; }
+
+    private string? TourId => TourKey is null ? null : $"nav-{TourKey}";
 
     [Parameter] public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
 }

@@ -307,7 +307,22 @@ C.AI_YIELD_CAUTION           = 0.0   -- no extra caution: a slower car braking e
 C.AI_CLOSE_RANGE_M           = 150
 C.AI_CLOSE_TTC_S             = 4.0
 C.AI_CLOSE_CAUTION           = 0.6
-C.AI_PASS_MIN_TTC_S          = 3.0
+C.AI_PASS_MIN_TTC_S          = 2.0
+-- Class passing (ai/passing.lua): a faster-class car within ATTACK_M of a slower-class car on its
+-- line, closing, steers OFFSET_M to the roomier side (at RATE_MPS; back at RETURN_MPS) and holds it
+-- until the slower car is CLEAR_M behind (or MAX_SECONDS). While attacking it gets ATTACK_AGGRESSION,
+-- loses ATTACK_CAUTION and gains ATTACK_GRIP, and keeps CLOSE_WHILE_PASSING of the closing caution.
+C.AI_PASS_ATTACK_M           = 70
+C.AI_PASS_OFFSET_M           = 2.8
+C.AI_PASS_RATE_MPS           = 1.6
+C.AI_PASS_RETURN_MPS         = 1.2
+C.AI_PASS_CLEAR_M            = 12
+C.AI_PASS_MAX_SECONDS        = 8.0
+C.AI_PASS_SIDE_CHECK_M       = 16
+C.AI_ATTACK_AGGRESSION       = 0.25
+C.AI_ATTACK_CAUTION          = 0.3
+C.AI_ATTACK_GRIP             = 0.02
+C.AI_CLOSE_WHILE_PASSING     = 0.35
 C.AI_PROFILE_DEFAULT         = { grip = 1.0, caution = 1.0, brake = 1.0, aggression = 0.0, lookahead = 1.0, steer = 1.0 }
 C.AI_CLASS_PROFILES          = {}
 -- Stuck cars: under STUCK_KMH for STUCK_SECONDS (after GRACE_SECONDS of racing, under green, with no

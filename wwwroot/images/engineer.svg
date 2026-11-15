@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" width="300" height="380" role="img" aria-label="Rex, the race engineer">
+  <defs>
+    <linearGradient id="skin" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#f3c9a5"/>
+      <stop offset="1" stop-color="#d8a07a"/>
+    </linearGradient>
+    <linearGradient id="skinDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b97d58"/>
+      <stop offset="1" stop-color="#d09a74"/>
+    </linearGradient>
+    <linearGradient id="faceShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7a4a2e" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="#7a4a2e" stop-opacity="0"/>
+      <stop offset="1" stop-color="#7a4a2e" stop-opacity="0.32"/>
+    </linearGradient>
+    <linearGradient id="jacket" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#34363f"/>
+      <stop offset="1" stop-color="#16171d"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3d32"/>
+      <stop offset="1" stop-color="#a80400"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5a4030"/>
+      <stop offset="1" stop-color="#241711"/>
+    </linearGradient>
+    <radialGradient id="iris" cx="0.4" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#8a5f38"/>
+      <stop offset="1" stop-color="#3a2415"/>
+    </radialGradient>
+    <linearGradient id="fadeOut" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.9" stop-color="#fff"/>
+      <stop offset="1" stop-color="#000"/>
+    </linearGradient>
+    <mask id="fade"><rect width="300" height="380" fill="url(#fadeOut)"/></mask>
+    <style>
+      .blink { transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
+      @keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+      .glow { animation: glow 2.4s ease-in-out infinite alternate; }
+      @keyframes glow { from { opacity: 0.75; } to { opacity: 1; } }
+    </style>
+  </defs>
+
+  <g mask="url(#fade)">
+    <!-- torso: fitted graphite team jacket -->
+    <path d="M22 380 L22 304 Q28 254 92 238 L124 228 L176 228 L208 238 Q272 254 278 304 L278 380 Z" fill="url(#jacket)"/>
+    <!-- shoulder highlights -->
+    <path d="M92 238 Q60 250 44 282" stroke="#5a5d6a" stroke-width="2" fill="none" opacity="0.7" stroke-linecap="round"/>
+    <path d="M208 238 Q240 250 256 282" stroke="#5a5d6a" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
+    <!-- red sleeve stripes -->
+    <path d="M30 300 Q34 262 86 244 L94 260 Q54 276 50 308 Z" fill="url(#red)"/>
+    <path d="M270 300 Q266 262 214 244 L206 260 Q246 276 250 308 Z" fill="url(#red)"/>
+    <path d="M40 312 Q42 284 74 270" stroke="#fff" stroke-width="2" fill="none" opacity="0.8" stroke-linecap="round"/>
+    <path d="M260 312 Q258 284 226 270" stroke="#fff" stroke-width="2" fill="none" opacity="0.8" stroke-linecap="round"/>
+
+    <!-- stand-up collar and zip -->
+    <path d="M114 220 L130 238 L150 248 L170 238 L186 220 L192 242 Q150 266 108 242 Z" fill="#0f1015"/>
+    <path d="M114 220 L130 238 L150 248 L170 238 L186 220" stroke="#e10600" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+    <path d="M150 250 V380" stroke="#c9ccd6" stroke-width="2.5"/>
+    <rect x="146" y="252" width="8" height="14" rx="3" fill="#c9ccd6"/>
+
+    <!-- chest badge and name tape -->
+    <circle cx="108" cy="306" r="15" fill="#0f1015" stroke="#c9ccd6" stroke-width="1.6"/>
+    <path d="M108 296 L116 314 H100 Z" fill="url(#red)"/>
+    <rect x="164" y="298" width="34" height="5" rx="2.5" fill="#c9ccd6" opacity="0.85"/>
+    <rect x="164" y="308" width="22" height="4" rx="2" fill="#e10600"/>
+
+    <!-- neck -->
+    <path d="M126 186 L126 234 Q150 252 174 234 L174 186 Z" fill="url(#skinDark)"/>
+    <path d="M126 192 Q150 214 174 192 L174 204 Q150 226 126 204 Z" fill="#6b3f26" opacity="0.22"/>
+
+    <!-- ears -->
+    <ellipse cx="102" cy="130" rx="7" ry="13" fill="#e2ab85"/>
+    <ellipse cx="198" cy="130" rx="7" ry="13" fill="#d09870"/>
+
+    <!-- head -->
+    <path d="M104 118 Q104 70 150 68 Q196 70 196 118 Q196 150 183 172 Q171 192 150 196 Q129 192 117 172 Q104 150 104 118 Z" fill="url(#skin)"/>
+    <path d="M104 118 Q104 70 150 68 Q196 70 196 118 Q196 150 183 172 Q171 192 150 196 Q129 192 117 172 Q104 150 104 118 Z" fill="url(#faceShade)"/>
+    <!-- stubble -->
+    <path d="M110 142 Q112 176 130 190 Q150 202 170 190 Q190 176 190 142 Q178 166 150 170 Q122 166 110 142 Z" fill="#3a2a22" opacity="0.2"/>
+    <!-- cheek and jaw definition -->
+    <path d="M188 138 Q186 168 166 188" stroke="#9a6140" stroke-width="2.5" fill="none" opacity="0.28" stroke-linecap="round"/>
+    <ellipse cx="124" cy="150" rx="10" ry="6" fill="#e88a78" opacity="0.28"/>
+    <ellipse cx="176" cy="150" rx="10" ry="6" fill="#e88a78" opacity="0.2"/>
+
+    <!-- hair: short fade with a swept quiff -->
+    <path d="M101 124 Q92 66 140 50 Q192 40 204 92 Q208 112 200 128 Q198 104 188 94 Q166 80 134 86 Q112 92 109 128 Z" fill="url(#hair)"/>
+    <path d="M112 100 Q116 82 138 76 M126 92 Q134 80 156 76 M146 86 Q164 76 186 86 M170 84 Q186 84 194 100" stroke="#1b110c" stroke-width="2" fill="none" opacity="0.55" stroke-linecap="round"/>
+    <path d="M104 112 Q108 96 118 90 L112 120 Z" fill="#2b1c14" opacity="0.6"/>
+    <path d="M118 66 Q146 48 184 62" stroke="#8a6648" stroke-width="2.5" fill="none" opacity="0.7" stroke-linecap="round"/>
+    <path d="M130 58 Q158 50 188 70" stroke="#8a6648" stroke-width="1.6" fill="none" opacity="0.5" stroke-linecap="round"/>
+
+    <!-- eyebrows -->
+    <path d="M119 109 Q131 101 146 106" stroke="#2b1c14" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M154 106 Q169 101 181 109" stroke="#2b1c14" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+    <!-- eyes -->
+    <g class="blink">
+      <path d="M121 121 Q133 112 146 121 Q133 128 121 121 Z" fill="#fbf7f2"/>
+      <circle cx="133.5" cy="120.5" r="5.4" fill="url(#iris)"/>
+      <circle cx="133.5" cy="120.5" r="2.3" fill="#0b0705"/>
+      <circle cx="131.7" cy="118.8" r="1.3" fill="#fff"/>
+      <path d="M120 121 Q133 110 147 121" stroke="#2b1c14" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    </g>
+    <g class="blink">
+      <path d="M154 121 Q167 112 179 121 Q167 128 154 121 Z" fill="#f4eee8"/>
+      <circle cx="166.5" cy="120.5" r="5.4" fill="url(#iris)"/>
+      <circle cx="166.5" cy="120.5" r="2.3" fill="#0b0705"/>
+      <circle cx="164.7" cy="118.8" r="1.3" fill="#fff"/>
+      <path d="M153 121 Q167 110 180 121" stroke="#2b1c14" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    </g>
+
+    <!-- nose -->
+    <path d="M147 122 Q145 138 141 146" stroke="#a86a46" stroke-width="2.2" fill="none" opacity="0.7" stroke-linecap="round"/>
+    <path d="M141 147 Q150 153 159 147" stroke="#a86a46" stroke-width="2.2" fill="none" opacity="0.8" stroke-linecap="round"/>
+    <ellipse cx="146" cy="147" rx="2" ry="1.2" fill="#8a4f33" opacity="0.7"/>
+    <ellipse cx="154" cy="147" rx="2" ry="1.2" fill="#8a4f33" opacity="0.7"/>
+    <ellipse cx="152" cy="141" rx="3" ry="4" fill="#ffe6d0" opacity="0.35"/>
+
+    <!-- mouth: confident, friendly smile -->
+    <path d="M134 163 Q150 177 166 163 Q150 169 134 163 Z" fill="#fdfaf6" stroke="#9c4f46" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M139 172 Q150 178 161 172" stroke="#c4786c" stroke-width="2.2" fill="none" opacity="0.7" stroke-linecap="round"/>
+    <path d="M132 161 Q131 164 134 166 M168 161 Q169 164 166 166" stroke="#9a6140" stroke-width="1.6" fill="none" opacity="0.5" stroke-linecap="round"/>
+
+    <!-- headset: band, ear cups and boom mic -->
+    <path d="M102 124 Q98 52 150 50 Q202 52 198 124" stroke="#15161c" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M104 118 Q102 58 150 54" stroke="#4a4d5a" stroke-width="1.6" fill="none" opacity="0.7" stroke-linecap="round"/>
+    <rect x="88" y="108" width="20" height="40" rx="10" fill="#1d1e26"/>
+    <rect x="92" y="114" width="12" height="28" rx="6" fill="#2c2e39"/>
+    <rect x="88" y="124" width="20" height="4" fill="url(#red)"/>
+    <rect x="192" y="108" width="20" height="40" rx="10" fill="#1d1e26"/>
+    <rect x="196" y="114" width="12" height="28" rx="6" fill="#2c2e39"/>
+    <rect x="192" y="124" width="20" height="4" fill="url(#red)"/>
+    <path d="M94 146 Q96 178 124 186" stroke="#15161c" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="129" cy="187" rx="8" ry="5" fill="#15161c"/>
+    <circle class="glow" cx="127" cy="186" r="1.8" fill="#ff3d32"/>
+
+  </g>
+</svg>

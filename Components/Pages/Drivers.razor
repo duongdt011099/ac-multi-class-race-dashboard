@@ -15,7 +15,7 @@ else
     var paged = PagedDrivers;
 
     <div class="wec-toolbar">
-        <ToolbarButton Icon="bi-plus-lg" OnClick="OpenCreate">New Driver</ToolbarButton>
+        <ToolbarButton data-tour="new-driver" Icon="bi-plus-lg" OnClick="OpenCreate">New Driver</ToolbarButton>
         <ToolbarButton Icon="bi-upload" Disabled="isImporting" OnClick="OpenPresetPicker">
             @(isImporting ? "Importing..." : "Import Assetto Corsa Preset")
         </ToolbarButton>
