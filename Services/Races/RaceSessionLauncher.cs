@@ -130,7 +130,10 @@ public class RaceSessionLauncher : IRaceSessionLauncher
                 .GroupBy(d => d.Driver!.DriverId)
                 .ToDictionary(g => g.Key, g => g.Min(d => d.ClassPosition));
 
+            // Only the cars that took part in qualifying start the race. The player's car is always kept,
+            // since race.ini needs it as CAR_0.
             drivers = drivers
+                .Where(d => d.IsHuman || qualifyingPositionByDriverId.ContainsKey(d.DriverId))
                 .OrderBy(d => RaceClassOrdering.IndexOf(RaceClassOrdering.ClassItemOf(race, d.Team), classOrderByItemId))
                 .ThenBy(d => qualifyingPositionByDriverId.TryGetValue(d.DriverId, out var pos) ? pos : int.MaxValue)
                 .ThenBy(d => d.Team?.TeamName)
