@@ -94,12 +94,18 @@ local function ClassClosedUp(group, trackLength)
     local st = S.rollingStartCars[memberIndex]
     local car = st and not st.dropped and getCar(memberIndex)
     if car and type(car.splinePosition) == "number" then
-      if not st.enteredPhase2 then return false end
+      if not st.enteredPhase2 then
+        group.greenBlocker = string.format("car %d not in double file yet", memberIndex)
+        return false
+      end
       lead = lead or car
       tail = car
       local ahead = lead.splinePosition - car.splinePosition
       if ahead > 0.5 then ahead = ahead - 1.0 elseif ahead < -0.5 then ahead = ahead + 1.0 end
-      if ahead * trackLength > C.ROLLING_START_GREEN_MAX_TAIL_GAP_M then return false end
+      if ahead * trackLength > C.ROLLING_START_GREEN_MAX_TAIL_GAP_M then
+        group.greenBlocker = string.format("car %d is %.0f m behind the class leader", memberIndex, ahead * trackLength)
+        return false
+      end
     end
   end
   return true
@@ -149,7 +155,13 @@ local function DetectGreenCrossings(now, trackLength)
   for _, group in ipairs(S.rollingStartGroups or {}) do
     if group.greenPendingAt and not group.green then
       local timedOut = now - group.greenPendingAt >= C.ROLLING_START_GREEN_HOLD_MAX_SECONDS
-      if timedOut or ClassClosedUp(group, trackLength) then
+      local closedUp = ClassClosedUp(group, trackLength)
+      if not closedUp and now - (group.greenWaitLogAt or -1000) >= 5.0 then
+        group.greenWaitLogAt = now
+        U.Log(string.format("ROLLING: class %s green held %.0f/%.0f s: %s", tostring(group.label),
+            now - group.greenPendingAt, C.ROLLING_START_GREEN_HOLD_MAX_SECONDS, tostring(group.greenBlocker)))
+      end
+      if timedOut or closedUp then
         if timedOut then U.Log("ROLLING: class green forced after hold timeout.") end
         GreenWholeClass(group, now)
       end

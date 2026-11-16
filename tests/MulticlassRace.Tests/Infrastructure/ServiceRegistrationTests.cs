@@ -98,7 +98,6 @@ public class ServiceRegistrationTests
     [InlineData(typeof(IRaceService))]
     [InlineData(typeof(IRaceSessionLauncher))]
     [InlineData(typeof(IRaceResultService))]
-    [InlineData(typeof(IGridPresetService))]
     [InlineData(typeof(IClassSettingService))]
     [InlineData(typeof(IPointSettingService))]
     [InlineData(typeof(ITeamService))]

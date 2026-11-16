@@ -1,4 +1,4 @@
-<button type="button" class="wec-btn" title="@Title" disabled="@Disabled" @onclick="OnClick" @onclick:stopPropagation="StopPropagation">
+<button type="button" class="wec-btn @(Variant is null ? "" : $"wec-btn--{Variant}")" title="@Title" disabled="@Disabled" @onclick="OnClick" @onclick:stopPropagation="StopPropagation">
     <i class="bi @Icon"></i>
 </button>
 
@@ -9,6 +9,9 @@
     [Parameter] public string? Title { get; set; }
 
     [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Optional style variant: "edit" or "danger".</summary>
+    [Parameter] public string? Variant { get; set; }
 
     /// <summary>Keeps the click from reaching a clickable table row behind the button.</summary>
     [Parameter] public bool StopPropagation { get; set; }

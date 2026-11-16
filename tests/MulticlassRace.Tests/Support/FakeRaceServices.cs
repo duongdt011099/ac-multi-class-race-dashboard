@@ -7,7 +7,7 @@ using MulticlassRace.Services.Results;
 namespace MulticlassRace.Tests.Support;
 
 /// <summary>In-memory races and sessions, so race page tests do not need Assetto Corsa or Content Manager.</summary>
-public sealed class FakeRaceService : IRaceService, IRaceSessionLauncher, IRaceResultService, IGridPresetService
+public sealed class FakeRaceService : IRaceService, IRaceSessionLauncher, IRaceResultService
 {
     public Dictionary<Guid, List<RaceModel>> RacesBySeason { get; } = new();
 
@@ -108,12 +108,6 @@ public sealed class FakeRaceService : IRaceService, IRaceSessionLauncher, IRaceR
         TeamsByRace[raceId] = teamIds.ToHashSet();
         return Task.CompletedTask;
     }
-
-    public Task<PresetExportResult> ExportGridPresetAsync(Guid raceId, SessionType sessionType, bool humanClassOnly, string seasonName, string championshipName)
-        => throw new NotSupportedException();
-
-    public Task<PresetExportResult> ExportRaceGridPresetAsync(Guid raceId, string seasonName, string championshipName)
-        => throw new NotSupportedException();
 
     public Task<IEnumerable<RaceResultFileModel>> GetRaceResultFilesAsync()
         => Task.FromResult<IEnumerable<RaceResultFileModel>>(ResultFiles.ToList());

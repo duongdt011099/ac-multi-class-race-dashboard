@@ -111,6 +111,16 @@ local function columnTarget(car, map, startPos, trackLength)
     aheadCar = aheadIndex and getCar(aheadIndex)
     if aheadCar then break end
   end
+  -- The whole lane ahead may be empty (e.g. the class's first-row car crashed and was retired).
+  -- Then chase the nearest car in the other lane, otherwise this lane runs at plain cruise speed,
+  -- never closes up on the field, and the class can never be ready for green.
+  if not aheadCar then
+    for pos = startPos - 1, 1, -1 do
+      local aheadIndex = map[pos]
+      aheadCar = aheadIndex and getCar(aheadIndex)
+      if aheadCar then break end
+    end
+  end
   if not aheadCar then return SPEED, 1.0, 0.0 end
 
   local splineDist = gap(aheadCar, car, trackLength)

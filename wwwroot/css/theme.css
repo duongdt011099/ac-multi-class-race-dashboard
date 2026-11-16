@@ -1755,3 +1755,12 @@ img.is-error {
     min-height: 0;
     overflow-y: auto;
 }
+
+/* Row action buttons: side by side, tinted by intent */
+.wec-table__actions { width: 6.5rem; white-space: nowrap; }
+.wec-row-actions { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 0.4rem; }
+.wec-row-actions .wec-btn { width: 2rem; height: 2rem; border-radius: 8px; font-size: 0.85rem; }
+.wec-btn--edit { color: #7cc4ff; background: rgba(56, 160, 255, 0.12); border-color: rgba(56, 160, 255, 0.35); }
+.wec-btn--edit:hover { background: #2b8cf0; border-color: #6ab4ff; color: #fff; box-shadow: 0 6px 16px rgba(43, 140, 240, 0.45); }
+.wec-btn--danger { color: #ff7a73; background: rgba(255, 46, 36, 0.12); border-color: rgba(255, 46, 36, 0.35); }
+.wec-btn--danger:hover { background: var(--wec-red); border-color: var(--wec-red-hot); color: #fff; box-shadow: 0 6px 16px rgba(225, 6, 0, 0.5); }

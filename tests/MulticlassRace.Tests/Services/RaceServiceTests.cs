@@ -600,128 +600,14 @@ public class RaceServiceImportTests : IDisposable
     {
         var both = await _fx.Results.GetResultImportAvailabilityAsync();
         Assert.True(both.CanImportResults);
-        Assert.True(both.CanExportPresets);
 
         Directory.Delete(_fx.ResultsDir);
         Directory.Delete(_fx.PresetDir);
 
         var none = await _fx.Results.GetResultImportAvailabilityAsync();
         Assert.False(none.CanImportResults);
-        Assert.False(none.CanExportPresets);
 
         Directory.CreateDirectory(Path.Combine(_fx.LuaDir, "race"));
         Assert.True((await _fx.Results.GetResultImportAvailabilityAsync()).CanImportResults);
-    }
-}
-
-public class RaceServicePresetTests : IDisposable
-{
-    private readonly RaceServiceFixture _fx = new();
-
-    public void Dispose() => _fx.Dispose();
-
-    private (Models.Race Race, Team Hyper, Team Gt3) Setup()
-    {
-        var race = _fx.AddRace(_fx.AddSeason(), "Monza 6h");
-        var hyper = _fx.AddTeam("Ferrari", "Hypercar", ("Alonso", "c1", "s1", false), ("Me", "c2", "s2", true));
-        var gt3 = _fx.AddTeam("Porsche", "GT3", ("Lieb", "c3", "s3", false));
-        _fx.EnterTeams(race, hyper, gt3);
-        return (race, hyper, gt3);
-    }
-
-    private static JsonElement Read(string path) => JsonDocument.Parse(File.ReadAllText(path)).RootElement;
-
-    private static string[] Cars(JsonElement preset) => preset.GetProperty("CarIds").EnumerateArray().Select(e => e.GetString()!).ToArray();
-
-    [Fact]
-    public async Task GridPreset_AllCarsOrderedByClassAndNamedAfterSession()
-    {
-        var (race, _, _) = Setup();
-
-        var result = await _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Race, humanClassOnly: false, "S1", "WEC");
-
-        Assert.Equal(Path.Combine(_fx.PresetDir, "Race-Monza 6h-S1-WEC.cmpreset"), result.FilePath);
-        Assert.Equal(3, result.CarCount);
-        Assert.Equal(new[] { "c1", "c2", "c3" }, Cars(Read(result.FilePath)));
-    }
-
-    [Theory]
-    [InlineData(SessionType.Practice)]
-    [InlineData(SessionType.Qualifying)]
-    public async Task GridPreset_LeavesHumanOutOfPracticeAndQualifying(SessionType type)
-    {
-        var (race, _, _) = Setup();
-
-        var result = await _fx.Presets.ExportGridPresetAsync(race.RaceId, type, false, "S1", "WEC");
-
-        Assert.Equal(new[] { "c1", "c3" }, Cars(Read(result.FilePath)));
-    }
-
-    [Fact]
-    public async Task GridPreset_HumanClassOnlyKeepsJustThatClass()
-    {
-        var (race, _, _) = Setup();
-
-        var result = await _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Race, true, "S1", "WEC");
-
-        Assert.Equal(new[] { "c1", "c2" }, Cars(Read(result.FilePath)));
-    }
-
-    [Fact]
-    public async Task GridPreset_Rejects()
-    {
-        var race = _fx.AddRace(_fx.AddSeason());
-        var noHuman = _fx.AddTeam("A", "Hypercar", ("X", "c", "s", false));
-
-        Assert.Equal("Race not found.",
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => _fx.Presets.ExportGridPresetAsync(Guid.NewGuid(), SessionType.Race, false, "s", "c"))).Message);
-        Assert.Equal("No cars available to export from the entered teams.",
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Race, false, "s", "c"))).Message);
-
-        _fx.EnterTeams(race, noHuman);
-        Assert.Equal("No human drivers found in the entered teams.",
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Race, true, "s", "c"))).Message);
-
-        Directory.Delete(_fx.PresetDir);
-        Assert.StartsWith("Content Manager is not installed",
-            (await Assert.ThrowsAsync<InvalidOperationException>(() => _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Race, false, "s", "c"))).Message);
-    }
-
-    [Fact]
-    public async Task GridPreset_FileNameHasInvalidCharactersReplaced()
-    {
-        var race = _fx.AddRace(_fx.AddSeason(), "A:B/C");
-        _fx.EnterTeams(race, _fx.AddTeam("T", "Hypercar", ("X", "c", "s", false)));
-
-        var result = await _fx.Presets.ExportGridPresetAsync(race.RaceId, SessionType.Practice, false, "S", "W");
-
-        Assert.Equal("Practice-A_B_C-S-W.cmpreset", Path.GetFileName(result.FilePath));
-    }
-
-    [Fact]
-    public async Task RacePreset_HumanSetsStartingPositionFromQualifyingAndOthersFollowQualifyingOrder()
-    {
-        var (race, hyper, gt3) = Setup();
-        var alonso = hyper.Drivers.Single(d => d.DriverName == "Alonso");
-        var me = hyper.Drivers.Single(d => d.IsHuman);
-        _fx.AddSession(race, SessionType.Qualifying, (me, hyper, 2), (alonso, hyper, 1));
-
-        var result = await _fx.Presets.ExportRaceGridPresetAsync(race.RaceId, "S1", "WEC");
-
-        var preset = Read(result.FilePath);
-        Assert.Equal("Race-Monza 6h-S1-WEC.cmpreset", Path.GetFileName(result.FilePath));
-        Assert.Equal(new[] { "c1", "c3" }, Cars(preset));
-        Assert.Equal(2, preset.GetProperty("StartingPosition").GetInt32());
-        Assert.Equal(2, result.CarCount);
-    }
-
-    [Fact]
-    public async Task RacePreset_WithoutQualifyingStartsFirst()
-    {
-        var (race, _, _) = Setup();
-
-        var result = await _fx.Presets.ExportRaceGridPresetAsync(race.RaceId, "S1", "WEC");
-
-        Assert.Equal(1, Read(result.FilePath).GetProperty("StartingPosition").GetInt32());
     }
 }

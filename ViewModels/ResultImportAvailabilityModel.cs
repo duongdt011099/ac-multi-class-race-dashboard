@@ -10,6 +10,4 @@ public class ResultImportAvailabilityModel
     /// <summary>Whether there is a folder anywhere to import a race result from.</summary>
     public bool CanImportResults { get; set; }
 
-    /// <summary>Whether grid presets have a real Content Manager folder to be written to.</summary>
-    public bool CanExportPresets { get; set; }
 }

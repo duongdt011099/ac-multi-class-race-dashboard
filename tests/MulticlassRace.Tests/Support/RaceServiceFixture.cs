@@ -96,7 +96,6 @@ public sealed class RaceServiceFixture : IDisposable
             new AchievementRepository(Context),
             SeasonCompletionNotifier);
         Results = new RaceResultService(raceRepository, configRepository, pointRepository, SeasonCompletion);
-        Presets = new GridPresetService(raceRepository, configRepository);
     }
 
     public string Root { get; }
@@ -129,7 +128,6 @@ public sealed class RaceServiceFixture : IDisposable
 
     public IRaceResultService Results { get; }
 
-    public IGridPresetService Presets { get; }
 
     public Season AddSeason(string name = "Season 1")
     {

@@ -110,16 +110,18 @@ else if (selectedSeason is not null)
                     </span>
                 </td>
                 <td class="wec-table__actions">
+                    <div class="wec-row-actions">
                     @if (race.Status != RaceStatus.Finished && !SeasonFinished)
                     {
-                        <IconButton Icon="bi-pencil" Title="@($"Edit {race.RaceName}")" StopPropagation="true"
+                        <IconButton Icon="bi-pencil-fill" Variant="edit" Title="@($"Edit {race.RaceName}")" StopPropagation="true"
                                     OnClick="() => OpenRaceEdit(race)" />
                     }
                     @if (!SeasonFinished)
                     {
-                        <IconButton Icon="bi-trash" Title="@($"Delete {race.RaceName}")" StopPropagation="true"
+                        <IconButton Icon="bi-trash3-fill" Variant="danger" Title="@($"Delete {race.RaceName}")" StopPropagation="true"
                                 OnClick="() => confirmDeleteRace = race" />
                     }
+                    </div>
                 </td>
             </tr>
         }

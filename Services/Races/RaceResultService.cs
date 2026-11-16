@@ -66,8 +66,7 @@ public class RaceResultService : IRaceResultService
 
         return new ResultImportAvailabilityModel
         {
-            CanImportResults = Directory.Exists(resultsFolder) || Directory.Exists(luaRaceFolder),
-            CanExportPresets = ContentManagerPaths.CanExportPresets(config?.PresetPath)
+            CanImportResults = Directory.Exists(resultsFolder) || Directory.Exists(luaRaceFolder)
         };
     }
 

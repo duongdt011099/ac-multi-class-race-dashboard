@@ -20,7 +20,6 @@ public partial class RaceSessionsModal : IDisposable
 
     [Inject] private IRaceResultService ResultService { get; set; } = default!;
 
-    [Inject] private IGridPresetService PresetService { get; set; } = default!;
 
     [Inject] private ITeamService TeamService { get; set; } = default!;
 
@@ -431,34 +430,6 @@ public partial class RaceSessionsModal : IDisposable
         {
             isImportingSessionResult = false;
         }
-    }
-
-    private async Task<PresetExportResult> ExportGridPresetAsync(bool humanClassOnly)
-    {
-        RequireChampionshipAndSeason();
-
-        var sessionType = selectedTab switch
-        {
-            RacePopupTab.Practice => SessionType.Practice,
-            RacePopupTab.Qualifying => SessionType.Qualifying,
-            _ => SessionType.Race
-        };
-
-        return await PresetService.ExportGridPresetAsync(
-            Race.RaceId,
-            sessionType,
-            humanClassOnly,
-            SeasonName!,
-            ChampionshipName!);
-    }
-
-    private async Task ExportRacePresetAsync()
-    {
-        RequireChampionshipAndSeason();
-
-        var result = await PresetService.ExportRaceGridPresetAsync(Race.RaceId, SeasonName!, ChampionshipName!);
-
-        Toast.Show($"Preset exported ({result.CarCount} cars): {result.FilePath}");
     }
 
     private void RequireChampionshipAndSeason()

@@ -28,12 +28,6 @@ public static class ContentManagerPaths
     public static string ResolveResults(string? configuredPath) => Resolve(configuredPath, SessionsRoot);
 
     /// <summary>
-    /// Whether grid presets can be exported. Exporting creates the folder it writes to, so asking
-    /// first is what stops a machine without Content Manager from growing an empty AcTools tree.
-    /// </summary>
-    public static bool CanExportPresets(string? configuredPath) => Directory.Exists(ResolvePreset(configuredPath));
-
-    /// <summary>
     /// Whether there is anywhere to look for Content Manager session results. The dropdown that
     /// offers these files is hidden entirely when there is not, rather than showing an empty list.
     /// </summary>
