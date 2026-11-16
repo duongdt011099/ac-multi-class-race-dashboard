@@ -50,6 +50,11 @@ public class LuaResultImportWorker : BackgroundService
         var gameWasRunning = IsGameRunning();
         var didInitialScan = false;
 
+        // The baseline must exist before any session can finish. Drawn lazily on the first scan it would
+        // land after a result written while the game was running (dashboard-launched games skip the
+        // startup scan), and that result would be discarded as history.
+        await EnsureBaselineAsync(stoppingToken);
+
         using var timer = new PeriodicTimer(PollInterval);
 
         try
@@ -96,6 +101,22 @@ public class LuaResultImportWorker : BackgroundService
         }
         catch (OperationCanceledException)
         {
+        }
+    }
+
+    private async Task EnsureBaselineAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var configRepository = scope.ServiceProvider.GetRequiredService<IAssettoCorsaGameConfigRepository>();
+            var config = await configRepository.GetAsync();
+
+            await _baseline.GetCutoffUtcAsync(LuaResultPaths.ResolveRoot(config?.LuaResultPath));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not establish the Lua result baseline at startup.");
         }
     }
 
