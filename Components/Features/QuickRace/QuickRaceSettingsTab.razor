@@ -1,0 +1,451 @@
+@using MulticlassRace.Models
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.QuickRace
+@using MulticlassRace.ViewModels
+@inject ITrackService TrackService
+@inject IAssettoCorsaContentService ContentService
+
+@* The Edit Race form of the Races page, without a race name, point setting and class setting:
+   a quick race has no championship behind it. *@
+
+<div class="wec-qr-settings">
+    <div class="wec-qr-settings__col">
+        <div class="wec-form-field">
+            <label for="qr-track">Track <span class="wec-required" aria-hidden="true">*</span></label>
+            <ImageSelect ShowImages="false" Id="qr-track" Value="@Settings.TrackName" ValueChanged="HandleTrackChangedAsync"
+                         Options="TrackSelectOptions" EmptyLabel="Select track..."
+                         OrphanLabel="@($"{Settings.TrackName} (not found on disk)")" />
+        </div>
+
+        <div class="wec-form-field">
+            <label for="qr-track-layout">
+                Track Layout
+                @if (RequiresLayout)
+                {
+                    <span class="wec-required" aria-hidden="true">*</span>
+                }
+            </label>
+            <ImageSelect ShowImages="false" Id="qr-track-layout" Value="@Settings.TrackLayout" ValueChanged="HandleLayoutChangedAsync"
+                         Disabled="@(string.IsNullOrWhiteSpace(Settings.TrackName))"
+                         Options="LayoutSelectOptions" EmptyLabel="@LayoutEmptyLabel" />
+        </div>
+
+        @if (RaceFormRules.ShowTrackPreview(PreviewForm, Layouts))
+        {
+            var layout = string.IsNullOrWhiteSpace(Settings.TrackLayout) ? null : Settings.TrackLayout;
+            <div class="wec-track-preview">
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Settings.TrackName!, layout, "outline")" alt="Track map" />
+                    <span class="wec-track-preview__label">Map</span>
+                </div>
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Settings.TrackName!, layout, "preview")" alt="Track preview" />
+                    <span class="wec-track-preview__label">Preview</span>
+                </div>
+            </div>
+        }
+
+        <fieldset class="wec-race-mode" title="Assetto Corsa only supports lap-limited races, so a timed race is run by the app: it ends on the leader's final lap once the time is up.">
+            <legend>Race length</legend>
+            <div class="wec-race-mode__grid">
+                <div class="wec-race-mode__opt @(IsTimedRace ? "" : "wec-race-mode__opt--active")">
+                    <label class="wec-race-mode__head" for="qr-mode-laps">
+                        <input id="qr-mode-laps" type="radio" name="qr-race-mode" checked="@(!IsTimedRace)" @onchange="() => SetRaceModeAsync(false)" />
+                        <span>Laps</span>
+                    </label>
+                    <div class="wec-race-mode__body">
+                        <label for="qr-laps">Laps: <strong>@(Settings.NumberOfLaps ?? 0)</strong></label>
+                        <input id="qr-laps" type="range" min="1" max="120" step="1" disabled="@IsTimedRace"
+                               title="Number of laps (1–120)."
+                               value="@(Settings.NumberOfLaps ?? 10)" @oninput="HandleLapsInput" @onchange="HandleLapsCommittedAsync" />
+                        <div class="wec-text-muted">
+                            @if (EstimatedSeconds is { } seconds)
+                            {
+                                <span>Estimated race time: @RaceFormat.FormatDuration(seconds)</span>
+                            }
+                            else
+                            {
+                                <span>No lap data recorded for this track yet. Complete a lap in-game to enable the estimate.</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wec-race-mode__opt @(IsTimedRace ? "wec-race-mode__opt--active" : "")">
+                    <label class="wec-race-mode__head" for="qr-mode-time">
+                        <input id="qr-mode-time" type="radio" name="qr-race-mode" checked="@IsTimedRace" @onchange="() => SetRaceModeAsync(true)" />
+                        <span>Time</span>
+                    </label>
+                    <div class="wec-race-mode__body">
+                        <label>Race time: <strong>@(IsTimedRace ? RaceFormat.FormatDuration((Settings.TimedRaceMinutes ?? 0) * 60) : "-")</strong></label>
+                        <div class="wec-timed-presets">
+                            @foreach (var preset in TimedPresetMinutes)
+                            {
+                                <button type="button" disabled="@(!IsTimedRace)"
+                                        class="wec-timed-chip @(Settings.TimedRaceMinutes == preset ? "wec-timed-chip--active" : "")"
+                                        @onclick="() => SetTimedMinutesAsync(preset)">@FormatPreset(preset)</button>
+                            }
+                        </div>
+                        <div class="wec-timed-custom">
+                            <AppSelect Id="qr-timed-hours" Value="@TimedHours.ToString()" ValueChanged="HandleTimedHoursChanged"
+                                       Options="HourOptions" Disabled="@(!IsTimedRace)" />
+                            <span>h</span>
+                            <AppSelect Id="qr-timed-minutes" Value="@TimedMinutePart.ToString()" ValueChanged="HandleTimedMinutePartChanged"
+                                       Options="MinuteOptions" Disabled="@(!IsTimedRace || TimedHours >= 24)" />
+                            <span>min</span>
+                        </div>
+                        <div class="wec-text-muted">Between 5 minutes and 24 hours.</div>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <CheckboxField Id="qr-safety-car" Label="Safety car leads the formation lap" Value="Settings.UseSafetyCar"
+                       ValueChanged="HandleSafetyCarChanged"
+                       Title="The safety car (set in the side menu) leads the rolling-start formation lap and pulls into the pits when the field is in double file." />
+
+        <CheckboxField Id="qr-qualifying" Label="Enable qualifying" Value="Settings.QualifyingEnabled" ValueChanged="HandleQualifyingEnabledChanged"
+                       Title="Run a qualifying session first. The cars start the race in qualifying order." />
+
+        @if (Settings.QualifyingEnabled)
+        {
+            <div class="wec-form-field">
+                <label for="qr-qualifying-minutes">Qualifying Time: <strong>@QualifyingMinutes min</strong></label>
+                <input id="qr-qualifying-minutes" type="range" min="5" max="90" step="1"
+                       title="Qualifying duration from 5 to 90 minutes."
+                       value="@QualifyingMinutes" @oninput="HandleQualifyingMinutesInput" @onchange="HandleQualifyingMinutesCommittedAsync" />
+            </div>
+        }
+    </div>
+
+    <div class="wec-qr-settings__col">
+        <div class="wec-form-field">
+            <label for="qr-human-car">Human Driver Car</label>
+            <ImageSelect Id="qr-human-car" Value="@Human.Car" ValueChanged="HandleHumanCarChangedAsync"
+                         Options="CarSelectOptions" EmptyLabel="Select car..." OrphanLabel="@($"{Human.Car} (not found on disk)")" />
+            <div class="wec-text-muted">
+                @if (UsesOwnHumanCar)
+                {
+                    <span>Only for this quick race. </span>
+                    <button type="button" class="wec-qr-link" @onclick="UseDriverCarAsync">Use the car of my human driver</button>
+                }
+                else if (HumanDriver is not null)
+                {
+                    <span>Default: the car of @HumanDriver.DriverName, the human driver in the side menu.</span>
+                }
+                else
+                {
+                    <span>No human driver is set up, so pick the car you want to race.</span>
+                }
+            </div>
+        </div>
+
+        <div class="wec-form-field">
+            <label for="qr-human-skin">Human Driver Skin</label>
+            <ImageSelect Id="qr-human-skin" Value="@Human.Skin" ValueChanged="HandleHumanSkinChangedAsync"
+                         Options="HumanSkinOptions" EmptyLabel="Random skin" EmptyIcon="bi-question-lg"
+                         OrphanLabel="@($"{Human.Skin} (not found on disk)")"
+                         Disabled="@(!Human.HasCar || humanSkins.Count == 0)" />
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(HumanPreviewUrl))
+        {
+            <div class="wec-skin-preview">
+                <img src="@HumanPreviewUrl" class="wec-skin-preview__img" alt="@Human.CarDisplayName" />
+            </div>
+        }
+
+        <div class="wec-form-field wec-qr-weather">
+            <label for="qr-weather">Weather</label>
+            <AppSelect Id="qr-weather" Value="@Settings.Weather" ValueChanged="HandleWeatherChangedAsync"
+                       Options="SessionConditionOptions.Weather" />
+        </div>
+
+        <div class="wec-form-field">
+            <label for="qr-time-of-day">Time of day</label>
+            <AppSelect Id="qr-time-of-day" Value="@SessionConditionOptions.LabelFor(Settings.SunAngle)" ValueChanged="HandleTimeOfDayChangedAsync"
+                       Options="SessionConditionOptions.TimeOfDaySelectOptions"
+                       title="Time of day, as AC takes it: a sun angle from -80 (08:00) to 80 (18:00)." />
+        </div>
+
+        <div class="wec-form-row">
+            <FormField For="qr-ai-level" Label="AI Difficulty" Hint="Applies to opponents without a level of their own.">
+                <ImageSelect ShowImages="false" Id="qr-ai-level" Value="@Settings.AiDifficulty.ToString()" ValueChanged="HandleAiDifficultyChanged"
+                             Options="AiLevels.DifficultyOptions" OrphanLabel="@Settings.AiDifficulty.ToString()" />
+            </FormField>
+            <FormField For="qr-ai-aggression" Label="AI Aggression" Hint="Applies to opponents without an aggression of their own.">
+                <ImageSelect ShowImages="false" Id="qr-ai-aggression" Value="@Settings.AiAggression.ToString()" ValueChanged="HandleAiAggressionChanged"
+                             Options="AiLevels.AggressionOptions" OrphanLabel="@Settings.AiAggression.ToString()" />
+            </FormField>
+        </div>
+
+        <CheckboxField Id="qr-penalties" Label="Penalties" Value="Settings.Penalties" ValueChanged="HandlePenaltiesChanged" />
+
+    </div>
+</div>
+
+@code {
+    private static readonly int[] TimedPresetMinutes = { 30, 60, 120, 180, 360, 720, 1440 };
+
+    private static readonly IEnumerable<SelectOption> HourOptions =
+        Enumerable.Range(0, 25).Select(h => new SelectOption(h.ToString(), $"{h}")).ToList();
+
+    private static readonly IEnumerable<SelectOption> MinuteOptions =
+        Enumerable.Range(0, 12).Select(i => new SelectOption((i * 5).ToString(), $"{i * 5:00}")).ToList();
+
+    private int? estimatedLapTimeMs;
+    private string? estimateKey;
+    private List<string> humanSkins = new();
+    private string? humanSkinsFor;
+
+    [Parameter, EditorRequired] public QuickRaceSettingsModel Settings { get; set; } = default!;
+
+    [Parameter, EditorRequired] public QuickRaceHuman Human { get; set; } = default!;
+
+    /// <summary>The human driver of the side menu; the default car comes from them.</summary>
+    [Parameter] public DriverModel? HumanDriver { get; set; }
+
+    [Parameter] public IReadOnlyList<TrackOptionModel> Tracks { get; set; } = Array.Empty<TrackOptionModel>();
+
+    [Parameter] public IReadOnlyList<CarOptionModel> Cars { get; set; } = Array.Empty<CarOptionModel>();
+
+    /// <summary>Layouts of the current track, loaded by the page.</summary>
+    [Parameter] public IReadOnlyList<TrackLayoutOptionModel> Layouts { get; set; } = Array.Empty<TrackLayoutOptionModel>();
+
+    /// <summary>Raised after any setting changed; the page saves the quick race.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Raised after the track changed, before <see cref="OnChanged"/>; the page loads the new layouts.</summary>
+    [Parameter] public EventCallback OnTrackChanged { get; set; }
+
+    private bool RequiresLayout => RaceFormRules.RequiresLayout(Layouts);
+
+    private bool IsTimedRace => Settings.TimedRaceMinutes is > 0;
+
+    private bool UsesOwnHumanCar => !string.IsNullOrWhiteSpace(Settings.HumanCar);
+
+    private int TimedHours => (Settings.TimedRaceMinutes ?? 0) / 60;
+
+    private int TimedMinutePart => (Settings.TimedRaceMinutes ?? 0) % 60;
+
+    private int? EstimatedSeconds => RaceFormRules.EstimateDurationSeconds(Settings.NumberOfLaps, estimatedLapTimeMs);
+
+    private RaceFormModel PreviewForm => new() { RaceName = "Quick Race", TrackName = Settings.TrackName, TrackLayout = Settings.TrackLayout };
+
+    private IEnumerable<SelectOption> TrackSelectOptions => Tracks.Select(t => new SelectOption(t.TrackId, t.DisplayName));
+
+    private IEnumerable<SelectOption> LayoutSelectOptions =>
+        string.IsNullOrWhiteSpace(Settings.TrackName) || Layouts.Count == 0
+            ? Array.Empty<SelectOption>()
+            : Layouts.Select(l => new SelectOption(l.LayoutId, l.DisplayName));
+
+    private string? LayoutEmptyLabel
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Settings.TrackName))
+            {
+                return "Select a track first...";
+            }
+
+            if (Layouts.Count == 0)
+            {
+                return "(Default)";
+            }
+
+            return RaceFormRules.HasDefaultLayout(Layouts) ? null : "Select layout...";
+        }
+    }
+
+    private IEnumerable<SelectOption> CarSelectOptions => Cars.Select(c =>
+        new SelectOption(c.CarId, c.DisplayName, $"/car-thumb?car={Uri.EscapeDataString(c.CarId)}"));
+
+    private IEnumerable<SelectOption> HumanSkinOptions => humanSkins.Select(s =>
+        new SelectOption(s, s, ContentService.BuildSkinPreviewUrl(Human.Car, s)));
+
+    private string? HumanPreviewUrl => ContentService.BuildSkinPreviewUrl(Human.Car, Human.Skin);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.Equals(humanSkinsFor, Human.Car, StringComparison.OrdinalIgnoreCase))
+        {
+            humanSkinsFor = Human.Car;
+            humanSkins = string.IsNullOrWhiteSpace(Human.Car)
+                ? new List<string>()
+                : (await ContentService.GetSkinsAsync(Human.Car)).ToList();
+        }
+
+        var key = $"{Settings.TrackName}|{Settings.TrackLayout}";
+
+        if (estimateKey != key)
+        {
+            estimateKey = key;
+            await RefreshEstimatedLapTimeAsync();
+        }
+    }
+
+    private async Task RefreshEstimatedLapTimeAsync()
+    {
+        estimatedLapTimeMs = string.IsNullOrWhiteSpace(Settings.TrackName)
+            ? null
+            : await TrackService.GetBestLapTimeAsync(
+                Settings.TrackName,
+                string.IsNullOrWhiteSpace(Settings.TrackLayout) ? null : Settings.TrackLayout);
+    }
+
+    private async Task HandleTrackChangedAsync(string track)
+    {
+        Settings.TrackName = string.IsNullOrWhiteSpace(track) ? null : track;
+        Settings.TrackLayout = null;
+
+        // The page loads the layouts of the new track and fills in the default layout when there is one.
+        await OnTrackChanged.InvokeAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleLayoutChangedAsync(string layout)
+    {
+        Settings.TrackLayout = layout;
+        await OnChanged.InvokeAsync();
+    }
+
+    private Task SetRaceModeAsync(bool timed)
+    {
+        if (timed)
+        {
+            Settings.TimedRaceMinutes = Settings.TimedRaceMinutes is > 0 ? Settings.TimedRaceMinutes : 60;
+        }
+        else
+        {
+            Settings.TimedRaceMinutes = null;
+            Settings.NumberOfLaps ??= 10;
+        }
+
+        return OnChanged.InvokeAsync();
+    }
+
+    private void HandleLapsInput(ChangeEventArgs e)
+    {
+        Settings.NumberOfLaps = int.TryParse(e.Value?.ToString(), out var laps) ? laps : null;
+    }
+
+    // Dragging the slider only updates the label; the value is saved once, when it is let go.
+    private Task HandleLapsCommittedAsync(ChangeEventArgs e)
+    {
+        HandleLapsInput(e);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetTimedMinutesAsync(int minutes)
+    {
+        Settings.TimedRaceMinutes = Math.Clamp(minutes, RaceFormRules.MinTimedRaceMinutes, RaceFormRules.MaxTimedRaceMinutes);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandleTimedHoursChanged(string value)
+        => SetTimedMinutesAsync((int.TryParse(value, out var h) ? h : 0) * 60 + TimedMinutePart);
+
+    private Task HandleTimedMinutePartChanged(string value)
+        => SetTimedMinutesAsync(TimedHours * 60 + (int.TryParse(value, out var m) ? m : 0));
+
+    private static string FormatPreset(int minutes) => minutes < 60 ? $"{minutes} min" : $"{minutes / 60} h";
+
+    private Task HandleSafetyCarChanged(bool value)
+    {
+        Settings.UseSafetyCar = value;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandleAiDifficultyChanged(string value)
+    {
+        Settings.AiDifficulty = AiLevels.Parse(value) ?? 100;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandleAiAggressionChanged(string value)
+    {
+        Settings.AiAggression = AiLevels.Parse(value) ?? 50;
+        return OnChanged.InvokeAsync();
+    }
+
+    private int QualifyingMinutes => RaceFormRules.ClampQualifyingMinutes(Settings.QualifyingMinutes);
+
+    private Task HandleQualifyingEnabledChanged(bool value)
+    {
+        Settings.QualifyingEnabled = value;
+        return OnChanged.InvokeAsync();
+    }
+
+    private void HandleQualifyingMinutesInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var minutes))
+        {
+            Settings.QualifyingMinutes = Math.Clamp(minutes, RaceFormRules.MinQualifyingMinutes, RaceFormRules.MaxQualifyingMinutes);
+        }
+    }
+
+    // Dragging only updates the label; the value is saved once, when it is let go.
+    private Task HandleQualifyingMinutesCommittedAsync(ChangeEventArgs e)
+    {
+        HandleQualifyingMinutesInput(e);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandlePenaltiesChanged(bool value)
+    {
+        Settings.Penalties = value;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandleWeatherChangedAsync(string weather)
+    {
+        Settings.Weather = string.IsNullOrWhiteSpace(weather) ? SessionConditionOptions.DefaultWeather : weather;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task HandleTimeOfDayChangedAsync(string label)
+    {
+        var match = SessionConditionOptions.TimeOfDay.FirstOrDefault(o => o.Label == label);
+        Settings.SunAngle = match.Label is null ? SessionConditionOptions.DefaultSunAngle : match.SunAngle;
+        return OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleHumanCarChangedAsync(string car)
+    {
+        if (string.IsNullOrWhiteSpace(car))
+        {
+            return;
+        }
+
+        if (string.Equals(car, HumanDriver?.Car, StringComparison.OrdinalIgnoreCase))
+        {
+            // Back on the side menu driver's own car, with their skin: nothing to override.
+            Settings.HumanCar = null;
+            Settings.HumanSkin = null;
+        }
+        else
+        {
+            Settings.HumanCar = car;
+            Settings.HumanSkin = (await ContentService.GetSkinsAsync(car)).FirstOrDefault() ?? string.Empty;
+        }
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private Task HandleHumanSkinChangedAsync(string skin)
+    {
+        // Picking a skin for the default car makes it an explicit choice of this quick race.
+        Settings.HumanCar ??= Human.Car;
+        Settings.HumanSkin = skin;
+
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task UseDriverCarAsync()
+    {
+        Settings.HumanCar = null;
+        Settings.HumanSkin = null;
+
+        return OnChanged.InvokeAsync();
+    }
+}

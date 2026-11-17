@@ -97,7 +97,9 @@ function Exporter.ExportSessionResult(sessionType, sessionKey, trackName, totalL
   local targetDir = resolveTargetDir(sessionType, silent)
   if not targetDir then return end
 
-  local fileName = os.date("%y%m%d-%H%M%S") .. ".json"
+  -- A quick race is filed apart from the championship races by the prefix on its file name.
+  local prefix = Sess.IsQuickRace() and C.QUICK_RACE_FILE_PREFIX or ""
+  local fileName = prefix .. os.date("%y%m%d-%H%M%S") .. ".json"
   local targetPath = targetDir .. "/" .. fileName
   local contents = buildContents(sessionType, trackName, totalLaps)
 

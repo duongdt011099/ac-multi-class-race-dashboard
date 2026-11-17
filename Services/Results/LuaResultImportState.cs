@@ -2,6 +2,7 @@ using MulticlassRace.Models;
 
 namespace MulticlassRace.Services.Results;
 
+/// <summary>A result file found by the worker, with what its file name and content say about it.</summary>
 public sealed record PendingLuaResult(
     string FullPath,
     string FileName,
@@ -12,19 +13,21 @@ public sealed record PendingLuaResult(
     string? TargetRaceLabel);
 
 /// <summary>
-/// Holds results detected by <see cref="LuaResultImportWorker"/> until the user answers the
-/// confirmation prompt. One result is presented at a time.
+/// Shared state of the result import: whether a scan is running (the "checking for results" indicator),
+/// which files were already looked at, and the outcome messages the UI turns into toasts.
+/// Results are imported by <see cref="BackgroundServices.LuaResultImportWorker"/> without asking.
 /// </summary>
 public class LuaResultImportState
 {
     private readonly object _gate = new();
-    private readonly Queue<PendingLuaResult> _queue = new();
     private readonly HashSet<string> _knownPaths = new(StringComparer.OrdinalIgnoreCase);
     private bool _isScanning;
 
+    /// <summary>Raised when the scanning flag changes.</summary>
     public event Action? Changed;
 
-    public PendingLuaResult? Current { get; private set; }
+    /// <summary>Raised with the outcome of an automatic import, or when no result could be found.</summary>
+    public event Action<LuaResultImportOutcome>? OutcomeReported;
 
     public bool IsScanning
     {
@@ -52,17 +55,6 @@ public class LuaResultImportState
         }
     }
 
-    public int PendingCount
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _queue.Count;
-            }
-        }
-    }
-
     public bool IsKnown(string fullPath)
     {
         lock (_gate)
@@ -71,52 +63,37 @@ public class LuaResultImportState
         }
     }
 
-    public void Enqueue(PendingLuaResult result)
-    {
-        bool notify = false;
-
-        lock (_gate)
-        {
-            if (_knownPaths.Contains(result.FullPath))
-            {
-                return;
-            }
-
-            _knownPaths.Add(result.FullPath);
-            _queue.Enqueue(result);
-
-            if (Current is null)
-            {
-                Current = _queue.Dequeue();
-                notify = true;
-            }
-        }
-
-        if (notify)
-        {
-            Changed?.Invoke();
-        }
-    }
-
     /// <summary>
-    /// Records a path the user has already handled (imported or declined) so later scans skip
-    /// it without ever showing a prompt.
+    /// Remembers a path that has been dealt with (imported, failed or written as history) so later scans
+    /// skip it. Returns false when it was already known.
     /// </summary>
-    public void MarkHandled(string fullPath)
+    public bool MarkHandled(string fullPath)
     {
         lock (_gate)
         {
-            _knownPaths.Add(fullPath);
+            return _knownPaths.Add(fullPath);
         }
     }
 
-    public void Advance()
+    public void Report(LuaResultImportOutcome outcome)
     {
-        lock (_gate)
+        var handlers = OutcomeReported;
+
+        if (handlers is null)
         {
-            Current = _queue.Count > 0 ? _queue.Dequeue() : null;
+            return;
         }
 
-        Changed?.Invoke();
+        foreach (Action<LuaResultImportOutcome> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(outcome);
+            }
+            catch
+            {
+                // A circuit that went away must not stop the import from reporting to the others.
+            }
+        }
     }
 }

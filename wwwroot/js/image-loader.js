@@ -6,7 +6,8 @@
         '.wec-table__logo', '.wec-podium__logo', '.wec-drivers__livery', '.wec-drivers__car-img',
         '.wec-race-track__thumb', '.wec-nav-human__car-img', '.wec-nav-human__logo',
         '.wec-image-viewer__img', '.wec-track-preview__img', '.wec-form-field__preview',
-        '.wec-skin-preview__img', 'img.wec-imgselect__img', '.wec-navbar-brand__logo'
+        '.wec-skin-preview__img', 'img.wec-imgselect__img', '.wec-navbar-brand__logo',
+        'img.wec-qr-row__img', 'img.wec-qr-picker__img'
     ].join(',');
 
     // Shown in place of any picture that cannot be loaded. The address that failed is kept so the

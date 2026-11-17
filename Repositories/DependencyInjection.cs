@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<IPointSettingRepository, PointSettingRepository>();
         services.AddScoped<IAppUpdateStateRepository, AppUpdateStateRepository>();
         services.AddScoped<IImportedLuaResultRepository, ImportedLuaResultRepository>();
+        services.AddScoped<IQuickRaceRepository, QuickRaceRepository>();
         return services;
     }
 }

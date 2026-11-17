@@ -417,6 +417,67 @@ namespace multi_class_race_dashboard.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MulticlassRace.Models.QuickRaceResult", b =>
+                {
+                    b.Property<Guid>("QuickRaceResultId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DriverCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HumanClassName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("HumanClassPosition")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("HumanPosition")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("RaceDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TrackLayout")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TrackName")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("QuickRaceResultId");
+
+                    b.ToTable("QuickRaceResults");
+                });
+
+            modelBuilder.Entity("MulticlassRace.Models.QuickRaceSetup", b =>
+                {
+                    b.Property<Guid>("QuickRaceSetupId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastLaunchJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetupJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("QuickRaceSetupId");
+
+                    b.ToTable("QuickRaceSetups");
+                });
+
             modelBuilder.Entity("MulticlassRace.Models.Race", b =>
                 {
                     b.Property<Guid>("RaceId")

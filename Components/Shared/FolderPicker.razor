@@ -19,7 +19,13 @@
 {
     <Modal Title="@Title" OnClose="Close">
         <ChildContent>
-                <div class="wec-folder-picker__current">@CurrentPathLabel</div>
+                <div class="wec-folder-picker__path">
+                    <input type="text" class="wec-folder-picker__path-input" aria-label="Folder path"
+                           placeholder="@CurrentPathLabel - paste a folder path and press Enter"
+                           title="Paste or type a path, then press Enter or click Go"
+                           value="@pathInput" @oninput="HandlePathInput" @onkeydown="HandlePathKeyDown" />
+                    <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="GoToTypedPath">Go</button>
+                </div>
 
                 <div class="wec-folder-picker__list">
                     @if (isLoading)
@@ -98,6 +104,7 @@
     private bool isLoading;
     private string currentPath = string.Empty;
     private string? selectedPath;
+    private string pathInput = string.Empty;
     private List<FolderEntry> entries = new();
 
     private string ValueDisplay => string.IsNullOrWhiteSpace(Value) ? "" : Value;
@@ -125,6 +132,71 @@
         currentPath = path;
         selectedPath = null;
         _ = LoadEntriesAsync();
+    }
+
+    private void HandlePathInput(ChangeEventArgs e) => pathInput = e.Value?.ToString() ?? string.Empty;
+
+    private async Task HandlePathKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await GoToTypedPath();
+        }
+    }
+
+    /// <summary>Opens the path typed or pasted into the box: a folder, or (when files are listed) a file inside one.</summary>
+    private async Task GoToTypedPath()
+    {
+        var raw = Environment.ExpandEnvironmentVariables(pathInput.Trim().Trim('"'));
+
+        if (raw.Length == 0)
+        {
+            await GoHome();
+            return;
+        }
+
+        // "D:" alone means the current folder on that drive; a person typing it means the drive's root.
+        if (raw.Length == 2 && raw[1] == ':')
+        {
+            raw += Path.DirectorySeparatorChar;
+        }
+
+        string full;
+
+        try
+        {
+            full = Path.GetFullPath(raw);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Toast.Show("That is not a valid path.", isError: true);
+            return;
+        }
+
+        string? file = null;
+
+        if (IncludeFiles && File.Exists(full))
+        {
+            file = full;
+            full = Path.GetDirectoryName(full) ?? full;
+        }
+
+        if (!Directory.Exists(full))
+        {
+            Toast.Show("That folder does not exist.", isError: true);
+            return;
+        }
+
+        if (RootPath is not null && !IsInsideRoot(full))
+        {
+            Toast.Show($"Choose a folder inside {RootPath}.", isError: true);
+            return;
+        }
+
+        currentPath = full;
+        selectedPath = file;
+        pathInput = full;
+        await LoadEntriesAsync();
     }
 
     private void Close()
@@ -188,6 +260,7 @@
     {
         isLoading = true;
         entries = new List<FolderEntry>();
+        pathInput = currentPath;
 
         try
         {

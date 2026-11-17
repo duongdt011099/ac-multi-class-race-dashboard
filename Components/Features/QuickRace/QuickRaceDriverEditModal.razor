@@ -1,0 +1,111 @@
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.QuickRace
+@using MulticlassRace.ViewModels
+@inject IAssettoCorsaContentService ContentService
+@inject IRandomNameService RandomNames
+
+<Modal Title="@($"Edit {Entry.DriverName}")" Size="ModalSize.Wide" OnClose="OnClose" ModalClass="wec-qr-picker">
+    <ChildContent>
+        <div class="wec-qr-custom">
+            <div class="wec-form-row">
+                <FormField For="qr-edit-car" Label="Car">
+                    <ImageSelect Id="qr-edit-car" Value="@car" ValueChanged="HandleCarChangedAsync" Options="CarSelectOptions"
+                                 EmptyLabel="Select car..." OrphanLabel="@($"{car} (not found on disk)")" />
+                </FormField>
+
+                <FormField For="qr-edit-skin" Label="Skin">
+                    <ImageSelect Id="qr-edit-skin" @bind-Value="skin" Options="SkinSelectOptions"
+                                 EmptyLabel="Random skin" EmptyIcon="bi-question-lg"
+                                 Disabled="@(string.IsNullOrWhiteSpace(car) || skins.Count == 0)" />
+                </FormField>
+            </div>
+
+            <CheckboxField Id="qr-edit-random" Label="Use Random Name" Value="useRandomName" ValueChanged="HandleRandomNameChanged" />
+
+            <FormField For="qr-edit-name" Label="Driver Name">
+                <input id="qr-edit-name" type="text" maxlength="60" disabled="@useRandomName" placeholder="Type the driver's name"
+                       value="@name" @oninput="e => name = e.Value?.ToString() ?? string.Empty" />
+            </FormField>
+        </div>
+    </ChildContent>
+    <Footer>
+        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+        <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(string.IsNullOrWhiteSpace(car) || string.IsNullOrWhiteSpace(name))"
+                @onclick="SaveAsync">Save</button>
+    </Footer>
+</Modal>
+
+@code {
+    private string car = string.Empty;
+    private string skin = string.Empty;
+    private string name = string.Empty;
+    private bool useRandomName;
+    private List<string> skins = new();
+
+    [Parameter, EditorRequired] public QuickRaceEntryModel Entry { get; set; } = default!;
+
+    [Parameter] public IReadOnlyList<CarOptionModel> Cars { get; set; } = Array.Empty<CarOptionModel>();
+
+    [Parameter] public IReadOnlySet<string> UsedNames { get; set; } = new HashSet<string>();
+
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private IEnumerable<SelectOption> CarSelectOptions => Cars.Select(c =>
+        new SelectOption(c.CarId, c.DisplayName, $"/car-thumb?car={Uri.EscapeDataString(c.CarId)}"));
+
+    private IEnumerable<SelectOption> SkinSelectOptions => skins.Select(s =>
+        new SelectOption(s, s, ContentService.BuildSkinPreviewUrl(car, s)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        car = Entry.Car;
+        skin = Entry.Skin;
+        name = Entry.DriverName;
+        skins = string.IsNullOrWhiteSpace(car) ? new List<string>() : (await ContentService.GetSkinsAsync(car)).ToList();
+    }
+
+    private async Task HandleCarChangedAsync(string value)
+    {
+        car = value;
+        skin = string.Empty;
+        skins = string.IsNullOrWhiteSpace(value) ? new List<string>() : (await ContentService.GetSkinsAsync(value)).ToList();
+    }
+
+    private void HandleRandomNameChanged(bool value)
+    {
+        useRandomName = value;
+
+        if (value)
+        {
+            var taken = UsedNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            taken.Remove(Entry.DriverName);
+            name = RandomNames.Generate(taken);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(car) || string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(skin) && skins.Count > 0)
+        {
+            skin = skins[Random.Shared.Next(skins.Count)];
+        }
+
+        if (!string.Equals(car, Entry.Car, StringComparison.OrdinalIgnoreCase))
+        {
+            Entry.CarDisplayName = Cars.FirstOrDefault(c => string.Equals(c.CarId, car, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? car;
+        }
+
+        Entry.Car = car;
+        Entry.Skin = skin;
+        Entry.DriverName = name.Trim();
+
+        await OnSave.InvokeAsync();
+    }
+}

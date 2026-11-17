@@ -1,0 +1,222 @@
+@using System.Globalization
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.ViewModels
+@inject IAssettoCorsaContentService ContentService
+@inject ITrackService TrackService
+
+<div class="wec-qr-result">
+        <div class="wec-qr-result__body">
+            <section class="wec-qr-result__main">
+                @if (Selected is null)
+                {
+                    <div class="wec-empty wec-empty--block">Select a race from the history to see its result.</div>
+                }
+                else
+                {
+                    <div class="wec-session-block">
+                        <div class="wec-session-block__date">
+                            @Selected.RaceDate.ToString("ddd, dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+                            @if (!string.IsNullOrWhiteSpace(Selected.TrackName))
+                            {
+                                <span class="wec-qr-result__track"> · @TrackLabel(Selected.TrackName)</span>
+                            }
+                        </div>
+
+                        @if (ClassNames.Count > 1)
+                        {
+                            <div class="wec-session-toolbar">
+                                <label for="qr-result-class" class="wec-session-toolbar__label">Class</label>
+                                <ImageSelect ShowImages="false" Id="qr-result-class" CssClass="wec-session-toolbar__select"
+                                             Value="@ClassFilter" ValueChanged="value => classFilter = value"
+                                             Options="ClassOptions" />
+                            </div>
+                        }
+
+                        <div class="wec-table-scroll">
+                            <table class="wec-table wec-qr-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pos</th>
+                                        <th>Driver</th>
+                                        <th>Car</th>
+                                        <th>Class</th>
+                                        @if (hasQualifying)
+                                        {
+                                            <th>Qualified</th>
+                                        }
+                                        <th>Laps</th>
+                                        <th>Best Lap</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in VisibleRows)
+                                    {
+                                        var image = ContentService.BuildSkinPreviewUrl(row.Car, row.Skin);
+                                        <tr class="@(row.IsHuman ? "wec-qr-table__you" : "")">
+                                            <td class="wec-table__position">@(ClassFilter == AllClasses ? row.Position : row.ClassPosition)</td>
+                                            <td>
+                                                <span class="wec-qr-table__driver">
+                                                    @if (!string.IsNullOrWhiteSpace(image))
+                                                    {
+                                                        <img src="@image" alt="" class="wec-qr-row__img" loading="lazy" />
+                                                    }
+                                                    <span>@row.DriverName</span>
+                                                    @if (row.IsHuman)
+                                                    {
+                                                        <span class="wec-qr-row__you">YOU</span>
+                                                    }
+                                                </span>
+                                            </td>
+                                            <td>@row.CarDisplayName</td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(row.ClassName))
+                                                {
+                                                    <span class="wec-badge" style="background-color: @row.ClassColor">@row.ClassName</span>
+                                                }
+                                            </td>
+                                            @if (hasQualifying)
+                                            {
+                                                <td>@(row.QualifyingPosition is { } q ? $"P{q}" : "—")@(row.QualifyingTimeMs is { } t ? $" · {RaceFormat.FormatLap(t)}" : "")</td>
+                                            }
+                                            <td class="wec-table__position">@row.LapCount</td>
+                                            <td>@RaceFormat.FormatLap(row.BestLapTimeMs)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <aside class="wec-qr-history" aria-label="Race history">
+                <div class="wec-qr-history__title">Race history</div>
+
+                @if (History.Count == 0)
+                {
+                    <div class="wec-empty">No races yet.</div>
+                }
+                else
+                {
+                    <ul class="wec-qr-history__list">
+                        @foreach (var item in History)
+                        {
+                            var current = item;
+                            <li>
+                                <button type="button" class="wec-qr-history__item @(Selected?.ResultId == current.ResultId ? "wec-qr-history__item--active" : "")"
+                                        @onclick="() => OnSelect.InvokeAsync(current.ResultId)">
+                                    <span class="wec-qr-history__date">@current.RaceDate.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)</span>
+                                    <span class="wec-qr-history__pos @PositionClass(current.HumanPosition)">
+                                        @(current.HumanPosition is { } position ? $"P{position}" : "-")
+                                    </span>
+                                    <span class="wec-qr-history__meta">
+                                        @(string.IsNullOrWhiteSpace(current.TrackName) ? "Unknown track" : TrackLabel(current.TrackName))
+                                        · @current.DriverCount cars
+                                    </span>
+                                </button>
+                                <button type="button" class="wec-qr-icon wec-qr-icon--danger" title="Delete this race" aria-label="Delete this race"
+                                        @onclick="() => confirmDelete = current">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </aside>
+        </div>
+</div>
+
+@if (confirmDelete is not null)
+{
+    <ConfirmDialog Title="Delete Race" IsBusy="isDeleting" OnCancel="() => confirmDelete = null" OnConfirm="DeleteConfirmedAsync">
+        Delete the race of @confirmDelete.RaceDate.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture) from the history?
+    </ConfirmDialog>
+}
+
+@code {
+    private QuickRaceHistoryItem? confirmDelete;
+    private bool isDeleting;
+    private readonly Dictionary<string, string> trackNames = new(StringComparer.OrdinalIgnoreCase);
+
+    [Parameter] public QuickRaceResultModel? Selected { get; set; }
+
+    [Parameter] public IReadOnlyList<QuickRaceHistoryItem> History { get; set; } = Array.Empty<QuickRaceHistoryItem>();
+
+    [Parameter] public EventCallback<Guid> OnSelect { get; set; }
+
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var names = History.Select(h => h.TrackName).Append(Selected?.TrackName)
+            .Where(n => !string.IsNullOrWhiteSpace(n) && !trackNames.ContainsKey(n!))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in names)
+        {
+            trackNames[name!] = await TrackService.GetTrackDisplayNameAsync(name);
+        }
+    }
+
+    private const string AllClasses = "";
+
+    // A car without a class (it was not on the grid that launched) is listed under "Other".
+    private static string ClassOf(QuickRaceResultRow row) => string.IsNullOrWhiteSpace(row.ClassName) ? "Other" : row.ClassName;
+    private string? classFilter;
+
+    /// <summary>Classes of the selected race, the one that finished furthest ahead first.</summary>
+    private IReadOnlyList<string> ClassNames => Selected is null
+        ? Array.Empty<string>()
+        : Selected.Rows
+            .GroupBy(r => ClassOf(r), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Min(r => r.Position))
+            .Select(g => g.Key)
+            .ToList();
+
+    /// <summary>The class shown: the one picked, otherwise the leading class. Empty when the race has no classes.</summary>
+    private string ClassFilter => classFilter is not null && ClassNames.Contains(classFilter, StringComparer.OrdinalIgnoreCase)
+        ? classFilter
+        : ClassNames.FirstOrDefault() ?? AllClasses;
+
+    private IEnumerable<SelectOption> ClassOptions =>
+        ClassNames.Select(c => new SelectOption(c, c));
+
+    private IEnumerable<QuickRaceResultRow> VisibleRows => Selected is null
+        ? Array.Empty<QuickRaceResultRow>()
+        : ClassFilter == AllClasses
+            ? Selected.Rows.OrderBy(r => r.Position)
+            : Selected.Rows.Where(r => string.Equals(ClassOf(r), ClassFilter, StringComparison.OrdinalIgnoreCase)).OrderBy(r => r.ClassPosition);
+
+    private bool hasQualifying => Selected?.Rows.Any(r => r.QualifyingPosition is not null) == true;
+
+    private string TrackLabel(string? track)
+        => !string.IsNullOrWhiteSpace(track) && trackNames.TryGetValue(track, out var display) ? display : track ?? string.Empty;
+
+    private static string PositionClass(int? position) => position switch
+    {
+        1 => "wec-qr-history__pos--gold",
+        2 => "wec-qr-history__pos--silver",
+        3 => "wec-qr-history__pos--bronze",
+        _ => string.Empty
+    };
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (confirmDelete is null)
+        {
+            return;
+        }
+
+        isDeleting = true;
+
+        try
+        {
+            await OnDelete.InvokeAsync(confirmDelete.ResultId);
+        }
+        finally
+        {
+            isDeleting = false;
+            confirmDelete = null;
+        }
+    }
+}

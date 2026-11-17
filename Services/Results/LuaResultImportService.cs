@@ -99,12 +99,7 @@ public class LuaResultImportService : ILuaResultImportService
             return;
         }
 
-        var sessionDate = DateTime.TryParseExact(
-            Path.GetFileNameWithoutExtension(fileName),
-            LuaResultPaths.FileNameFormat,
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.None,
-            out var parsed)
+        var sessionDate = LuaResultPaths.TryParseFileName(fileName, out var parsed, out _)
             ? parsed
             : DateTime.MinValue;
 

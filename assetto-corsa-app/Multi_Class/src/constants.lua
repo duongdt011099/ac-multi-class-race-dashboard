@@ -359,10 +359,15 @@ C.SAFETY_CAR_PARK_MAX_SECONDS = 25
 C.SAFETY_CAR_RELEASE_MAX_SECONDS = 6
 
 -- The dashboard watches these subfolders and derives the session type from the
--- folder name, so every file must be named exactly yyMMdd-HHmmss.json.
+-- folder name, so every file must be named yyMMdd-HHmmss.json, or quick-race-yyMMdd-HHmmss.json
+-- for the result of a quick race (see QUICK_RACE_FILE_PREFIX).
 C.SUBFOLDER_PRACTICE   = "practice"
 C.SUBFOLDER_QUALIFYING = "qualifying"
 C.SUBFOLDER_RACE       = "race"
+
+-- Result files of a quick race start with this, so the dashboard files them in the quick race history
+-- instead of importing them into a championship race.
+C.QUICK_RACE_FILE_PREFIX = "quick-race-"
 
 -- ac.StateSession.type and ac.SimState.raceSessionType are ac.SessionType enums, which
 -- survive the end of a session. The session *name* does not, which is why the export

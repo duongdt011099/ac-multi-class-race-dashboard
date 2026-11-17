@@ -1,0 +1,82 @@
+@page "/quick-race"
+@rendermode Interactive
+@using MulticlassRace.Models
+@using MulticlassRace.ViewModels
+@using multi_class_race_dashboard.Components.Features.QuickRace
+@using multi_class_race_dashboard.Components.Features.Races
+@inherits PageBase
+@implements IDisposable
+
+<PageHeader Title="Quick Race" />
+
+@if (isLoading)
+{
+    <div class="wec-empty wec-empty--block">Loading quick race...</div>
+}
+else
+{
+    <div class="wec-tabs wec-qr-tabs" data-tour="quick-race-tabs">
+        <button type="button" class="wec-tab @(tab == QuickRaceTab.Settings ? "wec-tab--active" : "")"
+                @onclick="() => tab = QuickRaceTab.Settings">Race Settings</button>
+        <button type="button" class="wec-tab @(tab == QuickRaceTab.Drivers ? "wec-tab--active" : "")"
+                @onclick="() => tab = QuickRaceTab.Drivers">Drivers</button>
+        <button type="button" class="wec-tab @(tab == QuickRaceTab.Result ? "wec-tab--active" : "") @(HasResults ? "" : "wec-tab--disabled")"
+                disabled="@(!HasResults)" title="@(HasResults ? null : "The result appears here after your first race.")"
+                @onclick="() => tab = QuickRaceTab.Result">Result</button>
+    </div>
+
+    @switch (tab)
+    {
+        case QuickRaceTab.Settings:
+            <QuickRaceSettingsTab Settings="setup.Settings" Human="human" HumanDriver="humanDriver" Tracks="tracks" Cars="cars"
+                                  Layouts="layouts" OnChanged="HandleSettingsChangedAsync" OnTrackChanged="HandleTrackChangedAsync" />
+            break;
+
+        case QuickRaceTab.Drivers:
+            <QuickRaceDriversTab Setup="setup" Human="human" ClassSettings="classSettings" Drivers="allDrivers" Cars="cars"
+                                 QualifyingEnabled="setup.Settings.QualifyingEnabled" QualifyingCompleted="setup.QualifyingCompleted"
+                                 OnChanged="HandleGridChangedAsync" />
+            break;
+
+        default:
+            <QuickRaceResultTab Selected="selectedResult" History="history"
+                                OnSelect="SelectResultAsync"
+                                OnDelete="DeleteResultAsync" />
+            break;
+    }
+
+    @if (tab != QuickRaceTab.Result)
+    {
+        <div class="wec-qr-next">
+            @if (awaitingResult && tab == QuickRaceTab.Drivers)
+            {
+                <span class="wec-qr-start__note" role="status">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    @(NextSession == SessionType.Race ? "The race is running. Its result appears in the Result tab when it ends." : "Qualifying is running. The grid is updated when the session ends.")
+                </span>
+            }
+
+            @if (tab == QuickRaceTab.Settings)
+            {
+                <ToolbarButton Icon="bi-arrow-right" OnClick="GoNext">Next</ToolbarButton>
+            }
+            else
+            {
+                @if (setup.QualifyingCompleted)
+                {
+                    <ToolbarButton Icon="bi-arrow-counterclockwise" OnClick="RedoQualifyingAsync">Redo Qualifying</ToolbarButton>
+                }
+                <span class="wec-btn-title" title="@StartHint">
+                    <ToolbarButton Icon="bi-play-fill" Disabled="@(!CanStart || isStarting)" OnClick="StartAsync">
+                        @(isStarting ? "Starting..." : StartLabel)
+                    </ToolbarButton>
+                </span>
+            }
+        </div>
+    }
+}
+
+@if (celebration is not null)
+{
+    <ResultCelebrationPopup Celebration="celebration" Colors="celebrationColors" ShowPoints="false" OnClose="() => celebration = null" />
+}

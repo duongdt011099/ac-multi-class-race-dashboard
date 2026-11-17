@@ -1,0 +1,346 @@
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.QuickRace
+@using MulticlassRace.ViewModels
+@inject IAssettoCorsaContentService ContentService
+@inject IRandomNameService RandomNames
+@inject MulticlassRace.Services.Notifications.ToastService Toast
+
+<Modal Title="@($"Add drivers to {TargetClass.Name}")" Size="ModalSize.Wide" OnClose="OnClose" ModalClass="wec-qr-picker">
+    <ChildContent>
+        @if (CanAddCustom)
+        {
+            <div class="wec-tabs">
+                <button type="button" class="wec-tab @(!showCustom ? "wec-tab--active" : "")" @onclick="() => showCustom = false">From Teams</button>
+                <button type="button" class="wec-tab @(showCustom ? "wec-tab--active" : "")" @onclick="() => showCustom = true">Custom Driver</button>
+            </div>
+        }
+
+        @if (!showCustom)
+        {
+            <div class="wec-qr-picker__filters">
+                @if (Mode == QuickRaceGridMode.Custom)
+                {
+                    <ImageSelect ShowImages="false" Id="qr-picker-tag" CssClass="wec-qr-picker__tag" aria-label="Class tag" Value="@tagFilter"
+                                 ValueChanged="value => tagFilter = value" EmptyLabel="All Cars" Options="TagOptions" />
+                }
+                else
+                {
+                    <span class="wec-badge" style="background-color: @TargetClass.Color">@TargetClass.Name</span>
+                    <span class="wec-text-muted">Drivers of the teams in this class</span>
+                }
+                <input type="text" class="wec-qr-picker__search" placeholder="Search driver or team..." aria-label="Search drivers"
+                       value="@search" @oninput="e => search = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            @if (SelectableDrivers.Count > 0)
+            {
+                <label class="wec-qr-picker__all">
+                    <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll" />
+                    <span>Select all (@SelectableDrivers.Count)</span>
+                </label>
+            }
+
+            <div class="wec-qr-picker__list">
+                @if (!VisibleDrivers.Any())
+                {
+                    <div class="wec-empty">
+                        @(Drivers.Count == 0 ? "There are no drivers yet. Create teams and drivers first, or add a custom driver." : "No drivers match.")
+                    </div>
+                }
+                else
+                {
+                    @foreach (var driver in VisibleDrivers)
+                    {
+                        var used = UsedDriverIds.Contains(driver.DriverId);
+                        var checkedNow = selectedIds.Contains(driver.DriverId);
+                        <label class="wec-qr-picker__row @(used ? "wec-qr-picker__row--used" : "")">
+                            <input type="checkbox" checked="@(checkedNow || used)" disabled="@used" @onchange="() => Toggle(driver.DriverId)" />
+                            @if (!string.IsNullOrWhiteSpace(driver.CarImageUrl))
+                            {
+                                <img src="@driver.CarImageUrl" alt="" class="wec-qr-picker__img" loading="lazy" draggable="false" />
+                            }
+                            else
+                            {
+                                <span class="wec-qr-picker__img wec-qr-picker__img--empty"><i class="bi bi-car-front"></i></span>
+                            }
+                            <span class="wec-qr-picker__name">@driver.DriverName</span>
+                            <span class="wec-qr-picker__meta">@driver.CarDisplayName</span>
+                            <span class="wec-qr-picker__meta">@(driver.TeamName ?? "No team")</span>
+                            @if (used)
+                            {
+                                <span class="wec-badge wec-badge--default">On the grid</span>
+                            }
+                            else
+                            {
+                                @foreach (var tag in driver.ClassTags.Take(2))
+                                {
+                                    <span class="wec-badge" style="background-color: @tag.Color">@tag.ItemName</span>
+                                }
+                            }
+                        </label>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <div class="wec-qr-custom">
+                <div class="wec-form-row">
+                    <FormField For="qr-custom-car" Label="Car">
+                        <ImageSelect Id="qr-custom-car" Value="@customCar" ValueChanged="HandleCustomCarChangedAsync"
+                                     Options="CarSelectOptions" EmptyLabel="Select car..." />
+                    </FormField>
+
+                    <FormField For="qr-custom-skin" Label="Skin">
+                        <ImageSelect Id="qr-custom-skin" @bind-Value="customSkin" Options="SkinSelectOptions"
+                                     EmptyLabel="Random skin" EmptyIcon="bi-question-lg"
+                                     Disabled="@(string.IsNullOrWhiteSpace(customCar) || customSkins.Count == 0)" />
+                    </FormField>
+                </div>
+
+                <CheckboxField Id="qr-custom-random" Label="Use Random Name" Value="useRandomName" ValueChanged="HandleRandomNameChanged"
+                               Title="Pick a common American first and last name for the driver." />
+
+                <div class="wec-form-row">
+                    <FormField For="qr-custom-name" Label="Driver Name">
+                        <div class="wec-qr-custom__name">
+                            <input id="qr-custom-name" type="text" maxlength="60" disabled="@useRandomName"
+                                   placeholder="Type the driver's name"
+                                   value="@(useRandomName ? namePreview : customName)" @oninput="e => customName = e.Value?.ToString() ?? string.Empty" />
+                        </div>
+                    </FormField>
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="wec-modal__btn wec-modal__btn--secondary" @onclick="() => CloseAsync()">Cancel</button>
+        @if (!showCustom)
+        {
+            <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(selectedIds.Count == 0)" @onclick="AddSelectedAsync">
+                Add @(selectedIds.Count == 0 ? "" : selectedIds.Count.ToString()) driver@(selectedIds.Count == 1 ? "" : "s")
+            </button>
+        }
+        else
+        {
+            <button type="button" class="wec-modal__btn wec-modal__btn--primary" disabled="@(!CanAddCustomDriver || isAdding)" @onclick="AddCustomAsync">
+                @(isAdding ? "Adding..." : "Add to grid")
+            </button>
+        }
+    </Footer>
+</Modal>
+
+@code {
+    private bool showCustom;
+    private string tagFilter = string.Empty;
+    private string search = string.Empty;
+    private readonly HashSet<Guid> selectedIds = new();
+
+    private string customCar = string.Empty;
+    private string customSkin = string.Empty;
+    private List<string> customSkins = new();
+    private bool useRandomName = true;
+    private string customName = string.Empty;
+    private string namePreview = string.Empty;
+    private bool isAdding;
+
+    [Parameter, EditorRequired] public QuickRaceGridMode Mode { get; set; }
+
+    [Parameter, EditorRequired] public QuickRaceClassModel TargetClass { get; set; } = default!;
+
+    /// <summary>The team drivers that can be added (the human driver is already on the grid).</summary>
+    [Parameter] public IReadOnlyList<DriverModel> Drivers { get; set; } = Array.Empty<DriverModel>();
+
+    /// <summary>Team drivers already on the grid; a driver can only race once.</summary>
+    [Parameter] public IReadOnlySet<Guid> UsedDriverIds { get; set; } = new HashSet<Guid>();
+
+    /// <summary>Names already on the grid, so random names do not repeat them.</summary>
+    [Parameter] public IReadOnlySet<string> UsedNames { get; set; } = new HashSet<string>();
+
+    [Parameter] public IReadOnlyList<CarOptionModel> Cars { get; set; } = Array.Empty<CarOptionModel>();
+
+    [Parameter] public EventCallback<IReadOnlyList<QuickRaceEntryModel>> OnAdd { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Custom drivers only exist in a custom grid; a class system grid takes its drivers from the teams.</summary>
+    private bool CanAddCustom => Mode == QuickRaceGridMode.Custom;
+
+    private bool CanAddCustomDriver =>
+        !string.IsNullOrWhiteSpace(customCar) && (useRandomName || !string.IsNullOrWhiteSpace(customName));
+
+    private IEnumerable<SelectOption> TagOptions =>
+        Drivers.SelectMany(d => d.ClassTags).DistinctLabels().Select(l => new SelectOption(l, l));
+
+    private IEnumerable<DriverModel> VisibleDrivers
+    {
+        get
+        {
+            IEnumerable<DriverModel> drivers = Drivers;
+
+            if (Mode == QuickRaceGridMode.ExistingClasses)
+            {
+                // The column is a class of the class setting: only drivers whose team holds that class.
+                drivers = drivers.Where(d => d.ClassTags.Any(t => t.ClassSettingItemId == TargetClass.ClassId));
+            }
+            else if (!string.IsNullOrEmpty(tagFilter))
+            {
+                drivers = drivers.Where(d => d.ClassTags.HasLabel(tagFilter));
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                drivers = drivers.Where(d =>
+                    d.DriverName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || (d.TeamName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || d.CarDisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return drivers
+                .OrderBy(d => d.TeamName ?? "￿", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.DriverName, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private IEnumerable<SelectOption> CarSelectOptions => Cars.Select(c =>
+        new SelectOption(c.CarId, c.DisplayName, $"/car-thumb?car={Uri.EscapeDataString(c.CarId)}"));
+
+    private IEnumerable<SelectOption> SkinSelectOptions => customSkins.Select(s =>
+        new SelectOption(s, s, ContentService.BuildSkinPreviewUrl(customCar, s)));
+
+    protected override void OnInitialized() => RollPreview();
+
+    private List<DriverModel> SelectableDrivers => VisibleDrivers.Where(d => !UsedDriverIds.Contains(d.DriverId)).ToList();
+
+    private bool AllSelected => SelectableDrivers.Count > 0 && SelectableDrivers.All(d => selectedIds.Contains(d.DriverId));
+
+    // Ticks (or clears) every driver the current filter shows and that is not on the grid yet.
+    private void ToggleAll()
+    {
+        var drivers = SelectableDrivers;
+
+        if (AllSelected)
+        {
+            drivers.ForEach(d => selectedIds.Remove(d.DriverId));
+        }
+        else
+        {
+            drivers.ForEach(d => selectedIds.Add(d.DriverId));
+        }
+    }
+
+    private void Toggle(Guid driverId)
+    {
+        if (!selectedIds.Add(driverId))
+        {
+            selectedIds.Remove(driverId);
+        }
+    }
+
+    private void RollPreview() => namePreview = RandomNames.Generate(UsedNames.ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+    private void HandleRandomNameChanged(bool value)
+    {
+        useRandomName = value;
+
+        if (value)
+        {
+            RollPreview();
+        }
+    }
+
+    private async Task HandleCustomCarChangedAsync(string car)
+    {
+        customCar = car;
+        customSkin = string.Empty;
+        customSkins = string.IsNullOrWhiteSpace(car) ? new List<string>() : (await ContentService.GetSkinsAsync(car)).ToList();
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    private async Task AddSelectedAsync()
+    {
+        var entries = Drivers
+            .Where(d => selectedIds.Contains(d.DriverId) && !UsedDriverIds.Contains(d.DriverId))
+            .Select(d => new QuickRaceEntryModel
+            {
+                DriverName = d.DriverName,
+                Car = d.Car,
+                Skin = d.Skin,
+                CarDisplayName = d.CarDisplayName,
+                TeamName = d.TeamName,
+                Nationality = d.Nationality,
+                AiStrength = d.DriverStrength,
+                AiAggression = d.DriverAgression,
+                SourceDriverId = d.DriverId
+            })
+            .ToList();
+
+        if (entries.Count > 0)
+        {
+            await OnAdd.InvokeAsync(entries);
+        }
+    }
+
+    private async Task AddCustomAsync()
+    {
+        if (!CanAddCustomDriver)
+        {
+            return;
+        }
+
+        isAdding = true;
+
+        try
+        {
+            var taken = UsedNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var display = Cars.FirstOrDefault(c => string.Equals(c.CarId, customCar, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? customCar;
+            var entries = new List<QuickRaceEntryModel>();
+
+            for (var i = 0; i < 1; i++)
+            {
+                string name;
+
+                if (useRandomName)
+                {
+                    name = i == 0 && !string.IsNullOrWhiteSpace(namePreview) && !taken.Contains(namePreview)
+                        ? namePreview
+                        : RandomNames.Generate(taken);
+                    taken.Add(name);
+                }
+                else
+                {
+                    name = customName.Trim();
+                }
+
+                // Without a chosen skin the game would pick one at start; picking it here keeps the picture
+                // on the grid the car that actually races.
+                var skin = customSkin;
+
+                if (string.IsNullOrWhiteSpace(skin) && customSkins.Count > 0)
+                {
+                    skin = customSkins[Random.Shared.Next(customSkins.Count)];
+                }
+
+                entries.Add(new QuickRaceEntryModel
+                {
+                    DriverName = name,
+                    Car = customCar,
+                    Skin = skin,
+                    CarDisplayName = display
+                });
+            }
+
+            await OnAdd.InvokeAsync(entries);
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not add the driver: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            isAdding = false;
+        }
+    }
+}

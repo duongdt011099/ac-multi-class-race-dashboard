@@ -49,6 +49,35 @@ public static class SessionManifestBuilder
         }, JsonOptions);
     }
 
+    /// <summary>
+    /// The session file of a quick race. The classes are the grid's own columns, so there is no race or
+    /// class setting behind it.
+    /// </summary>
+    /// <param name="classes">The columns that have a car, in grid order.</param>
+    /// <param name="cars">Grid index 0 is the human; the rest follow in start order.</param>
+    public static string BuildQuickRace(
+        IReadOnlyList<(string Name, string Color)> classes,
+        IReadOnlyList<ViewModels.QuickRaceLaunchCar> cars,
+        SessionType sessionType = SessionType.Race)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            version = Version,
+            quickRace = true,
+            sessionType = sessionType.ToString().ToLowerInvariant(),
+            createdUtc = DateTimeOffset.UtcNow,
+            classes = classes.Select((c, index) => new { name = c.Name.Trim(), order = index, color = c.Color }).ToList(),
+            cars = cars.Select(c => new
+            {
+                index = c.Index,
+                carId = c.Car.Trim(),
+                driverName = c.DriverName.Trim(),
+                team = c.TeamName ?? string.Empty,
+                @class = c.ClassName.Trim()
+            }).ToList()
+        }, JsonOptions);
+    }
+
     private static object CarEntry(int index, Race race, Driver driver) => new
     {
         index,

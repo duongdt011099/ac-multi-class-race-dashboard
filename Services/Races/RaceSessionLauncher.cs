@@ -202,14 +202,19 @@ public class RaceSessionLauncher : IRaceSessionLauncher
     /// <summary>The configured safety car when it is installed, otherwise the first car found in the game folder.</summary>
     private async Task<string?> ResolveSafetyCarAsync(string gamePath)
     {
+        var configured = (await (_configService?.GetAsync() ?? Task.FromResult<MulticlassRace.ViewModels.AssettoCorsaGameConfigModel?>(null)))?.SafetyCar?.Trim();
+
+        return ResolveSafetyCar(gamePath, configured);
+    }
+
+    internal static string? ResolveSafetyCar(string gamePath, string? configured)
+    {
         var carsRoot = Path.Combine(gamePath, "content", "cars");
 
         if (!Directory.Exists(carsRoot))
         {
             return null;
         }
-
-        var configured = (await (_configService?.GetAsync() ?? Task.FromResult<MulticlassRace.ViewModels.AssettoCorsaGameConfigModel?>(null)))?.SafetyCar?.Trim();
 
         if (IsSafeFolderSegment(configured) && Directory.Exists(Path.Combine(carsRoot, configured!)))
         {
@@ -219,7 +224,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         return Directory.GetDirectories(carsRoot).Select(Path.GetFileName).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
     }
 
-    private static bool HasTrackAiSpline(string gamePath, string? trackName, string? layout)
+    internal static bool HasTrackAiSpline(string gamePath, string? trackName, string? layout)
     {
         if (!IsSafeFolderSegment(trackName) ||
             (!string.IsNullOrWhiteSpace(layout) && !IsSafeFolderSegment(layout)))
@@ -259,7 +264,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
         }
     }
 
-    private static bool IsSafeFolderSegment(string? value)
+    internal static bool IsSafeFolderSegment(string? value)
     {
         return !string.IsNullOrWhiteSpace(value) &&
                value.Trim() is not "." and not ".." &&
@@ -278,7 +283,7 @@ public class RaceSessionLauncher : IRaceSessionLauncher
     /// The skin to race with: the driver's own when it is on disk, otherwise (none chosen, or the folder
     /// was removed) a random skin of the car. Null only when the car has no skins at all.
     /// </summary>
-    private static string? ResolveSkin(string gamePath, string? car, string? skin)
+    internal static string? ResolveSkin(string gamePath, string? car, string? skin)
     {
         if (string.IsNullOrWhiteSpace(car) || car.Contains('/') || car.Contains('\\'))
         {

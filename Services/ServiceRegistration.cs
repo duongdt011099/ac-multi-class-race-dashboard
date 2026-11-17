@@ -4,6 +4,7 @@ using MulticlassRace.Services.Championships;
 using MulticlassRace.Services.Database;
 using MulticlassRace.Services.Drivers;
 using MulticlassRace.Services.Notifications;
+using MulticlassRace.Services.QuickRace;
 using MulticlassRace.Services.Races;
 using MulticlassRace.Services.Results;
 using MulticlassRace.Services.Settings;
@@ -21,6 +22,7 @@ public static class ServiceRegistration
         return services
             .AddChampionshipServices()
             .AddRaceServices()
+            .AddQuickRaceServices()
             .AddSettingsServices()
             .AddDatabaseServices()
             .AddTeamServices()

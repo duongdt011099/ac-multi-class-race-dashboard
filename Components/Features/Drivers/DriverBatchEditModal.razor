@@ -1,14 +1,17 @@
+@using MulticlassRace.ViewModels
 <Modal Title="@($"Batch Edit ({Count} selected)")" Size="ModalSize.Wide" OnClose="OnCancel">
     <ChildContent>
         <p>Leave a field empty to keep each driver's current value.</p>
 
         <div class="wec-form-row wec-form-row--compact">
             <FormField For="batch-strength" Label="AI Strength" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <input id="batch-strength" type="number" min="0" @bind="Strength" />
+                <ImageSelect ShowImages="false" Id="batch-strength" Value="@Strength?.ToString()" ValueChanged="v => Strength = AiLevels.Parse(v)"
+                             Options="AiLevels.DifficultyOptions" EmptyLabel="Keep current" />
             </FormField>
 
             <FormField For="batch-agression" Label="AI Aggression" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <input id="batch-agression" type="number" min="0" @bind="Aggression" />
+                <ImageSelect ShowImages="false" Id="batch-agression" Value="@Aggression?.ToString()" ValueChanged="v => Aggression = AiLevels.Parse(v)"
+                             Options="AiLevels.AggressionOptions" EmptyLabel="Keep current" />
             </FormField>
         </div>
     </ChildContent>

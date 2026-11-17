@@ -35,6 +35,10 @@ public class AppDbContext : DbContext
 
     public DbSet<Achievement> Achievements => Set<Achievement>();
 
+    public DbSet<QuickRaceSetup> QuickRaceSetups => Set<QuickRaceSetup>();
+
+    public DbSet<QuickRaceResult> QuickRaceResults => Set<QuickRaceResult>();
+
     /// <summary>Relationships, indexes, converters and seed data live in <c>Data/Configurations</c>, one class per entity.</summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -120,6 +120,20 @@
       "target": "[data-tour='add-race']"
     },
     {
+      "id": "quick-race",
+      "title": "Just want a quick race?",
+      "message": "You do not need a championship for a one-off race. Quick Race has no points, class settings or configured drivers: pick a track, build a grid and go.",
+      "target": "[data-tour='nav-quick-race']",
+      "passThrough": true
+    },
+    {
+      "id": "quick-race-tabs",
+      "title": "Three tabs, one race",
+      "message": "Race Settings holds the track, race length, weather and your car. Drivers builds the grid from custom classes or an existing class setting: add drivers from your teams or custom ones with random names, then drag them into the start order. Result starts the session and keeps a history of your finishes.",
+      "route": "quick-race",
+      "target": "[data-tour='quick-race-tabs']"
+    },
+    {
       "id": "guide",
       "title": "That's the pit stop!",
       "message": "You are ready to race. The User Guide holds the full written manual. If you ever want me back, press the ? button at the top right, or Guided Tour here. Good luck out there!",

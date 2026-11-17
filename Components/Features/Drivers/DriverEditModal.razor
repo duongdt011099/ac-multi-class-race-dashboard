@@ -60,13 +60,17 @@
             </FormField>
 
             <FormField For="driver-strength" Label="AI Strength" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <input id="driver-strength" type="number" min="0" @bind="Driver.DriverStrength" />
+                <ImageSelect ShowImages="false" Id="driver-strength" Value="@Driver.DriverStrength?.ToString()"
+                             ValueChanged="v => Driver.DriverStrength = AiLevels.Parse(v)" Options="AiLevels.DifficultyOptions"
+                             EmptyLabel="Not set" OrphanLabel="@Driver.DriverStrength?.ToString()" />
             </FormField>
         </div>
 
         <div class="wec-form-row">
             <FormField For="driver-agression" Label="AI Aggression" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <input id="driver-agression" type="number" min="0" @bind="Driver.DriverAgression" />
+                <ImageSelect ShowImages="false" Id="driver-agression" Value="@Driver.DriverAgression?.ToString()"
+                             ValueChanged="v => Driver.DriverAgression = AiLevels.Parse(v)" Options="AiLevels.AggressionOptions"
+                             EmptyLabel="Not set" OrphanLabel="@Driver.DriverAgression?.ToString()" />
             </FormField>
         </div>
 

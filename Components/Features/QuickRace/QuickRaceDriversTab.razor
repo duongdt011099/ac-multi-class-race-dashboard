@@ -1,0 +1,426 @@
+@using MulticlassRace.Services.AssettoCorsa
+@using MulticlassRace.Services.QuickRace
+@using MulticlassRace.ViewModels
+@inject IAssettoCorsaContentService ContentService
+
+<div class="wec-qr-drivers">
+    @if (QualifyingEnabled)
+    {
+        <div class="wec-qr-qualhint @(QualifyingCompleted ? "wec-qr-qualhint--done" : "")" role="status">
+            <i class="bi @(QualifyingCompleted ? "bi-check-circle-fill" : "bi-stopwatch-fill")" aria-hidden="true"></i>
+            <span>
+                @if (QualifyingCompleted)
+                {
+                    <text>Qualifying is done: the cars are in qualifying order. Start the race when you are ready.</text>
+                }
+                else
+                {
+                    <text>Qualifying is on. You must qualify first: the start order of the cars below is decided by the qualifying session and is updated when it ends.</text>
+                }
+            </span>
+        </div>
+    }
+
+    <div class="wec-qr-mode">
+        <div class="wec-qr-mode__switch" role="radiogroup" aria-label="Class system">
+            <button type="button" role="radio" aria-checked="@(Setup.Mode == QuickRaceGridMode.Custom)"
+                    class="wec-qr-mode__btn @(Setup.Mode == QuickRaceGridMode.Custom ? "wec-qr-mode__btn--active" : "")"
+                    @onclick="() => SetModeAsync(QuickRaceGridMode.Custom)">
+                <i class="bi bi-columns-gap"></i> Custom classes
+            </button>
+            <button type="button" role="radio" aria-checked="@(Setup.Mode == QuickRaceGridMode.ExistingClasses)"
+                    class="wec-qr-mode__btn @(Setup.Mode == QuickRaceGridMode.ExistingClasses ? "wec-qr-mode__btn--active" : "")"
+                    @onclick="() => SetModeAsync(QuickRaceGridMode.ExistingClasses)">
+                <i class="bi bi-diagram-3"></i> Existing class system
+            </button>
+        </div>
+
+        @if (Setup.Mode == QuickRaceGridMode.ExistingClasses)
+        {
+            <div class="wec-qr-mode__setting">
+                <ImageSelect ShowImages="false" Id="qr-class-setting" aria-label="Class setting" Value="@Setup.ClassSettingId?.ToString()"
+                             ValueChanged="HandleClassSettingChangedAsync" EmptyLabel="Select class setting..."
+                             Options="ClassSettingOptions" />
+            </div>
+        }
+        else
+        {
+            <ToolbarButton Icon="bi-plus-lg" OnClick="AddClassAsync">Add Class</ToolbarButton>
+        }
+
+        <span class="wec-qr-mode__summary">@CarCount cars in @Setup.ActiveClasses.Count class@(Setup.ActiveClasses.Count == 1 ? "" : "es")</span>
+    </div>
+
+    <p class="wec-text-muted wec-qr-hint">
+        The top car of each column starts first, and the first column starts ahead of the others.
+        Drag a car to change its place@(Setup.Mode == QuickRaceGridMode.Custom ? " or move it to another class" : "")
+        and drag a column header to change the class order.
+    </p>
+
+    @if (Setup.Mode == QuickRaceGridMode.ExistingClasses && Setup.ActiveClasses.Count == 0)
+    {
+        <div class="wec-empty wec-empty--block">
+            @(ClassSettings.Count == 0
+                ? "There are no class settings yet. Create one on the Class Settings page, or use custom classes."
+                : "Select a class setting to get one column per class.")
+        </div>
+    }
+    else
+    {
+        <div class="wec-qr-columns">
+            @foreach (var column in Setup.ActiveClasses)
+            {
+                var current = column;
+
+                <section class="wec-qr-col @(overClassId == current.ClassId && dragClassId != current.ClassId ? "wec-qr-col--over" : "")"
+                         style="--qr-class-color: @current.Color"
+                         @ondragover:preventDefault @ondrop:preventDefault
+                         @ondragenter="() => overClassId = current.ClassId"
+                         @ondrop="() => DropOnColumnAsync(current)">
+                    <header class="wec-qr-col__head" draggable="@(editingClassId != current.ClassId ? "true" : "false")"
+                            title="Drag to change the class order"
+                            @ondragstart="() => StartClassDrag(current)" @ondragend="ClearDrag">
+                        <i class="bi bi-grip-vertical wec-qr-col__grip" aria-hidden="true"></i>
+                        <span class="wec-qr-col__dot" aria-hidden="true"></span>
+
+                        @if (Setup.Mode == QuickRaceGridMode.Custom && editingClassId == current.ClassId)
+                        {
+                            <input type="text" class="wec-qr-col__rename" maxlength="30" aria-label="Class name" value="@current.Name"
+                                   @onchange="e => RenameClassAsync(current, e.Value?.ToString())"
+                                   @onblur="() => editingClassId = null"
+                                   @onkeydown="e => HandleRenameKey(e)" />
+                        }
+                        else
+                        {
+                            <span class="wec-qr-col__name">@current.Name</span>
+                        }
+
+                        <span class="wec-qr-col__count">@current.Entries.Count</span>
+
+                        @if (Setup.Mode == QuickRaceGridMode.Custom)
+                        {
+                            <input type="color" class="wec-qr-col__color" aria-label="Class color" title="Class color" value="@current.Color"
+                                   @onchange="e => RecolorClassAsync(current, e.Value?.ToString())" />
+                            <button type="button" class="wec-qr-icon" title="Rename class" aria-label="Rename class"
+                                    @onclick="() => editingClassId = current.ClassId">
+                                <i class="bi bi-pencil-fill"></i>
+                            </button>
+                            @if (Setup.CustomClasses.Count > 1)
+                            {
+                                <button type="button" class="wec-qr-icon wec-qr-icon--danger" title="Remove class" aria-label="Remove class"
+                                        @onclick="() => RemoveClassAsync(current)">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            }
+                        }
+                    </header>
+
+                    <ol class="wec-qr-col__list">
+                        @for (var index = 0; index < current.Entries.Count; index++)
+                        {
+                            var entry = current.Entries[index];
+                            var position = index + 1;
+                            var imageUrl = ImageFor(entry);
+
+                            <li class="wec-qr-row @(entry.IsHuman ? "" : "wec-qr-row--clickable") @(entry.IsHuman ? "wec-qr-row--human" : "") @(overEntryId == entry.EntryId && dragEntryId != entry.EntryId ? "wec-qr-row--over" : "")"
+                                draggable="true" title="@(entry.IsHuman ? "Drag to change the start position" : "Click to edit, drag to change the start position")"
+                                @onclick="() => OpenEdit(entry)"
+                                @ondragstart="() => StartEntryDrag(entry)" @ondragend="ClearDrag"
+                                @ondragenter="() => overEntryId = entry.EntryId"
+                                @ondragover:preventDefault @ondrop:preventDefault @ondrop:stopPropagation
+                                @ondrop="() => DropOnEntryAsync(current, entry)">
+                                <span class="wec-qr-row__pos">@position</span>
+                                <span class="wec-qr-row__sep" aria-hidden="true">-</span>
+                                @if (!string.IsNullOrWhiteSpace(imageUrl))
+                                {
+                                    <img src="@imageUrl" alt="@CarNameFor(entry)" title="@CarNameFor(entry)" class="wec-qr-row__img" loading="lazy" draggable="false" />
+                                }
+                                else
+                                {
+                                    <span class="wec-qr-row__img wec-qr-row__img--empty"><i class="bi bi-car-front"></i></span>
+                                }
+                                <span class="wec-qr-row__text">
+                                    <span class="wec-qr-row__name">@entry.DriverName</span>
+                                    <span class="wec-qr-row__car">@CarNameFor(entry)</span>
+                                    @if (entry.QualifyingTimeMs is { } lap)
+                                    {
+                                        <span class="wec-qr-row__lap">@RaceFormat.FormatLap(lap)</span>
+                                    }
+                                </span>
+                                @if (entry.IsHuman)
+                                {
+                                    <span class="wec-qr-row__you" title="The human driver">YOU</span>
+                                }
+                                else
+                                {
+                                    <button type="button" class="wec-qr-icon wec-qr-icon--danger" title="@($"Remove {entry.DriverName}")"
+                                            aria-label="@($"Remove {entry.DriverName}")" @onclick:stopPropagation="true" @onclick="() => RemoveEntryAsync(entry)">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                }
+                            </li>
+                        }
+                    </ol>
+
+                    @if (current.Entries.Count == 0)
+                    {
+                        <div class="wec-qr-col__empty">No drivers in this class yet.</div>
+                    }
+
+                    <button type="button" class="wec-qr-col__add" @onclick="() => pickerColumn = current">
+                        <i class="bi bi-plus-lg"></i> Add driver
+                    </button>
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@if (editingEntry is not null)
+{
+    <QuickRaceDriverEditModal Entry="editingEntry" Cars="Cars" UsedNames="UsedNames" OnSave="SaveEditAsync" OnClose="() => editingEntry = null" />
+}
+
+@if (pickerColumn is not null)
+{
+    <QuickRaceDriverPicker Mode="Setup.Mode" TargetClass="pickerColumn" Drivers="PickableDrivers" Cars="Cars"
+                           UsedDriverIds="UsedDriverIds" UsedNames="UsedNames"
+                           OnAdd="AddEntriesAsync" OnClose="() => pickerColumn = null" />
+}
+
+@code {
+    private Guid? dragEntryId;
+    private Guid? dragClassId;
+    private Guid? overEntryId;
+    private Guid? overClassId;
+    private Guid? editingClassId;
+    private QuickRaceClassModel? pickerColumn;
+    private QuickRaceEntryModel? editingEntry;
+
+    [Parameter, EditorRequired] public QuickRaceSetupModel Setup { get; set; } = default!;
+
+    [Parameter, EditorRequired] public QuickRaceHuman Human { get; set; } = default!;
+
+    [Parameter] public IReadOnlyList<ClassSettingModel> ClassSettings { get; set; } = Array.Empty<ClassSettingModel>();
+
+    /// <summary>The active drivers of the championship teams, which can be put on the grid.</summary>
+    [Parameter] public IReadOnlyList<DriverModel> Drivers { get; set; } = Array.Empty<DriverModel>();
+
+    [Parameter] public IReadOnlyList<CarOptionModel> Cars { get; set; } = Array.Empty<CarOptionModel>();
+
+    [Parameter] public bool QualifyingEnabled { get; set; }
+
+    [Parameter] public bool QualifyingCompleted { get; set; }
+
+    /// <summary>Raised after the grid changed; the page saves it.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private int CarCount => Setup.ActiveClasses.Sum(c => c.Entries.Count);
+
+    private IReadOnlyList<DriverModel> PickableDrivers => Drivers.Where(d => !d.IsHuman).ToList();
+
+    private IReadOnlySet<Guid> UsedDriverIds => Setup.ActiveClasses
+        .SelectMany(c => c.Entries)
+        .Where(e => e.SourceDriverId is not null)
+        .Select(e => e.SourceDriverId!.Value)
+        .ToHashSet();
+
+    private IReadOnlySet<string> UsedNames => Setup.ActiveClasses
+        .SelectMany(c => c.Entries)
+        .Select(e => e.IsHuman ? Human.DriverName : e.DriverName)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private IEnumerable<SelectOption> ClassSettingOptions => ClassSettings
+        .OrderBy(s => s.ClassSettingName, StringComparer.OrdinalIgnoreCase)
+        .Select(s => new SelectOption(s.ClassSettingId.ToString(), s.ClassSettingName + (s.IsDefault ? " (default)" : "")));
+
+    private string ImageFor(QuickRaceEntryModel entry)
+    {
+        var car = entry.IsHuman ? Human.Car : entry.Car;
+        var skin = entry.IsHuman ? Human.Skin : entry.Skin;
+
+        return ContentService.BuildSkinPreviewUrl(car, skin)
+            ?? (string.IsNullOrWhiteSpace(car) ? string.Empty : $"/car-thumb?car={Uri.EscapeDataString(car)}");
+    }
+
+    private string CarNameFor(QuickRaceEntryModel entry)
+        => entry.IsHuman ? Human.CarDisplayName : entry.CarDisplayName;
+
+    private async Task SetModeAsync(QuickRaceGridMode mode)
+    {
+        if (Setup.Mode == mode)
+        {
+            return;
+        }
+
+        Setup.Mode = mode;
+
+        if (mode == QuickRaceGridMode.ExistingClasses)
+        {
+            var setting = ClassSettings.FirstOrDefault(s => s.ClassSettingId == Setup.ClassSettingId)
+                ?? ClassSettings.FirstOrDefault(s => s.IsDefault)
+                ?? ClassSettings.FirstOrDefault();
+
+            Setup.ClassSettingId = setting?.ClassSettingId;
+
+            if (Setup.SystemClasses.Count == 0 || setting is null)
+            {
+                QuickRaceGrid.ResetSystemClasses(Setup, setting);
+            }
+            else
+            {
+                QuickRaceGrid.SyncSystemClasses(Setup, setting);
+            }
+        }
+
+        ClearDrag();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleClassSettingChangedAsync(string value)
+    {
+        var setting = Guid.TryParse(value, out var id) ? ClassSettings.FirstOrDefault(s => s.ClassSettingId == id) : null;
+
+        Setup.ClassSettingId = setting?.ClassSettingId;
+        QuickRaceGrid.ResetSystemClasses(Setup, setting);
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task AddClassAsync()
+    {
+        var column = QuickRaceGrid.NewCustomClass(Setup.CustomClasses);
+        Setup.CustomClasses.Add(column);
+        editingClassId = column.ClassId;
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task RenameClassAsync(QuickRaceClassModel column, string? name)
+    {
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            column.Name = name.Trim();
+        }
+
+        editingClassId = null;
+        await OnChanged.InvokeAsync();
+    }
+
+    private void HandleRenameKey(KeyboardEventArgs e)
+    {
+        // Enter commits through the change event, which also closes the field.
+        if (e.Key == "Escape")
+        {
+            editingClassId = null;
+        }
+    }
+
+    private async Task RecolorClassAsync(QuickRaceClassModel column, string? color)
+    {
+        if (!string.IsNullOrWhiteSpace(color))
+        {
+            column.Color = color;
+        }
+
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task RemoveClassAsync(QuickRaceClassModel column)
+    {
+        if (QuickRaceGrid.RemoveClass(Setup, column.ClassId))
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private async Task RemoveEntryAsync(QuickRaceEntryModel entry)
+    {
+        if (QuickRaceGrid.RemoveEntry(Setup, entry.EntryId))
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    private async Task AddEntriesAsync(IReadOnlyList<QuickRaceEntryModel> entries)
+    {
+        pickerColumn?.Entries.AddRange(entries);
+        pickerColumn = null;
+
+        await OnChanged.InvokeAsync();
+    }
+
+    // The human driver follows the race settings, so only the other cars are edited here.
+    private void OpenEdit(QuickRaceEntryModel entry)
+    {
+        if (!entry.IsHuman)
+        {
+            editingEntry = entry;
+        }
+    }
+
+    private async Task SaveEditAsync()
+    {
+        editingEntry = null;
+        await OnChanged.InvokeAsync();
+    }
+
+    private void StartEntryDrag(QuickRaceEntryModel entry)
+    {
+        dragEntryId = entry.EntryId;
+        dragClassId = null;
+    }
+
+    private void StartClassDrag(QuickRaceClassModel column)
+    {
+        dragClassId = column.ClassId;
+        dragEntryId = null;
+    }
+
+    private void ClearDrag()
+    {
+        dragEntryId = null;
+        dragClassId = null;
+        overEntryId = null;
+        overClassId = null;
+    }
+
+    private async Task DropOnEntryAsync(QuickRaceClassModel column, QuickRaceEntryModel target)
+    {
+        if (dragEntryId is { } entryId)
+        {
+            var moved = QuickRaceGrid.MoveEntry(Setup, entryId, column.ClassId, target.EntryId);
+            ClearDrag();
+
+            if (moved)
+            {
+                await OnChanged.InvokeAsync();
+            }
+
+            return;
+        }
+
+        await DropOnColumnAsync(column);
+    }
+
+    private async Task DropOnColumnAsync(QuickRaceClassModel column)
+    {
+        var moved = false;
+
+        if (dragClassId is { } classId)
+        {
+            moved = QuickRaceGrid.MoveClass(Setup, classId, column.ClassId);
+        }
+        else if (dragEntryId is { } entryId)
+        {
+            moved = QuickRaceGrid.MoveEntry(Setup, entryId, column.ClassId, null);
+        }
+
+        ClearDrag();
+
+        if (moved)
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+}

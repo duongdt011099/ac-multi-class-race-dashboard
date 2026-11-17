@@ -24,7 +24,8 @@ public sealed class RaceIniBuilder
         bool penalties = true,
         bool rollingStartLapCompensation = false,
         Func<string?, string?, string?>? resolveSkin = null,
-        string? safetyCar = null)
+        string? safetyCar = null,
+        bool quickRace = false)
     {
         string? ResolveSkin(string? car, string? skin)
         {
@@ -85,6 +86,12 @@ public sealed class RaceIniBuilder
             // The Lua app reads this custom header value to remove the formation segment from
             // exported race lap counts. Unknown HEADER values are ignored by Assetto Corsa.
             builder.Append("__MCR_ROLLING_START_LAP_OFFSET=1\r\n");
+        }
+        if (quickRace)
+        {
+            // The Lua app prefixes the result file name with "quick-race-" so the dashboard files it as a
+            // quick race. Written per launch like the launch id, so a stale race.ini cannot carry it over.
+            builder.Append("__MCR_QUICK_RACE=1\r\n");
         }
         if (safetyCarId is not null)
         {

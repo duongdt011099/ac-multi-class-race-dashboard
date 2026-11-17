@@ -35,7 +35,7 @@
                             </div>
                             <div class="wec-podium__name">@standing.DriverName</div>
                             <div class="wec-podium__points">
-                                @if (Celebration.SessionType == SessionType.Race)
+                                @if (Celebration.SessionType == SessionType.Race && ShowPoints)
                                 {
                                     @standing.Points<span class="wec-podium__points-label"> pts</span>
                                 }
@@ -79,6 +79,9 @@
     [Parameter, EditorRequired] public ResultCelebration Celebration { get; set; } = default!;
 
     [Parameter] public ClassColorMap Colors { get; set; } = ClassColorMap.Empty;
+
+    /// <summary>A championship race shows the points; a quick race has none and shows the best lap instead.</summary>
+    [Parameter] public bool ShowPoints { get; set; } = true;
 
     [Parameter] public EventCallback OnClose { get; set; }
 

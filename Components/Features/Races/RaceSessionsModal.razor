@@ -64,11 +64,9 @@
                 @if (!IsReadOnly)
                 {
                 <div class="wec-preset-export">
-                    <label for="session-result-file"
-                           class="wec-toolbar__btn @(isImportingSessionResult ? "wec-toolbar__btn--disabled" : "")">
-                        <i class="bi bi-upload"></i> @(isImportingSessionResult ? "Importing..." : "Import Result")
-                    </label>
-                    <InputFile id="session-result-file" accept=".json" OnChange="HandleSessionResultImport" class="d-none" />
+                    <ToolbarButton Icon="bi-upload" Disabled="isImportingSessionResult" OnClick="OpenSessionResultPicker">
+                        @(isImportingSessionResult ? "Importing..." : "Import Result")
+                    </ToolbarButton>
                 </div>
                 }
             }
@@ -107,6 +105,11 @@
         </div>
     }
 </Modal>
+
+@* Opens in the folder the Lua app saves the selected session's results in. Outside the modal so it stacks above it. *@
+<FolderPicker @ref="sessionResultPicker" FieldLabel="Result file" Title="@($"Select the {RaceFormat.SessionTypeLabel(selectedSessionType).ToLowerInvariant()} result file")" InputId="session-result-file"
+              Value="@null" IncludeFiles="true" FilePattern="*.json" ShowBrowseButton="false"
+              ValueChanged="HandleSessionResultPickedAsync" />
 
 @if (celebration is not null)
 {

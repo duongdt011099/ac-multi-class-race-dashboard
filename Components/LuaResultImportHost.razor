@@ -1,0 +1,56 @@
+@rendermode Interactive
+@using MulticlassRace.Services.Results
+@inject LuaResultImportState State
+@inject MulticlassRace.Services.Notifications.ToastService Toast
+@implements IDisposable
+
+@* Session results are imported by the background worker without asking. This only shows that it is
+   looking, and turns what it found (or failed to find) into a message. *@
+
+@if (isScanning)
+{
+    <div class="wec-modal-overlay wec-modal-overlay--import" aria-live="polite">
+        <div class="wec-modal wec-modal--small wec-lua-import-loading" role="status">
+            <div class="wec-modal__header">
+                <span>Checking for session results</span>
+            </div>
+            <div class="wec-modal__body">
+                <div class="wec-lua-import-loading__message">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>Waiting for Assetto Corsa results...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isScanning;
+
+    protected override void OnInitialized()
+    {
+        State.Changed += OnChanged;
+        State.OutcomeReported += OnOutcome;
+        isScanning = State.IsScanning;
+    }
+
+    private void OnChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            isScanning = State.IsScanning;
+            StateHasChanged();
+        });
+    }
+
+    private void OnOutcome(LuaResultImportOutcome outcome)
+    {
+        _ = InvokeAsync(() => Toast.Show(outcome.Message, outcome.IsError));
+    }
+
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        State.OutcomeReported -= OnOutcome;
+    }
+}

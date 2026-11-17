@@ -1764,3 +1764,13 @@ img.is-error {
 .wec-btn--edit:hover { background: #2b8cf0; border-color: #6ab4ff; color: #fff; box-shadow: 0 6px 16px rgba(43, 140, 240, 0.45); }
 .wec-btn--danger { color: #ff7a73; background: rgba(255, 46, 36, 0.12); border-color: rgba(255, 46, 36, 0.35); }
 .wec-btn--danger:hover { background: var(--wec-red); border-color: var(--wec-red-hot); color: #fff; box-shadow: 0 6px 16px rgba(225, 6, 0, 0.5); }
+
+/* ---------- Smooth scrolling ---------- */
+
+/* Every scrollable area (page, dialogs, lists, tables, dropdown menus, class columns) eases to its
+   target instead of jumping. */
+html, body, * { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+    html, body, * { scroll-behavior: auto; }
+}

@@ -6,11 +6,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.JSInterop;
 using MulticlassRace.Data;
 using MulticlassRace.Repositories;
+using MulticlassRace.Repositories.Abstractions;
 using MulticlassRace.Services;
 using MulticlassRace.Services.AssettoCorsa;
 using MulticlassRace.Services.Championships;
 using MulticlassRace.Services.Drivers;
 using MulticlassRace.Services.Notifications;
+using MulticlassRace.Services.QuickRace;
 using MulticlassRace.Services.Races;
 using MulticlassRace.Services.Results;
 using MulticlassRace.Services.Settings;
@@ -111,6 +113,9 @@ public class ServiceRegistrationTests
     [InlineData(typeof(ToastService))]
     [InlineData(typeof(DriverDataChangeNotifier))]
     [InlineData(typeof(GameConfigChangeNotifier))]
+    [InlineData(typeof(IQuickRaceService))]
+    [InlineData(typeof(IQuickRaceLauncher))]
+    [InlineData(typeof(IQuickRaceRepository))]
     [InlineData(typeof(UpdateNotificationRequest))]
     public void EveryScopedServiceResolvesWithinAScope(Type serviceType)
     {
@@ -130,6 +135,7 @@ public class ServiceRegistrationTests
     [InlineData(typeof(LuaResultSweeper))]
     [InlineData(typeof(AppVersionProvider))]
     [InlineData(typeof(UpdateStateService))]
+    [InlineData(typeof(IRandomNameService))]
     [InlineData(typeof(UpdateInstallerService))]
     public void SharedStateServicesAreSingletons(Type serviceType)
     {

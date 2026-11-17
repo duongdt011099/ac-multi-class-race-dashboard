@@ -41,6 +41,21 @@
                        Options="LayoutSelectOptions" EmptyLabel="@LayoutEmptyLabel" />
         </div>
 
+        @if (RaceFormRules.ShowTrackPreview(Race, layouts))
+        {
+            var layout = string.IsNullOrWhiteSpace(Race.TrackLayout) ? null : Race.TrackLayout;
+            <div class="wec-track-preview">
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "outline")" alt="Track map" />
+                    <span class="wec-track-preview__label">Map</span>
+                </div>
+                <div class="wec-track-preview__item">
+                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "preview")" alt="Track preview" />
+                    <span class="wec-track-preview__label">Preview</span>
+                </div>
+            </div>
+        }
+
         <fieldset class="wec-race-mode" title="Assetto Corsa only supports lap-limited races, so a timed race is run by the app: it ends on the leader's final lap once the time is up.">
             <legend>Race length</legend>
             <div class="wec-race-mode__grid">
@@ -96,22 +111,6 @@
             </div>
         </fieldset>
 
-        <CheckboxField Id="race-safety-car" Label="Safety car leads the formation lap" @bind-Value="Race.UseSafetyCar"
-                       Title="The safety car (set in the side menu) leads the rolling-start formation lap and pulls into the pits when the field is in double file." />
-
-        <div class="wec-form-field">
-            <label for="race-point-setting">Point Setting</label>
-            <ImageSelect ShowImages="false" Id="race-point-setting" Value="@Race.PointSettingId.ToString()"
-                       ValueChanged="value => Race.PointSettingId = Guid.Parse(value)" Options="PointSettingOptions" />
-
-            <div class="wec-text-muted">
-                @if (SelectedPointSetting is { } pointSetting)
-                {
-                    <span>@PointSettingForms.FormatPreview(pointSetting.Config)</span>
-                }
-            </div>
-        </div>
-
         <div class="wec-form-field">
             <label for="race-class-setting">Class Setting</label>
             @if (ClassSettingLocked)
@@ -133,32 +132,34 @@
         </div>
 
         <div class="wec-form-field">
-            <label for="race-practice-minutes">Practice Time: <strong>@PracticeMinutesLabel</strong></label>
-            <input id="race-practice-minutes" type="range" min="0" max="90" step="1"
-                   title="Practice duration from 0 to 90 minutes. Set to 0 to skip practice."
-                   value="@PracticeMinutes" @oninput="HandlePracticeMinutesChanged" />
+            <label for="race-point-setting">Point Setting</label>
+            <ImageSelect ShowImages="false" Id="race-point-setting" Value="@Race.PointSettingId.ToString()"
+                       ValueChanged="value => Race.PointSettingId = Guid.Parse(value)" Options="PointSettingOptions" />
+
+            <div class="wec-text-muted">
+                @if (SelectedPointSetting is { } pointSetting)
+                {
+                    <span>@PointSettingForms.FormatPreview(pointSetting.Config)</span>
+                }
+            </div>
         </div>
+
+        <CheckboxField Id="race-safety-car" Label="Safety car leads the formation lap" @bind-Value="Race.UseSafetyCar"
+                       Title="The safety car (set in the side menu) leads the rolling-start formation lap and pulls into the pits when the field is in double file." />
+
         <div class="wec-form-field">
             <label for="race-qualifying-minutes">Qualifying Time: <strong>@QualifyingMinutes min</strong></label>
             <input id="race-qualifying-minutes" type="range" min="5" max="90" step="1"
                    title="Qualifying duration from 5 to 90 minutes."
                    value="@QualifyingMinutes" @oninput="HandleQualifyingMinutesChanged" />
         </div>
+        <div class="wec-form-field">
+            <label for="race-practice-minutes">Practice Time: <strong>@PracticeMinutesLabel</strong></label>
+            <input id="race-practice-minutes" type="range" min="0" max="90" step="1"
+                   title="Practice duration from 0 to 90 minutes. Set to 0 to skip practice."
+                   value="@PracticeMinutes" @oninput="HandlePracticeMinutesChanged" />
+        </div>
 
-        @if (RaceFormRules.ShowTrackPreview(Race, layouts))
-        {
-            var layout = string.IsNullOrWhiteSpace(Race.TrackLayout) ? null : Race.TrackLayout;
-            <div class="wec-track-preview">
-                <div class="wec-track-preview__item">
-                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "outline")" alt="Track map" />
-                    <span class="wec-track-preview__label">Map</span>
-                </div>
-                <div class="wec-track-preview__item">
-                    <img class="wec-track-preview__img" src="@RaceFormat.TrackImageUrl(Race.TrackName!, layout, "preview")" alt="Track preview" />
-                    <span class="wec-track-preview__label">Preview</span>
-                </div>
-            </div>
-        }
     </ChildContent>
     <Footer>
         <ModalActions ConfirmText="@(IsCreating ? "Create" : "Save")" BusyText="Saving..." IsBusy="IsSaving"

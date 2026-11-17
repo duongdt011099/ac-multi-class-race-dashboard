@@ -169,6 +169,26 @@ function Sess.IsDashboardLaunch()
   return fromDashboard
 end
 
+
+-- The dashboard also stamps race.ini with __MCR_QUICK_RACE=1 when the session is a quick race. race.ini is
+-- written afresh for every dashboard launch, so unlike the launch id the flag cannot go stale. Read once
+-- per game run: the exporter prefixes the result file name with it (see export/exporter.lua).
+Sess.QUICK_RACE_HEADER = "__MCR_QUICK_RACE"
+
+function Sess.IsQuickRace()
+  local S = require("src/state")
+  if S.quickRace ~= nil then return S.quickRace end
+
+  if not ac.INIConfig or type(ac.INIConfig.raceConfig) ~= "function" then return false end
+  local okConfig, config = pcall(ac.INIConfig.raceConfig)
+  if not okConfig or not config then return false end
+
+  local okValue, value = pcall(function() return config:get("HEADER", Sess.QUICK_RACE_HEADER, 0) end)
+
+  S.quickRace = okValue and tonumber(value) == 1
+  return S.quickRace
+end
+
 -- True while the app does nothing: switched off by the user, or the game was not started from the dashboard.
 function Sess.AppDisabled()
   local S = require("src/state")

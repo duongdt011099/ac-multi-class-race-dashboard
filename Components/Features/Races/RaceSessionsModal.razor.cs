@@ -7,6 +7,7 @@ using MulticlassRace.Services.Notifications;
 using MulticlassRace.Services.Races;
 using MulticlassRace.Services.Results;
 using MulticlassRace.Services.Teams;
+using multi_class_race_dashboard.Components.Shared;
 
 namespace multi_class_race_dashboard.Components.Features.Races;
 
@@ -32,6 +33,8 @@ public partial class RaceSessionsModal : IDisposable
     [Inject] private RaceSessionChangeNotifier RaceSessionChangeNotifier { get; set; } = default!;
 
     [Inject] private ToastService Toast { get; set; } = default!;
+
+    [Inject] private IAssettoCorsaGameConfigService GameConfigService { get; set; } = default!;
 
     [Parameter, EditorRequired] public RaceModel Race { get; set; } = default!;
 
@@ -403,9 +406,23 @@ public partial class RaceSessionsModal : IDisposable
         }
     }
 
-    private async Task HandleSessionResultImport(InputFileChangeEventArgs e)
+    private FolderPicker sessionResultPicker = default!;
+
+    /// <summary>Opens the file picker in the folder the Lua app saves practice or qualifying results in.</summary>
+    private async Task OpenSessionResultPicker()
     {
-        if (e.File is null)
+        var config = await GameConfigService.GetAsync();
+        var root = LuaResultPaths.ResolveRoot(config?.LuaResultPath);
+        var folder = Path.Combine(
+            root,
+            selectedSessionType == SessionType.Practice ? LuaResultPaths.PracticeFolder : LuaResultPaths.QualifyingFolder);
+
+        sessionResultPicker.Open(Directory.Exists(folder) ? folder : Directory.Exists(root) ? root : null);
+    }
+
+    private async Task HandleSessionResultPickedAsync(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
         {
             return;
         }
@@ -414,8 +431,18 @@ public partial class RaceSessionsModal : IDisposable
 
         try
         {
-            await using var stream = e.File.OpenReadStream(MaxResultFileBytes);
-            var result = await ResultService.ImportSessionResultAsync(Race.RaceId, selectedSessionType, stream, e.File.Name);
+            var fileName = Path.GetFileName(path);
+
+            if (new FileInfo(path).Length > MaxResultFileBytes)
+            {
+                throw new InvalidOperationException("That result file is too large to be a session result.");
+            }
+
+            await using var stream = File.OpenRead(path);
+            var result = await ResultService.ImportSessionResultAsync(Race.RaceId, selectedSessionType, stream, fileName);
+
+            // Record it so the auto-import worker does not import the same file again.
+            await LuaResultImportService.RecordManualImportAsync(path, fileName);
 
             Toast.Show($"Imported {result.Imported} result(s) (skipped {result.Skipped}).", result.Skipped > 0);
 

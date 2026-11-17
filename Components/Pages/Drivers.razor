@@ -107,8 +107,8 @@ else
                         }
                     </td>
                     <td><ClassBadges Tags="driver.ClassTags" /></td>
-                    <td>@(driver.DriverStrength?.ToString() ?? "—")</td>
-                    <td>@(driver.DriverAgression?.ToString() ?? "—")</td>
+                    <td>@AiLevels.Format(AiLevels.Difficulty, driver.DriverStrength)</td>
+                    <td>@AiLevels.Format(AiLevels.Aggression, driver.DriverAgression)</td>
                     <td><StatusBadge IsActive="driver.IsActive" /></td>
                     <td class="wec-table__actions">
                         <div class="wec-row-actions">

@@ -51,6 +51,7 @@ public class PageTestContext : TestContext
         Services.AddSingleton<ISteamStatusService>(new FakeSteamStatusService());
         Services.AddSingleton<ILuaResultImportService>(new FakeLuaResultImportService());
         Services.AddSingleton<RaceSessionChangeNotifier>();
+        Services.AddSingleton<LuaResultImportState>();
         Services.AddScoped<BrowserStorage>();
         Services.AddScoped<ToastService>();
     }

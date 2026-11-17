@@ -13,7 +13,8 @@ public sealed record SessionLaunch(
     string SeasonName,
     string ChampionshipName,
     string TrackName,
-    DateTimeOffset LaunchedAt);
+    DateTimeOffset LaunchedAt,
+    bool IsQuickRace = false);
 
 public class SessionLaunchTracker
 {
