@@ -109,8 +109,10 @@ function M.Draw(dt)
       ui.drawCircleFilled(p, r, color, 24)
 
       local lum = color.r * 0.3 + color.g * 0.59 + color.b * 0.11
+      ui.pushDWriteFont("Bahnschrift;Weight=Bold")
       local m = ui.measureDWriteText(label, fontSize)
       ui.dwriteDrawText(label, fontSize, p - m / 2, lum > 0.6 and BLACK or WHITE)
+      ui.popDWriteFont()
     end
 
     if mouse and ui.windowHovered() and (mouse - p):length() < r + 3 then hovered = c end

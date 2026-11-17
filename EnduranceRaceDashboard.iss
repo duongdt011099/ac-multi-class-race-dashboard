@@ -1,5 +1,5 @@
 #define MyAppName "Endurance Race Dashboard"
-#define MyAppVersion "2.0.1"
+#define MyAppVersion "2.0.2"
 #define MyAppPublisher "Endurance Race Dashboard"
 #define MyAppExeName "multi-class-race-dashboard.exe"
 #define MyLegacyServiceName "EnduranceRace"
@@ -8,6 +8,15 @@
 #define MyRegKey "Software\Endurance Race Dashboard"
 #define MyRegValue "GamePath"
 #define MyPublishDir "publish"
+
+; Publish fresh output every time the script is compiled, so the installer can never bundle a stale
+; publish folder. Runs at compile time (preprocessor) from the script's own folder, and aborts the
+; compile if dotnet fails rather than packaging whatever was left from the last build.
+#define MyPublishCmd "/c dotnet publish -c Release -r win-x64 --self-contained true -o " + MyPublishDir
+#define MyPublishResult Exec("cmd.exe", MyPublishCmd, SourcePath, 1, 1)
+#if MyPublishResult != 0
+  #error "dotnet publish failed - see the console window output. Fix the build and compile again."
+#endif
 ; The CSP Lua app that the dashboard imports results from. Only the entry script, manifest, icon and
 ; the src folder of modules are shipped: the dashboard never needs lib.lua, and the results and debug
 ; log the app keeps next to itself are the user's, not ours.
@@ -32,6 +41,14 @@ OutputDir=installer
 OutputBaseFilename=EnduranceRaceDashboardSetup
 Compression=lzma
 SolidCompression=yes
+
+; Black & red look to match the dashboard. The images are generated from wwwroot\logo.png by
+; installer-assets\make-wizard-images.ps1; several sizes are listed so Setup picks a sharp one per DPI.
+WizardStyle=modern dark
+WizardImageFile=installer-assets\wizard-164.bmp,installer-assets\wizard-205.bmp,installer-assets\wizard-246.bmp,installer-assets\wizard-328.bmp
+WizardSmallImageFile=installer-assets\wizard-small-55.bmp,installer-assets\wizard-small-69.bmp,installer-assets\wizard-small-83.bmp,installer-assets\wizard-small-110.bmp
+SetupIconFile=Assets\favicon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 PrivilegesRequired=lowest
 ; Offered for one case only: removing the Windows service that older versions installed.
