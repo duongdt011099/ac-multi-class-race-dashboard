@@ -145,6 +145,15 @@ public class QuickRaceGridTests
     }
 
     [Fact]
+    public void ValidatePitCapacity_BlocksOnlyWhenMoreCarsThanPits()
+    {
+        Assert.Null(QuickRaceGrid.ValidatePitCapacity(24, 24));
+        Assert.Null(QuickRaceGrid.ValidatePitCapacity(40, null));
+        Assert.Null(QuickRaceGrid.ValidatePitCapacity(40, 0));
+        Assert.Contains("(25)", QuickRaceGrid.ValidatePitCapacity(25, 24));
+    }
+
+    [Fact]
     public void ValidateGrid_NeedsACarAnOpponentAndDistinctClassNames()
     {
         var human = new QuickRaceHuman("Me", "car_me", "s", "Car");

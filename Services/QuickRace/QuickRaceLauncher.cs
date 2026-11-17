@@ -94,11 +94,9 @@ public class QuickRaceLauncher : IQuickRaceLauncher
         var pitCount = await _trackService.GetPitCountAsync(trackName, layout);
         var carCount = launchCars.Count + (safetyCar is null ? 0 : 1);
 
-        if (pitCount is > 0 && carCount > pitCount.Value)
+        if (QuickRaceGrid.ValidatePitCapacity(carCount, pitCount) is { } capacityProblem)
         {
-            throw new InvalidOperationException(
-                $"The number of cars ({carCount}) is more than the number of pits ({pitCount}). " +
-                "Remove drivers or change the race track or layout.");
+            throw new InvalidOperationException(capacityProblem);
         }
 
         var executable = Path.Combine(gamePath, "acs.exe");

@@ -59,7 +59,7 @@ function M.Draw(dt)
   local size = ui.windowSize()
 
   local toolbarH = 0
-  local pad = 28
+  local pad = math.max(56, math.min(size.x, size.y) * 0.09)
   local topLeft = vec2(pad, pad)
   local view = Track.View(0, topLeft, vec2(size.x - pad * 2, size.y - pad * 2 - toolbarH))
   if not view then

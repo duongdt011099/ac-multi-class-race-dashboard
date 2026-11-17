@@ -57,6 +57,9 @@ public partial class Drivers : IDisposable
     private bool showBatchModal;
     private readonly HashSet<Guid> selectedIds = new();
 
+    private IReadOnlySet<string> UsedDriverNames =>
+        (drivers?.Select(d => d.DriverName) ?? Enumerable.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     private DriverModel? HumanDriver => drivers?.FirstOrDefault(d => d.IsHuman);
 
     private bool CanToggleHuman =>

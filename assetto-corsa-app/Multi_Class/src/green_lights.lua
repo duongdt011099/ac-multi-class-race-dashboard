@@ -24,7 +24,8 @@ local WAIT_IMAGE = "wait_for_others.png"       -- "Wait for other cars" (finishe
 local LANE_LEFT_IMAGE = "lane_left.png"        -- "Your Lane: LEFT" (autopilot off, double file)
 local LANE_RIGHT_IMAGE = "lane_right.png"      -- "Your Lane: RIGHT"
 
-local LAST_LAP_IMAGE = "last_lap.png"          -- "Last Lap" (human car on the final lap of a race)
+
+local LAST_LAP_IMAGES = { "last_lap_1.png", "last_lap_2.png" }   -- "Last Lap" (final lap of a race), blinking black / white
 
 local alpha = 0.0
 local lastLapAlpha = 0.0
@@ -176,7 +177,9 @@ function M.Draw(dt)
     ui.drawImage(CONTROL_IMAGES[blink], vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, controlAlpha))
   end
   if lastLapAlpha > 0.0 then
-    ui.drawImage(LAST_LAP_IMAGE, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, lastLapAlpha))
+    -- Blinks between a black card with white text and a white card with black text.
+    local blink = math.floor(os.clock() / C.CONTROL_BANNER_BLINK_SECONDS) % 2 + 1
+    ui.drawImage(LAST_LAP_IMAGES[blink], vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, lastLapAlpha))
   end
   if laneAlpha > 0.0 and laneShown then
     ui.drawImage(laneShown, vec2(0, 0), vec2(width, height), rgbm(1, 1, 1, laneAlpha))

@@ -370,6 +370,18 @@ public static class QuickRaceGrid
         return null;
     }
 
+    /// <summary>
+    /// An error when more cars are entered than the track has pit boxes (the game cannot place them all
+    /// on the grid), or null. A track that reports no pit count is not checked.
+    /// </summary>
+    public static string? ValidatePitCapacity(int carCount, int? pitCount)
+    {
+        return pitCount is > 0 && carCount > pitCount.Value
+            ? $"The number of cars ({carCount}) is more than the number of pits ({pitCount}). " +
+              "Remove drivers or change the race track or layout."
+            : null;
+    }
+
     /// <summary>The first thing wrong with the grid, or null when it can start.</summary>
     public static string? ValidateGrid(QuickRaceSetupModel setup, QuickRaceHuman human)
     {

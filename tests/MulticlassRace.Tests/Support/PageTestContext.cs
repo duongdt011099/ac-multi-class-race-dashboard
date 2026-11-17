@@ -32,6 +32,8 @@ public class PageTestContext : TestContext
         Services.AddScoped<ISeasonCompletionService, SeasonCompletionService>();
         Services.AddScoped<IAchievementService, AchievementService>();
         Services.AddSingleton<SeasonCompletionNotifier>();
+        Services.AddSingleton<MulticlassRace.Services.QuickRace.IRandomNameService>(
+            new MulticlassRace.Services.QuickRace.RandomNameService(new[] { "Ann" }, new[] { "Lee" }));
         Services.AddScoped<IClassSettingService, ClassSettingService>();
         Services.AddScoped<IPointSettingService, PointSettingService>();
         Services.AddScoped<ITeamService, TeamService>();

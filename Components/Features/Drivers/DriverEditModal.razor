@@ -6,13 +6,22 @@
 @inject IAssettoCorsaContentService CarContentService
 @inject GameConfigChangeNotifier ConfigNotifier
 @inject ToastService Toast
+@inject MulticlassRace.Services.QuickRace.IRandomNameService RandomNames
 
 <Modal Title="@(IsCreating ? "New Driver" : "Edit Driver")" Size="ModalSize.Wide" OnClose="OnCancel">
     <ChildContent>
         <div class="wec-form-row">
-            <FormField For="driver-name" Label="Driver Name">
-                <input id="driver-name" type="text" @bind="Driver.DriverName" />
-            </FormField>
+            <div>
+                <FormField For="driver-name" Label="Driver Name">
+                    <input id="driver-name" type="text" @bind="Driver.DriverName" disabled="@useRandomName" />
+                </FormField>
+
+                @if (IsCreating)
+                {
+                    <CheckboxField Id="driver-random-name" Label="Use Random Name" Value="useRandomName" ValueChanged="HandleRandomNameChanged" CssClass="mt-2" />
+                    <p class="wec-form-hint">Recheck to roll a new name.</p>
+                }
+            </div>
 
             <FormField For="driver-car-display" Label="Car Display Name">
                 <input id="driver-car-display" type="text" @bind="Driver.CarDisplayName" />
@@ -95,6 +104,9 @@
 @code {
     private List<string> skinOptions = new();
     private bool isLoadingSkins;
+    private bool useRandomName;
+
+    [Parameter] public IReadOnlySet<string> UsedNames { get; set; } = new HashSet<string>();
 
     [Parameter, EditorRequired] public DriverFormModel Driver { get; set; } = default!;
 
@@ -163,6 +175,16 @@
         if (!IsCreating)
         {
             await LoadSkinsAsync(Driver.Car);
+        }
+    }
+
+    private void HandleRandomNameChanged(bool value)
+    {
+        useRandomName = value;
+
+        if (value)
+        {
+            Driver.DriverName = RandomNames.Generate(UsedNames.ToHashSet(StringComparer.OrdinalIgnoreCase));
         }
     }
 

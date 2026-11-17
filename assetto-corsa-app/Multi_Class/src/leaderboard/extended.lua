@@ -93,8 +93,11 @@ local function gapText(h, sim, qualiMode, c, playerRank, playerBest, leaderKey)
   end
   if c.idx == 0 then return "YOU" end
   if not sim.isSessionStarted then return "--" end
+  -- With the player in the pits (e.g. back in the pit after the finish) the engine gap is garbage.
+  local pcar = ac.getCar(0)
+  if pcar and (pcar.isInPitlane == true or pcar.isInPit == true) then return "--" end
   local ok, g = pcall(ac.getGapBetweenCars, 0, c.idx)
-  if not ok or not U.IsFinite(g) then return "--" end
+  if not ok or not U.IsFinite(g) or math.abs(g) > 36000 then return "--" end
   return (c.rank < playerRank and "-" or "+") .. h.FormatGap(math.abs(g), playerBest)
 end
 

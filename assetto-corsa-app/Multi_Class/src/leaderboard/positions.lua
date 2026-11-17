@@ -316,7 +316,8 @@ function M.GetPlayerPositions()
   if raceCache.valid and (settling or now - raceCache.lastTime < raceCache.interval) then
     local cachedGapsFront = raceCache.gapFront
     local cachedGapsBehind = raceCache.gapBehind
-    if not sim.isSessionStarted or stopped then
+    if not sim.isSessionStarted or stopped
+      or (playerCar ~= nil and (playerCar.isInPitlane == true or playerCar.isInPit == true)) then
       cachedGapsFront = nil
       cachedGapsBehind = nil
     end
@@ -338,7 +339,10 @@ function M.GetPlayerPositions()
     gapFront, gapBehind = classGaps(classCars, classRank)
   end
 
-  if not sim.isSessionStarted or stopped then
+  -- A player in the pits (e.g. back in the pit after the finish) has no meaningful on-track gap:
+  -- the engine returns a huge value there, which showed up as "+123456 LAPS".
+  local playerInPit = playerCar ~= nil and (playerCar.isInPitlane == true or playerCar.isInPit == true)
+  if not sim.isSessionStarted or stopped or playerInPit then
     gapFront, gapBehind = nil, nil
   end
 

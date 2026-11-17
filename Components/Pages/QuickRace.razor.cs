@@ -57,8 +57,24 @@ public partial class QuickRace : IDisposable
     private ResultCelebration? celebration;
     private ClassColorMap celebrationColors = ClassColorMap.Empty;
 
+    private int? trackPitCount;
+    private string? pitCountFor;
+
     private string? StartBlocker =>
-        QuickRaceGrid.ValidateSettings(setup.Settings, layouts) ?? QuickRaceGrid.ValidateGrid(setup, human);
+        QuickRaceGrid.ValidateSettings(setup.Settings, layouts)
+        ?? QuickRaceGrid.ValidateGrid(setup, human)
+        ?? QuickRaceGrid.ValidatePitCapacity(QuickRaceGrid.BuildLaunchCars(setup, human).Cars.Count, trackPitCount);
+
+    private static string PitKey(QuickRaceSettingsModel s) => $"{s.TrackName}|{s.TrackLayout}";
+
+    private async Task LoadPitCountAsync()
+    {
+        var s = setup.Settings;
+        pitCountFor = PitKey(s);
+        trackPitCount = string.IsNullOrWhiteSpace(s.TrackName)
+            ? null
+            : await TrackService.GetPitCountAsync(s.TrackName, string.IsNullOrWhiteSpace(s.TrackLayout) ? null : s.TrackLayout);
+    }
 
     private bool CanOpenResult => StartBlocker is null;
 
@@ -122,6 +138,7 @@ public partial class QuickRace : IDisposable
             RememberQualifyingState();
             RefreshHuman();
             await LoadLayoutsAsync();
+            await LoadPitCountAsync();
             await LoadHistoryAsync();
 
             selectedResult = history.Count > 0 ? await QuickRaceService.GetResultAsync(history[0].ResultId) : null;
@@ -182,6 +199,11 @@ public partial class QuickRace : IDisposable
         if (!string.Equals(layoutsFor, setup.Settings.TrackName, StringComparison.OrdinalIgnoreCase))
         {
             await HandleTrackChangedAsync();
+        }
+
+        if (pitCountFor != PitKey(setup.Settings))
+        {
+            await LoadPitCountAsync();
         }
 
         ForgetQualifyingWhenItNoLongerApplies();
