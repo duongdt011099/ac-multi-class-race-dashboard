@@ -18,6 +18,10 @@ S.storedSettings = ac.storage({
   autoExitAfterRace = true,
   showPositionLap = true,
   showTimeGap = true,
+  showMap = true,
+  showLeaderboard = true,
+  humanCarColor = "",
+  leaderboardExtended = true,
 })
 
 -- Grid / session tracking
@@ -61,6 +65,18 @@ S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
 S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
 S.showPositionLap     = S.storedSettings.showPositionLap ~= false
 S.showTimeGap         = S.storedSettings.showTimeGap ~= false
+S.showMap             = S.storedSettings.showMap ~= false
+S.showLeaderboard     = S.storedSettings.showLeaderboard ~= false
+-- Colour of the human car on the track map (hex); nil = use the class colour.
+S.humanCarColor = nil
+do
+  local hex = S.storedSettings.humanCarColor
+  local h = type(hex) == "string" and hex:match("^#(%x%x%x%x%x%x)$")
+  if h then
+    S.humanCarColor = rgbm(tonumber(h:sub(1, 2), 16) / 255, tonumber(h:sub(3, 4), 16) / 255, tonumber(h:sub(5, 6), 16) / 255, 1)
+  end
+end
+S.leaderboardExtended = S.storedSettings.leaderboardExtended ~= false
 -- os.clock() time at which the game is shut down after a finished race (nil = not scheduled).
 S.raceExitAt          = nil
 -- Faster-class AI cars commit to passes on slower classes (see overtake/overtake.lua).

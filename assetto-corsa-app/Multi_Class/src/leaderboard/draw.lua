@@ -5,6 +5,7 @@ local U = require("src/util")
 local Sess = require("src/session")
 local Positions = require("src/leaderboard/positions")
 local TimedRace = require("src/timed_race")
+local Extended = require("src/leaderboard/extended")
 
 local M = {}
 
@@ -402,6 +403,43 @@ local function drawTimePanel(layout, sim)
   DrawBoldText(text, cx, cy, 28, color)
 end
 
+-- Which flag colours the message panel: "green", "yellow" or nil.
+local function flagFor(rollingText, rollingActive)
+  if rollingText == "GREEN — GO" then return "green" end
+  if not rollingActive then
+    if S.yellowPlayerActive == true then return "yellow" end
+    if (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then return "green" end
+  end
+  return nil
+end
+
+-- Flag / rolling-start message in the bottom panel (yellow and green flags colour the whole panel).
+local function drawBottomMessage(layout, rollingText, rollingColor, rollingActive)
+  drawRollingText(layout, rollingText, rollingColor, flagFor(rollingText, rollingActive))
+end
+
+-- Same message as a band inside the extended leaderboard's single panel.
+local function drawMessageBand(x1, y1, x2, y2, text, color, flag)
+  local bottomFlag = ui.CornerFlags and ui.CornerFlags.Bottom
+  local textColor = color
+  if flag == "yellow" then
+    if yellowBlinkOn() then
+      ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), YELLOW_FLAG_FILL, CARD_RADIUS, bottomFlag)
+      textColor = YELLOW_FLAG_TEXT
+    else
+      textColor = YELLOW_FLAG_FILL
+    end
+  elseif flag == "green" then
+    ui.drawRectFilled(vec2(x1, y1), vec2(x2, y2), GREEN_FLAG_FILL, CARD_RADIUS, bottomFlag)
+    textColor = GREEN_FLAG_TEXT
+  end
+  local fontSize = 14
+  local size = MeasureBoldText(text, fontSize)
+  local maxW = x2 - x1 - 24
+  if size.x > maxW then fontSize = math.max(10, math.floor(fontSize * maxW / size.x)) end
+  DrawBoldText(text, (x1 + x2) / 2, (y1 + y2) / 2, fontSize, textColor)
+end
+
 local function collectData(qualiMode)
   local data = {}
   if qualiMode then
@@ -431,7 +469,20 @@ function M.Leaderboard(dt)
     data.overallPos, data.classPos, data.gapFront, data.gapBehind = nil, nil, nil, nil
   end
 
+  -- "Show leaderboard" unchecked: the window stays empty.
+  if not S.showLeaderboard then return end
+
+  if S.leaderboardExtended then
+    -- One panel: race clock, the class table and the flag / rolling-start message.
+    local clockText, clockColor = timePanelText(sim)
+    local msg = rollingText and { text = rollingText, color = rollingColor, flag = flagFor(rollingText, rollingActive) } or nil
+    Extended.Draw({ DrawCard = drawCard, FormatGap = formatGapSeconds, DrawMessage = drawMessageBand }, sim,
+        qualiMode, layout.w, 8, layout.h - 8, clockText, clockColor, msg)
+    return
+  end
+
   drawTimePanel(layout, sim)
+
   if S.showPositionLap then
     drawTopPanels(layout, data)
   end
@@ -442,17 +493,7 @@ function M.Leaderboard(dt)
   end
 
   if rollingText then
-    local flag = nil
-    if rollingText == "GREEN — GO" then
-      flag = "green"
-    elseif not rollingActive then
-      if S.yellowPlayerActive == true then
-        flag = "yellow"
-      elseif (S.yellowGreenUntil or 0) > (S.yellowClock or 0) then
-        flag = "green"
-      end
-    end
-    drawRollingText(layout, rollingText, rollingColor, flag)
+    drawBottomMessage(layout, rollingText, rollingColor, rollingActive)
   elseif qualiMode then
     drawQualiBest(layout, data)
   elseif data.classTotal > 1 then

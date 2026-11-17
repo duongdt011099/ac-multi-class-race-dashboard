@@ -325,6 +325,7 @@ local function stopAllFeatures(sim, keepRaceState)
   S.leaderboardOpened = false
   ac.setWindowOpen("cl_leaderboard", false)
   ac.setWindowOpen("cl_greenlights", false)
+  ac.setWindowOpen("cl_trackmap", false)
 end
 
 function Frame.Update(dt)
@@ -373,6 +374,7 @@ function Frame.Update(dt)
       pcall(AITuning.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
       ac.setWindowOpen("cl_greenlights", false)
+      ac.setWindowOpen("cl_trackmap", false)
     else
       if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
         S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
@@ -429,8 +431,9 @@ function Frame.Update(dt)
   end
 
   if not S.leaderboardOpened and sim.isInMainMenu ~= true then
-    ac.setWindowOpen("cl_leaderboard", true)
+    if S.showLeaderboard then ac.setWindowOpen("cl_leaderboard", true) end
     ac.setWindowOpen("cl_greenlights", true)
+    if S.showMap then ac.setWindowOpen("cl_trackmap", true) end
     S.leaderboardOpened = true
   end
 

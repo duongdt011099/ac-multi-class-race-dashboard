@@ -247,6 +247,8 @@ local function drawAutopilotSection(w)
   ui.dummy(vec2(0, 8))
 end
 
+local mapPickerColor = rgbm(1, 1, 1, 1)
+
 local function drawGeneralSection(w)
   if checkRow("Close the game 5 seconds after a session result is saved", S.autoExitAfterRace) then
     S.autoExitAfterRace = not S.autoExitAfterRace
@@ -256,16 +258,90 @@ local function drawGeneralSection(w)
   if ui.itemHovered() then
     ui.setTooltip("After a race, qualifying or practice session finishes and its result is saved, a banner counts down and Assetto Corsa closes.")
   end
-  if checkRow("Show position / lap on the leaderboard", S.showPositionLap) then
-    S.showPositionLap = not S.showPositionLap
-    S.storedSettings.showPositionLap = S.showPositionLap
+  if checkRow("Show leaderboard", S.showLeaderboard) then
+    S.showLeaderboard = not S.showLeaderboard
+    S.storedSettings.showLeaderboard = S.showLeaderboard
+    ac.setWindowOpen("cl_leaderboard", S.showLeaderboard and not ac.getSim().isInMainMenu)
   end
-  if checkRow("Show time gap on the leaderboard", S.showTimeGap) then
-    S.showTimeGap = not S.showTimeGap
-    S.storedSettings.showTimeGap = S.showTimeGap
+  if S.showLeaderboard then
+    ui.indent(18)
+    if ui.radioButton("Extended mode", S.leaderboardExtended) then
+      S.leaderboardExtended = true
+      S.storedSettings.leaderboardExtended = true
+    end
+    if ui.itemHovered() then
+      ui.setTooltip("Your class only: the leader and the cars around you, with time gap and fuel.")
+    end
+    if ui.radioButton("Simple mode", not S.leaderboardExtended) then
+      S.leaderboardExtended = false
+      S.storedSettings.leaderboardExtended = false
+    end
+    if ui.itemHovered() then
+      ui.setTooltip("Lap, overall and class position panels with the gap to the cars next to you.")
+    end
+    if not S.leaderboardExtended then
+      if checkRow("Show position / lap on the leaderboard", S.showPositionLap) then
+        S.showPositionLap = not S.showPositionLap
+        S.storedSettings.showPositionLap = S.showPositionLap
+      end
+      if checkRow("Show time gap on the leaderboard", S.showTimeGap) then
+        S.showTimeGap = not S.showTimeGap
+        S.storedSettings.showTimeGap = S.showTimeGap
+      end
+      if ui.itemHovered() then
+        ui.setTooltip("When both are unchecked the leaderboard only shows the race time.")
+      end
+    end
+    ui.unindent(18)
+  end
+  if checkRow("Display track map", S.showMap) then
+    S.showMap = not S.showMap
+    S.storedSettings.showMap = S.showMap
+    ac.setWindowOpen("cl_trackmap", S.showMap and not ac.getSim().isInMainMenu)
   end
   if ui.itemHovered() then
-    ui.setTooltip("When both are unchecked the leaderboard only shows the race time.")
+    ui.setTooltip("Shows a real-time track map with every car in its class color and class position.")
+  end
+  if S.showMap then
+    ui.indent(18)
+    ui.dummy(vec2(0, 10))
+    ui.text("My car color")
+    ui.sameLine()
+    local shown = S.humanCarColor
+    if not shown then
+      shown = require("src/map/roster").PlayerColor(os.clock()) or rgbm(1, 1, 1, 1)
+    end
+    -- Clicking the swatch opens the colour picker as a popup.
+    ui.colorButton("##humancarcolor", rgbm(shown.r, shown.g, shown.b, 1), ui.ColorPickerFlags.NoPicker)
+    if ui.itemClicked() then
+      mapPickerColor = rgbm(shown.r, shown.g, shown.b, 1)
+      -- Popup above the config window; it closes when you click outside of it.
+      ui.popup(function()
+        local flags = ui.ColorPickerFlags.NoAlpha + ui.ColorPickerFlags.NoSidePreview
+            + ui.ColorPickerFlags.PickerHueBar + ui.ColorPickerFlags.DisplayHex
+        if ui.colorPicker("##humancarpicker", mapPickerColor, flags) then
+          S.humanCarColor = rgbm(mapPickerColor.r, mapPickerColor.g, mapPickerColor.b, 1)
+          S.storedSettings.humanCarColor = string.format("#%02x%02x%02x",
+            math.floor(mapPickerColor.r * 255 + 0.5), math.floor(mapPickerColor.g * 255 + 0.5),
+            math.floor(mapPickerColor.b * 255 + 0.5))
+        end
+        -- Also here: a click outside the popup only closes it, so the button below it needs two clicks.
+        if S.humanCarColor and ui.button("Use class color") then
+          S.humanCarColor = nil
+          S.storedSettings.humanCarColor = ""
+          ui.closePopup()
+        end
+      end, { padding = vec2(10, 10) })
+    end
+    if ui.itemHovered() then ui.setTooltip("Click to choose the color of your own car on the track map.") end
+    if S.humanCarColor then
+      ui.sameLine()
+      if ui.button("Use class color") then
+        S.humanCarColor = nil
+        S.storedSettings.humanCarColor = ""
+      end
+    end
+    ui.unindent(18)
   end
   ui.dummy(vec2(0, 8))
 end

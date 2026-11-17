@@ -7,6 +7,7 @@ local Config = require("src/config_window")
 local GreenLights = require("src/green_lights")
 local RCtl = require("src/rolling/control")
 local Exporter = require("src/export/exporter")
+local TrackMap = require("src/map/trackmap")
 
 function script.update(dt)
   Frame.Update(dt)
@@ -18,6 +19,10 @@ end
 
 function script.clGreenLights(dt)
   GreenLights.Draw(dt)
+end
+
+function script.clTrackMap(dt)
+  TrackMap.Draw(dt)
 end
 
 function script.clConfig()
