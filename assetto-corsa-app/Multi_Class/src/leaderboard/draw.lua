@@ -18,6 +18,7 @@ local hasDWrite = (type(ui.pushDWriteFont) == "function" and type(ui.dwriteText)
 local FONTS = {
   num = "Bahnschrift;Weight=SemiBold",
   label = "Segoe UI;Weight=SemiBold",
+  clock = "Technology:./fonts",
 }
 
 local function fontFor(name)
@@ -55,6 +56,49 @@ function M.DrawBoldText(text, centerX, centerY, fontSize, color, fontName)
   end
   ui.popDWriteFont()
   return size.y
+end
+
+-- Text with a black outline: the same glyph drawn around the real one in 8 directions.
+local OUTLINE = rgbm(0, 0, 0, 1)
+local function drawOutlined(ch, fontSize, x, y, color, thickness)
+  for dx = -1, 1 do
+    for dy = -1, 1 do
+      if dx ~= 0 or dy ~= 0 then
+        ui.dwriteDrawText(ch, fontSize, vec2(x + dx * thickness, y + dy * thickness), OUTLINE)
+      end
+    end
+  end
+  ui.dwriteDrawText(ch, fontSize, vec2(x, y), color)
+end
+
+-- Clock drawn in fixed cells: every digit gets the width of a "0", with a faint "0" behind it and the
+-- real digit right-aligned in the cell, so a narrow "1" never makes the time shift sideways.
+function M.DrawClock(text, centerX, centerY, fontSize, color)
+  if not hasDWrite then return M.DrawBoldText(text, centerX, centerY, fontSize, color) end
+  ui.pushDWriteFont(FONTS.clock)
+  local zero = ui.measureDWriteText("0", fontSize)
+  local colon = ui.measureDWriteText(":", fontSize)
+  local cells, total = {}, 0
+  for i = 1, #text do
+    local w = text:sub(i, i):match("%d") and zero.x or colon.x
+    cells[i] = w
+    total = total + w
+  end
+  local ghost = rgbm(color.r, color.g, color.b, 0.1)
+  local thickness = math.max(1, fontSize / 28)
+  local x, y = centerX - total / 2, centerY - zero.y / 2
+  for i = 1, #text do
+    local ch = text:sub(i, i)
+    local m = ui.measureDWriteText(ch, fontSize)
+    if ch:match("%d") then
+      ui.dwriteDrawText("0", fontSize, vec2(x, y), ghost)
+      drawOutlined(ch, fontSize, x + cells[i] - m.x, y, color, thickness)
+    else
+      drawOutlined(ch, fontSize, x + (cells[i] - m.x) / 2, y, color, thickness)
+    end
+    x = x + cells[i]
+  end
+  ui.popDWriteFont()
 end
 
 local MeasureBoldText = M.MeasureBoldText
@@ -185,7 +229,7 @@ local function computeLayout()
   local h = ui.windowHeight()
   local layout = { w = w, h = h, padX = 12, gap = 16, panelTop = 8, gapPanelH = 46 }
   -- Timed race: a clock panel sits above the position panels, which move down to make room.
-  layout.timePanelH = 46
+  layout.timePanelH = 62
   -- The clock panel is always there (race countdown, race elapsed time, or the practice / qualifying
   -- time left), so the position panels keep the same height in every session.
   layout.panelTop = 8 + layout.timePanelH + 10
@@ -400,7 +444,7 @@ local function drawTimePanel(layout, sim)
   local text, color = timePanelText(sim)
   local cy = (y1 + y2) / 2 + 1
   local cx = layout.w / 2
-  DrawBoldText(text, cx, cy, 28, color)
+  M.DrawClock(text, cx, cy, 50, color)
 end
 
 -- Which flag colours the message panel: "green", "yellow" or nil.
@@ -476,7 +520,7 @@ function M.Leaderboard(dt)
     -- One panel: race clock, the class table and the flag / rolling-start message.
     local clockText, clockColor = timePanelText(sim)
     local msg = rollingText and { text = rollingText, color = rollingColor, flag = flagFor(rollingText, rollingActive) } or nil
-    Extended.Draw({ DrawCard = drawCard, FormatGap = formatGapSeconds, DrawMessage = drawMessageBand }, sim,
+    Extended.Draw({ DrawCard = drawCard, FormatGap = formatGapSeconds, DrawClock = M.DrawClock, DrawMessage = drawMessageBand }, sim,
         qualiMode, layout.w, 8, layout.h - 8, clockText, clockColor, msg)
     return
   end

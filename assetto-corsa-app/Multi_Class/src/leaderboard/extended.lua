@@ -51,7 +51,8 @@ local function collect(qualiMode)
           local best = car.bestLapTimeMs
           key = (type(best) == "number" and best > 0) and best or (1e12 + i)
         else
-          local p = car.racePosition
+          -- Once the race is finished the engine rewrites racePosition: keep the frozen one.
+          local p = S.finishedRacePositions[i] or car.racePosition
           key = (type(p) == "number" and p > 0) and p or (1e6 + i)
         end
         list[#list + 1] = { idx = i, car = car, name = name, key = key }
@@ -93,6 +94,8 @@ local function gapText(h, sim, qualiMode, c, playerRank, playerBest, leaderKey)
   end
   if c.idx == 0 then return "YOU" end
   if not sim.isSessionStarted then return "--" end
+  -- No gap during the formation lap / double file: only after every class has gone green.
+  if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return "--" end
   -- With the player in the pits (e.g. back in the pit after the finish) the engine gap is garbage.
   local pcar = ac.getCar(0)
   if pcar and (pcar.isInPitlane == true or pcar.isInPit == true) then return "--" end
@@ -192,7 +195,7 @@ function Extended.Draw(h, sim, qualiMode, w, top, bottom, clockText, clockColor,
   -- (the leader and the cars around you), down to 2; a taller one shows up to MAX_ROWS.
   local titleH, labelH = 24, 16
   local rowH, fs, fuelH, fuelFs = ROW_H, 15, 18, 14
-  local clockH, msgH = 36, 28
+  local clockH, msgH = 52, 28
   local fit = math.floor((bottom - top - clockH - titleH - labelH - (msg and msgH or 0)) / rowH)
   local rows = pickRows(list, math.max(2, math.min(MAX_ROWS, fit)))
   local n = #rows
@@ -213,8 +216,7 @@ function Extended.Draw(h, sim, qualiMode, w, top, bottom, clockText, clockColor,
 
   -- Clock band on top.
   ui.drawRectFilled(vec2(x1, top), vec2(x2, top + 3), CLOCK_ACCENT, 6, ui.CornerFlags and ui.CornerFlags.Top)
-  local cm = ui.measureDWriteText(clockText or "", 22)
-  ui.dwriteDrawText(clockText or "", 22, vec2((x1 + x2) / 2 - cm.x / 2, top + clockH / 2 + 1 - cm.y / 2), clockColor or WHITE)
+  h.DrawClock(clockText or "00:00:00", (x1 + x2) / 2, top + clockH / 2 + 1, 44, clockColor or WHITE)
 
   -- Title band: class on the left, the human driver's lap on the right.
   local titleCy = tableTop + titleH / 2

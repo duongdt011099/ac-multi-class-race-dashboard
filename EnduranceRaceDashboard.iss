@@ -72,6 +72,7 @@ Source: "{#MyLuaAppDir}\icon.png"; DestDir: "{code:LuaAppDestDir}"; Flags: ignor
 ; config.json holds the hidden developer-mode flag; never overwrite a user's edited copy.
 Source: "{#MyLuaAppDir}\config.json"; DestDir: "{code:LuaAppDestDir}"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "{#MyLuaAppDir}\src\*.lua"; DestDir: "{code:LuaAppDestDir}\src"; Flags: ignoreversion recursesubdirs uninsneveruninstall
+Source: "{#MyLuaAppDir}\fonts\*.ttf"; DestDir: "{code:LuaAppDestDir}\fonts"; Flags: ignoreversion uninsneveruninstall
 
 [InstallDelete]
 ; Modules renamed or removed in a newer app version would otherwise stay behind in the game folder.
