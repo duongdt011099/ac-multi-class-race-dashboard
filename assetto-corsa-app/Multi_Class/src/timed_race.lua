@@ -218,16 +218,22 @@ local function updateRetiredPlayer(sim, dt)
   retiredHoldAt = retiredHoldAt + dt
   if not S.playerRetired then
     if (S.timedRaceSeconds or 0) < 5.0 then return end
-    if U.SafeBool(car, "isInPit") ~= true then return end
     local total = T.IsTimedRace() and (S.timedFinishLaps or 0) or (S.liveTotalLaps or 0)
     local lc = lapCountOf(0)
     local finalLap = total > 0 and lc >= total - 1
-    if finalLap or S.raceLeaderFinished or S.playerOnFinalLap == true then
+    local lastLapPhase = finalLap or S.raceLeaderFinished or S.timedRaceTimeUp == true
+      or S.playerOnFinalLap == true
+    -- Final-lap phase: a pit-lane position (damage / pause-menu teleport) is enough; before it only the box counts.
+    local inPits = lastLapPhase and carInPits(car) or U.SafeBool(car, "isInPit") == true
+    if not inPits then return end
+    if lastLapPhase then
       S.playerRetired = true
       U.Log(sFormat("RACE: player went back to the pits at lap count %d (final lap / leader finished); finished and locked", lc))
     end
     return
   end
+  -- Lock the car: hold the brakes so it cannot roll out of its box.
+  if physics.forceUserBrakesFor then pcall(physics.forceUserBrakesFor, 0.5, 1.0) end
   if not carInPits(car) and physics.teleportCarTo and ac.SpawnSet
       and retiredHoldAt - retiredTeleportAt >= 1.0 then
     retiredTeleportAt = retiredHoldAt

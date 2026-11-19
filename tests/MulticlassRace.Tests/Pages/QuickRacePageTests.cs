@@ -159,7 +159,8 @@ public class QuickRacePageTests : PageTestContext
             Assert.DoesNotContain("Points", headers);
             Assert.Contains("Ann Lee", cut.FindAll(".wec-qr-table tbody tr")[0].TextContent);
             Assert.Single(cut.FindAll(".wec-qr-history__item"));
-            Assert.Contains("P2", cut.Find(".wec-qr-history__pos").TextContent);
+            // The history shows the class position, not the overall one (Max finished 2nd overall, 1st in his class).
+            Assert.Contains("P1", cut.Find(".wec-qr-history__pos").TextContent);
         }
         finally
         {

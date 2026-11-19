@@ -384,7 +384,20 @@
     .wec-qr-result__body { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Wide layout: the history panel is exactly as tall as the result column and scrolls inside. */
+@media (min-width: 1101px) {
+    .wec-qr-result__body { align-items: stretch; }
+    .wec-qr-history { display: flex; flex-direction: column; contain: size; min-height: 0; }
+    .wec-qr-history .wec-qr-history__list { flex: 1; min-height: 0; height: auto; max-height: none; }
+}
+
 .wec-qr-result__track { color: var(--wec-muted); font-weight: 500; }
+
+/* Fill the window: viewport minus the page header, tabs, date and class toolbar. */
+.wec-table-scroll.wec-qr-table-scroll { height: max(24rem, calc(100vh - 17rem)); max-height: none; }
+
+/* Fixed even with few rows or no race selected, so the table and the history panel keep the same size. */
+.wec-qr-result__main { min-height: max(28rem, calc(100vh - 13rem)); }
 
 .wec-qr-table__driver { display: inline-flex; align-items: center; gap: 0.6rem; }
 .wec-qr-table__you td { background: rgba(255, 200, 61, 0.08); }
@@ -405,7 +418,7 @@
     text-transform: uppercase;
 }
 
-.wec-qr-history__list { list-style: none; margin: 0; padding: 0; max-height: 28rem; overflow-y: auto; }
+.wec-qr-history__list { list-style: none; margin: 0; padding: 0; height: 28rem; overflow-y: auto; }
 
 .wec-qr-history__list li { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.35rem; }
 

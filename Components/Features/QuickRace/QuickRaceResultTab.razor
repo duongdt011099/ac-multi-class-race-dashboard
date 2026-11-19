@@ -32,7 +32,7 @@
                             </div>
                         }
 
-                        <div class="wec-table-scroll">
+                        <div class="wec-table-scroll wec-qr-table-scroll">
                             <table class="wec-table wec-qr-table">
                                 <thead>
                                     <tr>
@@ -106,8 +106,8 @@
                                 <button type="button" class="wec-qr-history__item @(Selected?.ResultId == current.ResultId ? "wec-qr-history__item--active" : "")"
                                         @onclick="() => OnSelect.InvokeAsync(current.ResultId)">
                                     <span class="wec-qr-history__date">@current.RaceDate.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)</span>
-                                    <span class="wec-qr-history__pos @PositionClass(current.HumanPosition)">
-                                        @(current.HumanPosition is { } position ? $"P{position}" : "-")
+                                    <span class="wec-qr-history__pos @PositionClass(current.HumanClassPosition ?? current.HumanPosition)">
+                                        @((current.HumanClassPosition ?? current.HumanPosition) is { } position ? $"P{position}" : "-")
                                     </span>
                                     <span class="wec-qr-history__meta">
                                         @(string.IsNullOrWhiteSpace(current.TrackName) ? "Unknown track" : TrackLabel(current.TrackName))
@@ -146,8 +146,17 @@
 
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
 
+    private Guid? shownResultId;
+
     protected override async Task OnParametersSetAsync()
     {
+        // Picking another race starts on its top class again.
+        if (Selected?.ResultId != shownResultId)
+        {
+            shownResultId = Selected?.ResultId;
+            classFilter = null;
+        }
+
         var names = History.Select(h => h.TrackName).Append(Selected?.TrackName)
             .Where(n => !string.IsNullOrWhiteSpace(n) && !trackNames.ContainsKey(n!))
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -173,7 +182,7 @@
             .Select(g => g.Key)
             .ToList();
 
-    /// <summary>The class shown: the one picked, otherwise the leading class. Empty when the race has no classes.</summary>
+    /// <summary>The class shown: the one picked, otherwise the top class of the race. Empty when the race has no classes.</summary>
     private string ClassFilter => classFilter is not null && ClassNames.Contains(classFilter, StringComparer.OrdinalIgnoreCase)
         ? classFilter
         : ClassNames.FirstOrDefault() ?? AllClasses;
