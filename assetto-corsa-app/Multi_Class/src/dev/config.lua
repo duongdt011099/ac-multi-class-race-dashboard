@@ -11,6 +11,7 @@ local M = {}
 
 local POLL_SECONDS = 2.0
 local lastPoll = -1000.0
+local synced = false
 
 local function configPath()
   return ac.getFolder(ac.FolderID.ACApps) .. "/lua/Multi_Class/config.json"
@@ -31,7 +32,15 @@ end
 -- Re-reads the flag. Returns true when it just changed.
 function M.Refresh()
   local flag = readFlag()
-  if flag == (S.developerMode == true) then return false end
+  if flag == (S.developerMode == true) then
+    -- The game remembers a window's open state between sessions: close a stale log window once.
+    if not synced then
+      synced = true
+      if not flag then pcall(ac.setWindowOpen, "cl_devlog", false) end
+    end
+    return false
+  end
+  synced = true
   S.developerMode = flag
   if flag then
     S.logBuffer = S.logBuffer or {}

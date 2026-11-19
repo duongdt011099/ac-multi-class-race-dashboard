@@ -369,6 +369,8 @@ end
 -- class car ahead in single file, the same-lane car ahead in double file) is never passed: inside
 -- the hard gap it brakes below that car's speed, and once level or ahead it stops until re-passed.
 local HARD_GAP_M = 8.0
+local FOLLOW_RANGE_M = 70.0
+local FOLLOW_DECEL = 2.5
 local function ApplyNoOvertakeGuard(state, group, car, trackLength, targetSpeed, throttleLimit)
   local aheadIndex
   if state.enteredPhase2 then
@@ -381,12 +383,27 @@ local function ApplyNoOvertakeGuard(state, group, car, trackLength, targetSpeed,
     end
   end
   local aheadCar = aheadIndex and getCar(aheadIndex)
-  if not (aheadCar and car and type(aheadCar.splinePosition) == "number") then return targetSpeed, throttleLimit end
-  local gap = Spacing.SignedGap(aheadCar, car, trackLength)
-  if gap > HARD_GAP_M or gap < -40.0 then return targetSpeed, throttleLimit end   -- far ahead/behind: not a pass
-  local aheadSpeed = aheadCar.speedKmh or 0
-  local cap = gap <= 0 and 0.0 or math.max(0.0, aheadSpeed - (HARD_GAP_M - gap) * 4.0)
-  return math.min(targetSpeed, cap), 0.0
+  if car and aheadCar and type(aheadCar.splinePosition) == "number" then
+    local gap = Spacing.SignedGap(aheadCar, car, trackLength)
+    local aheadSpeed = aheadCar.speedKmh or 0
+    if gap <= HARD_GAP_M and gap >= -40.0 then
+      local cap = gap <= 0 and 0.0 or math.max(0.0, aheadSpeed - (HARD_GAP_M - gap) * 4.0)
+      return math.min(targetSpeed, cap), 0.0
+    elseif gap > HARD_GAP_M and gap <= FOLLOW_RANGE_M then
+      -- Brake early enough to arrive at the hold gap at the other car's speed. A closing car makes
+      -- the AI steer out to pass, so the closing must stop well before the hard gap.
+      local v = aheadSpeed / 3.6
+      local cap = math.sqrt(v * v + 2.0 * FOLLOW_DECEL * (gap - HARD_GAP_M)) * 3.6
+      if cap < targetSpeed then targetSpeed = cap end
+    end
+  end
+  -- Whatever is physically in front in the same lane (any class, any phase) is never closed on fast.
+  local dist, speedAhead = Spacing.NearestAhead(0, car, S.carsTotal or S.driverCount)
+  if dist and dist < HARD_GAP_M + 4.0 then
+    targetSpeed = math.min(targetSpeed, math.max(0.0, (speedAhead or 0) - 5.0))
+    throttleLimit = math.min(throttleLimit, 0.3)
+  end
+  return targetSpeed, throttleLimit
 end
 
 -- True while the car is still within the straight run after its release. The first call after the
