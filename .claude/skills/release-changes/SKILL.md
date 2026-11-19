@@ -16,3 +16,4 @@ Usage:
 Format:
   - Summarize the changes as short bullet points for user-friendly readability.
   - Don't dive into the code details; focus on the high-level changes and their impact.
+  - Print out as github release notes format, including the version number and release date.
