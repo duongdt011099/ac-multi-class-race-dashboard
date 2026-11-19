@@ -69,6 +69,8 @@ Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversi
 Source: "{#MyLuaAppDir}\Multi_Class.lua"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyLuaAppDir}\manifest.ini"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyLuaAppDir}\icon.png"; DestDir: "{code:LuaAppDestDir}"; Flags: ignoreversion uninsneveruninstall
+; config.json holds the hidden developer-mode flag; never overwrite a user's edited copy.
+Source: "{#MyLuaAppDir}\config.json"; DestDir: "{code:LuaAppDestDir}"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "{#MyLuaAppDir}\src\*.lua"; DestDir: "{code:LuaAppDestDir}\src"; Flags: ignoreversion recursesubdirs uninsneveruninstall
 
 [InstallDelete]

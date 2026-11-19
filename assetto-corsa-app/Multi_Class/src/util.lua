@@ -19,7 +19,18 @@ local function resolveLogPath()
   return "debug.log"
 end
 
+local MAX_LIVE_LINES = 400
+
 function U.Log(msg)
+  -- Developer mode: keep the tail in memory for the live log window.
+  if S.developerMode then
+    pcall(function()
+      local buffer = S.logBuffer
+      if not buffer then buffer = {} S.logBuffer = buffer end
+      buffer[#buffer + 1] = os.date("%H:%M:%S ") .. tostring(msg)
+      if #buffer > MAX_LIVE_LINES then table.remove(buffer, 1) end
+    end)
+  end
   if not C.DEBUG_ENABLED then return end
   pcall(function()
     if not S.debugLogFile then

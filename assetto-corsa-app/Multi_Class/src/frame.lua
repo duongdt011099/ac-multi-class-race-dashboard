@@ -17,8 +17,26 @@ local AITuning = require("src/ai/tuning")
 local SafetyCar = require("src/safetycar/safetycar")
 local Pos = require("src/leaderboard/positions")
 local TimedRace = require("src/timed_race")
+local DevConfig = require("src/dev/config")
+local DevRecovery = require("src/dev/recovery")
 
 local Frame = {}
+
+-- Developer mode: the AI drives the human car for the whole session, never handed back.
+local function maintainDeveloperAutopilot(sim)
+  S.autopilotEnabled = true   -- runtime only; the stored checkbox value is left alone
+  -- Finished / out of the race (timed_race.lua teleported it to the pits and locks it there with the
+  -- brakes, which the autopilot would override): release the autopilot so the car stays parked.
+  if S.playerRetired == true then
+    if S.playerAutopilotOn then RCtl.SetPlayerAutopilot(false) end
+    return
+  end
+  if S.playerAutopilotOn or sim.isInMainMenu == true or sim.isSessionStarted ~= true then return end
+  -- A race that has not been staged yet is handled by the rolling-start preparation itself, which
+  -- holds the car on the grid together with the field.
+  if Sess.IsRaceMode(sim) and S.rollingStartState == "idle" then return end
+  RCtl.SetPlayerAutopilot(true)
+end
 
 local pausedAt = nil   -- os.clock() when the in-game pause began (nil = not paused)
 
@@ -108,6 +126,7 @@ local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
   pcall(CrashGuard.Reset)
+  pcall(DevRecovery.Reset)
   pcall(AITuning.Reset)
   pcall(SafetyCar.Reset)
   pcall(Audio.ResetAll)
@@ -298,6 +317,10 @@ local function updateRolling(sim, dt)
   end
   local cgOk, cgErr = pcall(CrashGuard.Update, sim, dt)
   if not cgOk then U.Log("CRASH: update failed: " .. tostring(cgErr)) end
+  if RCtl.DevAutopilotActive() then
+    local drOk, drErr = pcall(DevRecovery.Update, sim, dt)
+    if not drOk then U.Log("DEV: recovery failed: " .. tostring(drErr)) end
+  end
   local aiOk, aiErr = pcall(AITuning.Update, sim, dt)
   if not aiOk then
     U.Log("AI: update failed: " .. tostring(aiErr))
@@ -331,6 +354,14 @@ end
 function Frame.Update(dt)
   local sim = ac.getSim()
   S.driverCount = SafetyCar.CompetitorCount(sim)
+
+  if DevConfig.Poll() then
+    U.Log("DEV: developer mode " .. (S.developerMode and "ENABLED" or "disabled") .. " (config.json)")
+    if not S.developerMode then
+      RCtl.SetPlayerAutopilot(false)
+      S.autopilotEnabled = S.storedSettings.autopilotEnabled ~= false
+    end
+  end
 
   -- Paused from the in-game menu: the whole app stands still (no session tracking, rolling start,
   -- flags, timers or exports) with its audio held, and carries on from the same spot on resume.
@@ -407,7 +438,8 @@ function Frame.Update(dt)
 
   -- The autopilot only ever belongs to a staged/rolling race start; never leave it on elsewhere
   -- (practice, qualifying, a finished race or an unsupported session).
-  if S.playerAutopilotOn and not (Sess.IsRaceMode(sim) and
+  if S.developerMode then maintainDeveloperAutopilot(sim) end
+  if S.playerAutopilotOn and not S.developerMode and not (Sess.IsRaceMode(sim) and
       (S.rollingStartState == "staged" or S.rollingStartState == "rolling")) then
     RCtl.SetPlayerAutopilot(false)
   end

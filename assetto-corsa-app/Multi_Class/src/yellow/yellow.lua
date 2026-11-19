@@ -75,6 +75,12 @@ local function inPit(car)
   return car.isInPitlane == true or car.isInPit == true
 end
 
+-- Developer mode: the autopilot drives the human car, so the yellow flag treats it like any AI car
+-- (AI speed limiting, tow after a lap) instead of the brake-pedal limit meant for a human driver.
+local function isAICar(i)
+  return i ~= 0 or RCtl.DevAutopilotActive()
+end
+
 local function progress(car)
   if type(car.splinePosition) ~= "number" then return nil end
   return U.NormalizeTrackProgress(car.splinePosition)
@@ -236,13 +242,13 @@ local function buildHazardsNow(frameDt, trackLength)
       if p and (st.ok == 0.0 or not st.hazardP) then st.hazardP = p end
 
       -- The human car's own stop must not hold up the race for ever.
-      if i == 0 and not st.ignored and S.yellowClock - st.hazardAt > C.YELLOW_PLAYER_HAZARD_MAX_S then
+      if not isAICar(i) and not st.ignored and S.yellowClock - st.hazardAt > C.YELLOW_PLAYER_HAZARD_MAX_S then
         st.ignored = true
         U.Log("YELLOW: the player's own stop is ignored (too long)")
       end
 
       -- A hazard AI car still on track a full leader lap later is sent to the pits.
-      if i ~= 0 and S.fcy ~= "green" and S.yellowLeaderDist - (st.leaderMark or S.yellowLeaderDist) >= 1.0 then
+      if isAICar(i) and S.fcy ~= "green" and S.yellowLeaderDist - (st.leaderMark or S.yellowLeaderDist) >= 1.0 then
         st.towT = (st.towT or 0.0) + dt
         if st.towT >= C.YELLOW_TOW_RETRY_SECONDS or not st.towLogged then
           if st.towT >= C.YELLOW_TOW_RETRY_SECONDS then st.towT = 0.0 end
@@ -298,7 +304,7 @@ end
 local function otherHazards()
   local n = 0
   for _, h in ipairs(S.yellowHazards) do
-    if h.index ~= 0 then n = n + 1 end
+    if isAICar(h.index) then n = n + 1 end
   end
   return n
 end
@@ -562,7 +568,7 @@ local function releaseAI(i, car, dt, immediate)
 end
 
 local function updateCars(trackLength, dt)
-  for i = 1, S.driverCount - 1 do
+  for i = RCtl.DevAutopilotActive() and 0 or 1, S.driverCount - 1 do
     local car = getCar(i)
     local p = car and progress(car)
     if p then
@@ -602,6 +608,7 @@ local function limitPlayer(player, limit, dt)
   end
 end
 local function updatePlayer(trackLength, dt)
+  if RCtl.DevAutopilotActive() then return end   -- handled by updateCars like an AI car
   local player = getCar(0)
   local p = player and progress(player)
   if not p then return end
@@ -619,8 +626,8 @@ end
 -- Hand every car back and forget all state.
 function M.Reset()
   for i, st in pairs(S.yellowCars) do
-    if (st.limited or st.releasing) and i ~= 0 then RCtl.RestoreAIControl(i, false) end
-    if i ~= 0 and st.brakeHintApplied ~= nil then
+    if (st.limited or st.releasing) and isAICar(i) then RCtl.RestoreAIControl(i, false) end
+    if isAICar(i) and st.brakeHintApplied ~= nil then
       pcall(physics.setAIStopCounter, i, 0.0)
       setBrakeHint(i, 1.0)
     end

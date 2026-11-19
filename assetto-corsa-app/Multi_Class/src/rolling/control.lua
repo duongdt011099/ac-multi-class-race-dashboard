@@ -72,6 +72,12 @@ function M.SetPlayerAutopilot(enabled)
   U.Log("ROLLING: player autopilot " .. (enabled and "ON" or "OFF (manual)"))
 end
 
+-- True only in developer mode while the autopilot drives the human car. Every dev-only behaviour of
+-- the rolling start goes through this, so with developer mode off the code paths are the originals.
+function M.DevAutopilotActive()
+  return S.developerMode == true and S.playerAutopilotOn == true
+end
+
 function M.RestoreRollingStartControls()
   Audio.Reset()
   M.SetPlayerAutopilot(false)

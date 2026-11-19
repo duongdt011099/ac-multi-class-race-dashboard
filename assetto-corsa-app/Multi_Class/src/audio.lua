@@ -89,7 +89,7 @@ end
 local autopilotOffPlayer = nil
 
 function M.PlayAutopilotOff()
-  if autopilotOffPlayed then return end
+  if S.developerMode or autopilotOffPlayed then return end
   autopilotOffPlayed = true
   local ok, err = pcall(function()
     if not autopilotOffPlayer then

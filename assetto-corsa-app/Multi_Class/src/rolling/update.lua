@@ -179,7 +179,7 @@ end
 local function CompleteRollingStart()
   -- Make sure no car is left holding a lane offset now that the whole field is racing.
   for carIndex, state in pairs(S.rollingStartCars) do
-    if carIndex ~= 0 then
+    if carIndex ~= 0 or RCtl.DevAutopilotActive() then
       RCtl.SetRollingLaneOffset(carIndex, 0.0)
     end
     state.currentSplineOffset = 0.0

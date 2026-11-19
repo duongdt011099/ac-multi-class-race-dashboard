@@ -186,4 +186,8 @@ S.rollingPitBlock            = nil
 -- Debug log
 S.debugLogFile = nil
 
+-- Developer mode (config.json "enableDeveloperMode", see dev/config.lua). Not a stored setting.
+S.developerMode = false
+S.logBuffer = {}
+
 return S

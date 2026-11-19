@@ -77,7 +77,9 @@ function M.Draw(dt)
   -- The "You have control" banner outranks the manual notice: the autopilot-off clip can still be
   -- playing when the car is handed back, and must not keep the new banner from showing.
   local control = (S.controlBannerUntil or 0) > os.clock() and not showing
-  local auto = S.playerAutopilotOn == true and not manual and not showing
+  -- Developer mode: the AI always drives, so there is no hand-over to announce.
+  if S.developerMode then manual, control = false, false end
+  local auto = S.playerAutopilotOn == true and not manual and not showing and not S.developerMode
   manual = manual and not showing and not control
   -- "You have control" after the autopilot hands the car back: two images swapped every few tenths of
   -- a second make it blink. Like the manual notice it hides the lower-priority banners.

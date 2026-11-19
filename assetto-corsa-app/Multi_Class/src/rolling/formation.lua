@@ -363,6 +363,57 @@ local function LaunchProgress(state)
   return t * t * (3 - 2 * t)
 end
 
+-- Hard no-overtake guard for the human car while the autopilot drives it. The soft spacing above
+-- lets a car that has drawn alongside keep a floor speed (so a stalled car cannot hold the class
+-- up), which the autopilot car turns into a real pass. Here the car directly in front of it (the
+-- class car ahead in single file, the same-lane car ahead in double file) is never passed: inside
+-- the hard gap it brakes below that car's speed, and once level or ahead it stops until re-passed.
+local HARD_GAP_M = 8.0
+local function ApplyNoOvertakeGuard(state, group, car, trackLength, targetSpeed, throttleLimit)
+  local aheadIndex
+  if state.enteredPhase2 then
+    aheadIndex = state.laneAheadIndex
+  elseif group and group.cars then
+    for pos = (state.classPosition or 1) - 1, 1, -1 do
+      local idx = group.cars[pos]
+      local st = idx and S.rollingStartCars[idx]
+      if idx and not (st and (st.dropped or st.retired)) then aheadIndex = idx break end
+    end
+  end
+  local aheadCar = aheadIndex and getCar(aheadIndex)
+  if not (aheadCar and car and type(aheadCar.splinePosition) == "number") then return targetSpeed, throttleLimit end
+  local gap = Spacing.SignedGap(aheadCar, car, trackLength)
+  if gap > HARD_GAP_M or gap < -40.0 then return targetSpeed, throttleLimit end   -- far ahead/behind: not a pass
+  local aheadSpeed = aheadCar.speedKmh or 0
+  local cap = gap <= 0 and 0.0 or math.max(0.0, aheadSpeed - (HARD_GAP_M - gap) * 4.0)
+  return math.min(targetSpeed, cap), 0.0
+end
+
+-- True while the car is still within the straight run after its release. The first call after the
+-- release records where it started.
+local function IsInStraightRun(state, car, trackLength)
+  if state.straightDone then return false end
+  if not (car and type(car.splinePosition) == "number" and U.IsFinite(trackLength) and trackLength > 0) then
+    return false
+  end
+  if not state.straightOffset then
+    -- A car already in double file holds the lane it is in (track centre), not the racing-line lane.
+    state.straightOffset = state.enteredPhase2 and state.currentSplineOffset
+      or (state.startSide or 1) * C.ROLLING_START_LANE_METERS
+    state.straightStartSpline = car.splinePosition
+    state.straightStartTime = S.rollingStartSessionTime or 0
+  end
+  local d = car.splinePosition - state.straightStartSpline
+  if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+  local travelled = math.max(0.0, d * trackLength)
+  local elapsed = (S.rollingStartSessionTime or 0) - state.straightStartTime
+  if travelled >= C.ROLLING_START_STRAIGHT_RUN_M or elapsed >= C.ROLLING_START_STRAIGHT_RUN_MAX_SECONDS then
+    state.straightDone = true
+    return false
+  end
+  return true
+end
+
 local function CommandFormationAI(carIndex, state, group, car, trackLength, maxLaneMove)
   local targetSpeed, targetOffset, cautionLevel, throttleLimit
   if state.enteredPhase2 then
@@ -374,6 +425,10 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   targetSpeed, throttleLimit = ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
   -- Final safety net, applied to every car: never run into whatever is physically ahead.
   targetSpeed, throttleLimit = Spacing.ProximityGuard(carIndex, car, S.carsTotal or S.driverCount, targetSpeed, throttleLimit)
+
+  if carIndex == 0 and RCtl.DevAutopilotActive() then
+    targetSpeed, throttleLimit = ApplyNoOvertakeGuard(state, group, car, trackLength, targetSpeed, throttleLimit)
+  end
 
   local launch = LaunchProgress(state)
   if launch < 1.0 then
@@ -387,6 +442,12 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   if not state.enteredPhase2 then maxLaneMove = maxLaneMove * C.ROLLING_START_WEAVE_LANE_RATE_SCALE end
 
   local applied = state.currentSplineOffset or 0.0
+  -- Straight run: right after release keep the lane the car physically sits in (its grid side)
+  -- so it does not steer toward the racing line while it is still launching.
+  if IsInStraightRun(state, car, trackLength) then
+    targetOffset = state.straightOffset
+    applied = state.straightOffset
+  end
   local diff = targetOffset - applied
   if math.abs(diff) > maxLaneMove then
     applied = applied + (diff > 0 and maxLaneMove or -maxLaneMove)
@@ -564,7 +625,7 @@ local function MaintainCar(carIndex, state, trackLength, moves)
   local atHandover = false
   if autopiloted and state.hasRolledOver and car and type(car.splinePosition) == "number" then
     atHandover = car.splinePosition >= handoverPoint
-    if S.autopilotEnabled and not state.autopilotWarned and not atHandover then
+    if S.autopilotEnabled and not S.developerMode and not state.autopilotWarned and not atHandover then
       local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
       local secondsLeft = (handoverPoint - car.splinePosition) * trackLength / speed
       if secondsLeft <= C.AUTOPILOT_OFF_WARNING_SECONDS then
@@ -573,14 +634,15 @@ local function MaintainCar(carIndex, state, trackLength, moves)
       end
     end
   end
-  if autopiloted and (atHandover or state.green) then
+  -- Developer mode never hands the car back.
+  if autopiloted and not S.developerMode and (atHandover or state.green) then
     RCtl.SetPlayerAutopilot(false)
     S.manualBannerUntil = 0   -- the "Manual Control" notice gives way to the blinking "You have control" banner
     S.controlBannerUntil = os.clock() + C.CONTROL_BANNER_SECONDS
     autopiloted = false
   end
   if state.green then
-    EaseOutLaneOffset(carIndex, state, isAI, moves.greenLaneMove)
+    EaseOutLaneOffset(carIndex, state, isAI or (autopiloted and RCtl.DevAutopilotActive()), moves.greenLaneMove)
   elseif isAI or autopiloted then
     CommandFormationAI(carIndex, state, group, car, trackLength, moves.maxLaneMove)
   end
@@ -593,7 +655,7 @@ local function RampClassCaution(dt)
       group.windowCloseTimer = (group.windowCloseTimer or 0) + dt
       local progress = math.min(1.0, group.windowCloseTimer / C.ROLLING_START_GREEN_WINDOW_SECONDS)
       for _, memberIndex in ipairs(group.cars) do
-        if memberIndex ~= 0 then
+        if memberIndex ~= 0 or RCtl.DevAutopilotActive() then
           setAICaution(memberIndex, progress)
         end
       end

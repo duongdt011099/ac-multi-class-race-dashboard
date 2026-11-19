@@ -166,6 +166,10 @@ C.ROLLING_START_LAUNCH_RAMP_SECONDS      = 6.0
 C.ROLLING_START_LAUNCH_THROTTLE_START    = 0.45
 C.ROLLING_START_LAUNCH_SPEED_START_KMH   = 45
 C.ROLLING_START_LAUNCH_LANE_SCALE        = 0.5
+-- After release a car holds its grid-side lane offset (instead of being pulled onto the racing line)
+-- for this distance (or time), so it pulls away straight and stable before steering in.
+C.ROLLING_START_STRAIGHT_RUN_M           = 20.0
+C.ROLLING_START_STRAIGHT_RUN_MAX_SECONDS = 12.0
 C.ROLLING_START_CLASS_GAP_SECONDS   = 3.0
 -- A released car that is still crawling STALL_GRACE_SECONDS after its release has not launched.
 -- Stage 1 hands it back full throttle (and skips the launch ramp), stage 2 gives it a small

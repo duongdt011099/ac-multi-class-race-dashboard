@@ -14,7 +14,8 @@ function M.GiveRollingGreen(carIndex, state, now)
   state.green = true
   state.greenAt = now
   -- Hand the AI back its racing controls now; the lane offset eases out over the next moments.
-  if carIndex ~= 0 then
+  -- The human car counts too when the autopilot drives it (developer mode never hands it back).
+  if carIndex ~= 0 or RCtl.DevAutopilotActive() then
     RCtl.RestoreAIControl(carIndex, false)
   end
   U.Log(sFormat("ROLLING: car %d green at progress %.3f", carIndex, state.lastProgress or -1))

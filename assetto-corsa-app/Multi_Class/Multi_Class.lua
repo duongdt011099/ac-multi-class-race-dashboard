@@ -25,6 +25,10 @@ function script.clTrackMap(dt)
   TrackMap.Draw(dt)
 end
 
+function script.clDevLog(dt)
+  require("src/dev/log_window").Draw(dt)
+end
+
 function script.clConfig()
   Config.Draw()
 end
