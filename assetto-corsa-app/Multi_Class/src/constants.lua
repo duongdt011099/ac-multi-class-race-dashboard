@@ -289,11 +289,13 @@ C.BLUE_PAST_LAPPED_M          = 120
 C.BLUE_MAX_PANELS             = 3
 C.BLUE_GROUP_STEP_M           = 20     -- spline sampling step when checking a group of boards (COTA)
 C.BLUE_LAPPED_MIN_LAPS        = 0.5    -- race distance the human car must be ahead by to count as lapping
+C.BLUE_BEHIND_M               = 150    -- a faster car this close behind the human car is about to lap it
+C.BLUE_BEING_LAPPED_AHEAD_M   = 300    -- panels this far ahead of the human car show blue while it is being lapped
 C.BLUE_SCAN_SECONDS           = 0.25
 C.BLUE_HOLD_SECONDS           = 1.5    -- panels stay blue this long after the condition clears (no flicker)
 C.BLUE_BLINK_SECONDS          = 0.35   -- half period of the blink
 -- Panel colours (0-255) and emissive multiplier, as track configs write them (Imola 2024's values).
-C.PANEL_BLUE_RGB              = { 30, 90, 255 }    -- saturated blue, a little lighter than the track's 15,15,200
+C.PANEL_BLUE_RGB              = { 0, 102, 255 }    -- racing blue flag, #0066FF
 C.PANEL_BLUE_BRIGHTNESS       = 3.0
 C.PANEL_YELLOW_RGB            = { 230, 185, 20 }
 C.PANEL_GREEN_RGB             = { 30, 230, 10 }

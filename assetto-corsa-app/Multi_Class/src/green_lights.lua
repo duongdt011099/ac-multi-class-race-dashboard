@@ -30,6 +30,8 @@ local LAST_LAP_IMAGES = { "last_lap_1.png", "last_lap_2.png" }   -- "Last Lap" (
 local alpha = 0.0
 local lastLapAlpha = 0.0
 local lastLapLogged = nil
+local LAST_LAP_BANNER_SECONDS = 5.0
+local lastLapBannerUntil = nil
 local lastLeaderScanAt = 0
 local leaderLapCount = 0
 local leaderFinalLc = nil
@@ -93,8 +95,8 @@ function M.Draw(dt)
     local side = Draw.GetPlayerLaneSide()
     if side == "LEFT" then laneImage = LANE_LEFT_IMAGE elseif side == "RIGHT" then laneImage = LANE_RIGHT_IMAGE end
   end
-  -- Last-lap notice: stays up from the moment the human car starts its final lap of a race until
-  -- it takes the flag. A car on the lead lap starts its final lap with lap count totalLaps-1. A
+  -- Last-lap notice: shown for LAST_LAP_BANNER_SECONDS from the moment the human car starts its
+  -- final lap of a race (S.playerOnFinalLap still tracks the whole lap until it takes the flag). A car on the lead lap starts its final lap with lap count totalLaps-1. A
   -- lapped car never gets there, so for it the final lap starts at its first line crossing after
   -- the overall leader began the leader's own final lap, and ends at its first crossing after the
   -- leader has finished.
@@ -132,7 +134,13 @@ function M.Draw(dt)
     end
   end
   playerFinished = playerFinished or S.playerRetired == true
-  lastLap = lastLap and not showing and not covered and not S.playerRetired
+  -- The banner itself only shows for the first few seconds of the final lap.
+  if lastLap then
+    if lastLapBannerUntil == nil then lastLapBannerUntil = os.clock() + LAST_LAP_BANNER_SECONDS end
+  else
+    lastLapBannerUntil = nil
+  end
+  lastLap = lastLap and lastLapBannerUntil > os.clock() and not showing and not covered and not S.playerRetired
   lastLapAlpha = fade(lastLapAlpha, lastLap, dt)
 
   -- Race-finish notice: a few seconds from the moment the human car takes the flag.

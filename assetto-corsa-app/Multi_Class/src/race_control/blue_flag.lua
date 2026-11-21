@@ -1,9 +1,13 @@
--- Race control for the track's own flag panels: blue near a car the human car is lapping.
+-- Race control for the track's own flag panels: blue near the human car when it laps a car or is
+-- being lapped, in the same (app) blue both ways.
 --
 -- AC's own blue flag (physics.overrideRacingFlag(ac.FlagType.FasterCar)) feeds FLAG_TYPE, which lights
 -- every flag panel on the track and also the car's dash screen. Instead, the app finds the panels
 -- itself (race_control/panels.lua), gives each one its own material and colours them one by one:
 --   - blue, blinking: the panels from the human car up to just past the car it is lapping;
+--   - blue, blinking: the panels just ahead of the human car while a faster car is lapping it. AC
+--     shows the player its own blue flag then (dash screen included, which is right); its track-wide
+--     blue on the other panels is held back to their original look;
 --   - yellow / green: every panel while the full course yellow (or its green panel) is out, because
 --     panels with their own material may no longer follow the track config's flag condition;
 --   - otherwise the panel's original look.
@@ -22,7 +26,8 @@ local M = {}
 local clock = 0.0
 local lastScanAt = -1000.0
 local blueUntil = {}      -- panel -> clock until which it stays blue
-local lappedCar = nil     -- index of the car being lapped (for the log only)
+local lappedCar = nil     -- index of the car the human car is lapping (for the log only)
+local lappingCar = nil    -- index of the car lapping the human car (for the log only)
 local active = false      -- true while any panel is driven by the app
 
 local function colour(c, scale)
@@ -65,6 +70,41 @@ local function findLappedCar(trackLength)
   return best, bestGap, p0
 end
 
+-- The car about to lap the human car: physically behind within C.BLUE_BEHIND_M, at least
+-- C.BLUE_LAPPED_MIN_LAPS ahead in race distance. When AC itself shows the player the blue flag
+-- (sim.raceFlagType), the car that caused it counts too. Returns its index, the gap behind in metres
+-- and the human car's lap progress.
+local function findLappingCar(sim, trackLength)
+  local player = getCar(0)
+  local p0 = player and progress(player)
+  if not p0 or inPit(player) then return nil end
+  local d0 = (player.lapCount or 0) + p0
+  local best, bestGap = nil, nil
+  for j = 1, S.driverCount - 1 do
+    if j ~= S.safetyCarIndex then
+      local car = getCar(j)
+      local pj = car and progress(car)
+      if pj and not inPit(car) then
+        local gap = ((p0 - pj) % 1.0) * trackLength
+        local aheadLaps = ((car.lapCount or 0) + pj) - d0
+        if gap > 1.0 and gap <= C.BLUE_BEHIND_M and aheadLaps >= C.BLUE_LAPPED_MIN_LAPS
+            and (not bestGap or gap < bestGap) then
+          best, bestGap = j, gap
+        end
+      end
+    end
+  end
+  if not best and sim.raceFlagType == ac.FlagType.FasterCar then
+    local cause = tonumber(sim.raceFlagCause) or -1
+    if cause > 0 then
+      local car = getCar(cause)
+      local pj = car and progress(car)
+      best, bestGap = cause, pj and ((p0 - pj) % 1.0) * trackLength or 0
+    end
+  end
+  return best, bestGap, p0
+end
+
 -- How far ahead (m) the stretch from the human car to just past the lapped car first enters a group
 -- of boards, or nil. The stretch is sampled every C.BLUE_GROUP_STEP_M along the AI spline.
 local function groupAhead(panel, p0, fromM, toM, trackLength)
@@ -77,10 +117,10 @@ local function groupAhead(panel, p0, fromM, toM, trackLength)
   return nil
 end
 
--- The nearest panels ahead of the human car, up to C.BLUE_PAST_LAPPED_M past the lapped car.
-local function markBluePanels(p0, gap, trackLength)
+-- The nearest panels ahead of the human car, up to toM metres ahead (just past the lapped car, or
+-- C.BLUE_BEING_LAPPED_AHEAD_M while the human car is being lapped).
+local function markBluePanels(p0, toM, trackLength)
   local candidates = {}
-  local toM = gap + C.BLUE_PAST_LAPPED_M
   for _, panel in ipairs(Panels.List()) do
     local ahead
     if panel.group then
@@ -105,14 +145,18 @@ local drawHandle = nil
 local readbackAt = nil    -- clock at which to log what a blue panel really shows (once per lapping)
 
 -- Decides every panel's colour for this frame (panel.want / panel.wantKey); nil = original look.
-local function decideColours()
+local function decideColours(sim)
   local blink = math.floor(clock / C.BLUE_BLINK_SECONDS) % 2 == 0
   -- Same moments the yellow module puts AC's own track flag to yellow / green (syncTrackFlag).
   local fcyYellow = S.yellowPlayerActive == true
   local fcyGreen = (S.yellowGreenUntil or 0) > (S.yellowClock or 0)
+  -- While AC shows the player its own blue flag, the track config lights every panel in the track's
+  -- blue. Panels the app is not colouring are held at their original look, so only the app's blue
+  -- (near the car) shows.
+  local holdOriginal = sim.raceFlagType == ac.FlagType.FasterCar
   local any = false
   for _, panel in ipairs(Panels.List()) do
-    local want, key = nil, "off"
+    local want, key, force = nil, "off", false
     if fcyYellow then
       want, key = blink and colour(C.PANEL_YELLOW_RGB, C.PANEL_BRIGHTNESS) or DARK, blink and "yellow" or "dark"
     elseif fcyGreen then
@@ -121,9 +165,10 @@ local function decideColours()
       want, key = blink and colour(C.PANEL_BLUE_RGB, C.PANEL_BLUE_BRIGHTNESS) or DARK, blink and "blue" or "dark"
     else
       blueUntil[panel] = nil
+      if holdOriginal then key, force = "original", true end
     end
-    panel.want, panel.wantKey = want, key
-    if want then any = true end
+    panel.want, panel.wantKey, panel.force = want, key, force or want ~= nil
+    if panel.force then any = true end
   end
   active = any
 end
@@ -132,7 +177,7 @@ end
 -- flag adjustments rewrite ksEmissive each frame); the rest only when they change back.
 local function pushColours()
   for _, panel in ipairs(Panels.List()) do
-    Panels.Set(panel, panel.want, panel.wantKey, panel.want ~= nil)
+    Panels.Set(panel, panel.want, panel.wantKey, panel.force)
   end
 end
 
@@ -171,8 +216,8 @@ local function logReadback()
   end
 end
 
-local function applyColours()
-  decideColours()
+local function applyColours(sim)
+  decideColours(sim)
   pushColours()
   if active then ensureDrawHandle() end
   logReadback()
@@ -184,8 +229,9 @@ function M.Reset()
   Panels.RestoreAll()
   blueUntil = {}
   active = false
-  if lappedCar then U.Log("BLUE: lights off (reset)") end
+  if lappedCar or lappingCar then U.Log("BLUE: lights off (reset)") end
   lappedCar = nil
+  lappingCar = nil
   lastScanAt = -1000.0
   clock = 0.0
 end
@@ -200,7 +246,7 @@ end
 
 function M.Update(sim, dt)
   if not shouldRun(sim) then
-    if active or lappedCar then M.Reset() end
+    if active or lappedCar or lappingCar then M.Reset() end
     return
   end
   local trackLength = sim.trackLengthM
@@ -211,9 +257,14 @@ function M.Update(sim, dt)
   if clock - lastScanAt >= C.BLUE_SCAN_SECONDS then
     lastScanAt = clock
     local j, gap, p0 = nil, nil, nil
+    local k, kGap, kp0 = nil, nil, nil
     local yellow = S.fcy ~= nil and S.fcy ~= "green"
-    if not yellow and S.playerRetired ~= true then j, gap, p0 = findLappedCar(trackLength) end
-    local lit = j and markBluePanels(p0, gap, trackLength) or 0
+    if not yellow and S.playerRetired ~= true then
+      j, gap, p0 = findLappedCar(trackLength)
+      k, kGap, kp0 = findLappingCar(sim, trackLength)
+    end
+    local lit = j and markBluePanels(p0, gap + C.BLUE_PAST_LAPPED_M, trackLength) or 0
+    local kLit = k and markBluePanels(kp0, C.BLUE_BEING_LAPPED_AHEAD_M, trackLength) or 0
     if j ~= lappedCar then
       if j then
         U.Log(sFormat("BLUE: t=%.1f lapping car %d, %.0f m ahead; %d panel(s) in range", clock, j, gap, lit))
@@ -223,8 +274,18 @@ function M.Update(sim, dt)
       end
       lappedCar = j
     end
+    if k ~= lappingCar then
+      if k then
+        U.Log(sFormat("BLUE: t=%.1f being lapped by car %d, %.0f m behind; %d panel(s) in range (AC flag %s)",
+            clock, k, kGap, kLit, tostring(sim.raceFlagType)))
+        if kLit > 0 then readbackAt = clock + 0.5 end
+      else
+        U.Log(sFormat("BLUE: t=%.1f no longer being lapped", clock))
+      end
+      lappingCar = k
+    end
   end
-  applyColours()
+  applyColours(sim)
 end
 
 return M

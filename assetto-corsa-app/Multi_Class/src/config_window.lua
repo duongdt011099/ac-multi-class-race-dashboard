@@ -351,7 +351,7 @@ local function drawYellowFlagSection(w)
     S.yellowFlagEnabled = not S.yellowFlagEnabled
     S.storedSettings.yellowFlagEnabled = S.yellowFlagEnabled
   end
-  if checkRow("Blue flag lights when you are lapping a car", S.blueFlagEnabled) then
+  if checkRow("Blue flag lights when you lap a car or are being lapped", S.blueFlagEnabled) then
     S.blueFlagEnabled = not S.blueFlagEnabled
     S.storedSettings.blueFlagEnabled = S.blueFlagEnabled
   end
