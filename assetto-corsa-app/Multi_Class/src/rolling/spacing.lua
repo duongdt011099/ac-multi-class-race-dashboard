@@ -130,7 +130,16 @@ local function columnTarget(car, map, startPos, trackLength)
   end
 
   if splineDist > 8.0 then
-    return SPEED * M.GetLinearMultiplier(splineDist - 8.0, 0.0, 14.0), 1.0, splineDist
+    -- Close range: the reference catch-up (up to CATCHUP_LIMIT at 22 m). A car far behind its row
+    -- (a big class entering the double file strung out) runs harder, up to FAR_CATCHUP by
+    -- FAR_CATCHUP_FULL_M, so it reaches its slot before the line; the multiplier falls back as
+    -- the gap closes, so it slows down progressively before it arrives.
+    local mult = M.GetLinearMultiplier(splineDist - 8.0, 0.0, 14.0)
+    if splineDist > 22.0 then
+      mult = math.max(mult, M.GetLinearMultiplier(splineDist, 22.0, C.ROLLING_START_DF_FAR_CATCHUP_FULL_M,
+          C.ROLLING_START_DF_FAR_CATCHUP))
+    end
+    return SPEED * mult, 1.0, splineDist
   elseif splineDist > 1.5 then
     local ratio = 0.50 + ((splineDist - 1.5) / 6.5) * 0.50
     return SPEED * ratio, ratio, splineDist

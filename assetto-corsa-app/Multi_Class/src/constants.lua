@@ -36,8 +36,28 @@ C.ROLLING_START_FORMATION_POINT     = 0.67
 -- above this length the double file runs a fixed distance before the line instead.
 C.ROLLING_START_LONG_TRACK_METERS   = 7000
 C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS = 2000
+-- Hairpin avoidance (rolling/track_shape.lua): when the AI line turns HAIRPIN_DEG or more within
+-- HAIRPIN_WINDOW_M between the double-file point and the line (Long Beach's last hairpin: ~157 deg;
+-- Imola, Barcelona and COTA stay below 100), the double file starts HAIRPIN_EXIT_M after that corner,
+-- provided MIN_DOUBLE_FILE_M of double file is still left. The line is sampled every STEP_M.
+C.ROLLING_START_HAIRPIN_AVOID_ENABLED = true
+C.ROLLING_START_HAIRPIN_DEG          = 120
+C.ROLLING_START_HAIRPIN_WINDOW_M     = 60
+C.ROLLING_START_HAIRPIN_EXIT_M       = 20
+C.ROLLING_START_MIN_DOUBLE_FILE_M    = 200
+C.ROLLING_START_SHAPE_STEP_M         = 5
+-- Green past the line: when that leaves less than TARGET_DOUBLE_FILE_M of double file before the
+-- line, the green point moves past the line by the shortfall (Long Beach: ~300 m left, so ~150 m),
+-- at most GREEN_MAX_SHIFT_M and at least GREEN_CORNER_CLEAR_M before the first corner after the
+-- line (the AI line turning GREEN_CORNER_DEG or more within HAIRPIN_WINDOW_M).
+C.ROLLING_START_GREEN_SHIFT_ENABLED  = true
+C.ROLLING_START_TARGET_DOUBLE_FILE_M = 450
+C.ROLLING_START_GREEN_MAX_SHIFT_M    = 250
+C.ROLLING_START_GREEN_CORNER_CLEAR_M = 300
+C.ROLLING_START_GREEN_CORNER_DEG     = 45
 C.AUTOPILOT_OFF_WARNING_SECONDS     = 10.0
 C.AUTOPILOT_HANDOVER_METERS         = 300.0   -- autopilot hands the car back this far before the start line
+C.AUTOPILOT_LATE_HANDOVER_METERS    = 100.0   -- ...or later, up to this far before the line, while the car is not yet in its double-file slot
 -- How long the blinking "You have control" banner stays up after the autopilot hands the car back, and
 -- how long each of its two blink images shows.
 C.CONTROL_BANNER_SECONDS            = 6.0
@@ -84,14 +104,21 @@ C.ROLLING_START_GREEN_MIN_TRAVEL_LAP  = 0.5
 -- (i.e. the whole class is in double file), or GREEN_HOLD_MAX_SECONDS have passed since the leader
 -- crossed the line.
 C.ROLLING_START_GREEN_MAX_TAIL_GAP_M  = 140.0
--- Double-file cars wait for stragglers: while a car of their class is still in single file behind
--- them, the double-file cars slow from full speed (stragglers closer than WAIT_START_GAP_M) down to
--- WAIT_MIN_SPEED_KMH (stragglers WAIT_FULL_GAP_M or more behind) so the tail can close up.
--- Stragglers further back than WAIT_MAX_RANGE_M are ignored.
-C.ROLLING_START_WAIT_START_GAP_M      = 30.0
-C.ROLLING_START_WAIT_FULL_GAP_M       = 150.0
-C.ROLLING_START_WAIT_MAX_RANGE_M      = 600.0
-C.ROLLING_START_WAIT_MIN_SPEED_KMH    = 30.0
+-- ...and until every car is within this many metres of its own double-file slot (ROW_M per row
+-- behind the class leader), so a class never takes green with a row still trailing.
+C.ROLLING_START_GREEN_MAX_SLOT_EXCESS_M = 20.0
+-- The front row waits for the rest of its class: while any class car is further behind than its
+-- double-file slot (a single-file car counts in full), the front row slows from full speed (excess
+-- WAIT_START_GAP_M or less) down to WAIT_MIN_SPEED_KMH (excess WAIT_FULL_GAP_M or more) so the tail
+-- can close up. On short double-file zones (Long Beach: ~300 m after the hairpin) the class leaves
+-- the corner 100 m+ long, so the wait has to bite hard. Cars further back than WAIT_MAX_RANGE_M are
+-- ignored.
+C.ROLLING_START_WAIT_START_GAP_M      = 10.0
+C.ROLLING_START_WAIT_FULL_GAP_M       = 60.0
+C.ROLLING_START_WAIT_MAX_RANGE_M      = 1200.0
+C.ROLLING_START_WAIT_MIN_SPEED_KMH    = 25.0
+-- The front row lifts off completely while it is more than this above its wait speed.
+C.ROLLING_START_WAIT_LIFT_MARGIN_KMH = 8.0
 C.ROLLING_START_GREEN_HOLD_MAX_SECONDS = 60.0
 -- Catch-up multiplier used by the phase-two spacing (reference GetLinearMultiplier default).
 C.ROLLING_START_CATCHUP_LIMIT       = 1.5
@@ -108,6 +135,27 @@ C.ROLLING_START_PHASE1_BEHIND_START_GAP = 40.0
 C.ROLLING_START_PHASE1_BEHIND_FULL_GAP  = 150.0
 C.ROLLING_START_PHASE1_BEHIND_MIN_SPEED = 35.0
 C.ROLLING_START_PHASE1_FULL_GAP     = 140.0
+-- Compaction before the double-file point: over the last COMPACT_PER_CAR_M per class car (clamped
+-- to MIN_M..MAX_M) before the class front reaches the point, the single-file values above blend
+-- into these, so a big class (10-20 cars) arrives closed up instead of strung out over 500 m:
+-- follow gap MIN_GAP -> COMPACT_GAP_M, catch-up reaching COMPACT_CATCHUP by COMPACT_FULL_GAP_M,
+-- and a car waits for the car behind from COMPACT_BEHIND_START_GAP (down to BEHIND_MIN_SPEED by
+-- COMPACT_BEHIND_FULL_GAP).
+C.ROLLING_START_COMPACT_ENABLED          = true
+C.ROLLING_START_COMPACT_PER_CAR_M        = 60.0
+C.ROLLING_START_COMPACT_MIN_M            = 400.0
+C.ROLLING_START_COMPACT_MAX_M            = 1200.0
+C.ROLLING_START_COMPACT_GAP_M            = 14.0
+C.ROLLING_START_COMPACT_FULL_GAP_M       = 70.0
+C.ROLLING_START_COMPACT_CATCHUP          = 1.5
+C.ROLLING_START_COMPACT_BEHIND_START_GAP = 25.0
+C.ROLLING_START_COMPACT_BEHIND_FULL_GAP  = 100.0
+-- Double file: rows are about ROW_M apart (the column spacing in rolling/spacing.lua). A car more
+-- than 22 m behind the car two rows ahead runs up to DF_FAR_CATCHUP times the double-file speed,
+-- reached at DF_FAR_CATCHUP_FULL_M behind, so a strung-out rear reaches its slot before the line.
+C.ROLLING_START_ROW_M                    = 8.0
+C.ROLLING_START_DF_FAR_CATCHUP           = 1.7
+C.ROLLING_START_DF_FAR_CATCHUP_FULL_M    = 120.0
 -- Inside PHASE1_MIN_GAP the follower runs below the car ahead's speed, by GAP_GAIN km/h for every
 -- metre it is short of the gap (capped at YIELD_KMH once alongside or past). Aiming at the ahead
 -- car's speed or above let a slightly faster car creep alongside and pass, so the class reached
@@ -130,6 +178,14 @@ C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
 C.ROLLING_START_CLASS_GUARD_GAP     = 70.0
 C.ROLLING_START_CLASS_HOLD_GAP      = 30.0
 C.ROLLING_START_CLASS_GUARD_GAIN_KMH = 2.5
+-- Class gap in double file (KeepClassGap in rolling/formation.lua): the front row of every class
+-- after the first keeps DF_CLASS_GAP_M behind the last car of the class ahead until that class goes
+-- green. Inside GAP + BAND it is capped to that car's speed plus GAIN km/h per metre of gap error
+-- (never below MIN_KMH), so each class takes its own green with the same clear gap ahead of it.
+C.ROLLING_START_DF_CLASS_GAP_M        = 100.0
+C.ROLLING_START_DF_CLASS_GAP_BAND_M   = 40.0
+C.ROLLING_START_DF_CLASS_GAP_GAIN_KMH = 1.0
+C.ROLLING_START_DF_CLASS_GAP_MIN_KMH  = 30.0
 -- Last-resort proximity guard: any formation car (the autopilot-driven human car included) never
 -- closes on whatever is physically in front of it in its own path, whatever class or phase that car
 -- is in. Distances are centre to centre, in metres.

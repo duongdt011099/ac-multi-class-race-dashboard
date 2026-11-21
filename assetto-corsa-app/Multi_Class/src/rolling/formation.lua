@@ -7,6 +7,7 @@ local PoleSide = require("src/rolling/pole_side")
 local RGroups = require("src/rolling/groups")
 local Spacing = require("src/rolling/spacing")
 local Centre = require("src/rolling/centre")
+local TrackShape = require("src/rolling/track_shape")
 local Audio = require("src/audio")
 
 local sFormat = string.format
@@ -124,10 +125,9 @@ end
 -- Spline position where the double file starts: a percentage of the lap, except on long tracks
 -- where the double file is capped to a fixed length before the line.
 local function FormationPoint(trackLength)
-  if type(trackLength) == "number" and trackLength > C.ROLLING_START_LONG_TRACK_METERS then
-    return 1.0 - C.ROLLING_START_LONG_TRACK_DOUBLE_FILE_METERS / trackLength
-  end
-  return C.ROLLING_START_FORMATION_POINT
+  local base = TrackShape.BasePoint(trackLength)
+  -- Moved past a hairpin that would otherwise be taken two abreast (see rolling/track_shape.lua).
+  return TrackShape.DoubleFileStart(base, trackLength)
 end
 
 -- Track the start-line crossing so a car only double-files on its flying lap.
@@ -183,8 +183,48 @@ local function TyreWarmWeaveOffset(carIndex)
   return C.ROLLING_START_WEAVE_AMPLITUDE_M * envelope * math.sin(2 * math.pi * w / C.ROLLING_START_WEAVE_PERIOD_SECONDS)
 end
 
+local function Lerp(a, b, t) return a + (b - a) * t end
+
+-- 0..1: how far the class has got into its compaction run before the double-file point, measured
+-- by the class front. The run is COMPACT_PER_CAR_M per class car long (clamped), so a big class
+-- starts closing up earlier. 1 once the class front is at or past the point.
+local function ClassCompaction(group, trackLength)
+  if not (C.ROLLING_START_COMPACT_ENABLED and group and group.cars and U.IsFinite(trackLength) and trackLength > 0) then
+    return 0.0
+  end
+  local frontState, frontIndex, count
+  count = 0
+  for _, memberIndex in ipairs(group.cars) do
+    local member = S.rollingStartCars[memberIndex]
+    if member and not member.dropped then
+      count = count + 1
+      if not frontState then frontState, frontIndex = member, memberIndex end
+    end
+  end
+  if not frontState then return 0.0 end
+  if frontState.enteredPhase2 then return 1.0 end
+  if not frontState.hasRolledOver then return 0.0 end
+  local frontCar = getCar(frontIndex)
+  if not (frontCar and type(frontCar.splinePosition) == "number") then return 0.0 end
+  local toPoint = FormationPoint(trackLength) - frontCar.splinePosition
+  if toPoint <= 0 then return 1.0 end
+  local zone = math.max(C.ROLLING_START_COMPACT_MIN_M,
+      math.min(C.ROLLING_START_COMPACT_MAX_M, count * C.ROLLING_START_COMPACT_PER_CAR_M))
+  local distM = toPoint * trackLength
+  if distM >= zone then return 0.0 end
+  return 1.0 - distM / zone
+end
+
 local function SingleFileTargets(carIndex, state, group, car, trackLength)
   local formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH
+  -- Approaching the double-file point the class closes up: shorter follow gap, earlier and
+  -- stronger catch-up, and the cars ahead wait for a car behind sooner.
+  local k = ClassCompaction(group, trackLength)
+  local minGap = Lerp(C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_COMPACT_GAP_M, k)
+  local fullGap = Lerp(C.ROLLING_START_PHASE1_FULL_GAP, C.ROLLING_START_COMPACT_FULL_GAP_M, k)
+  local catchup = Lerp(C.ROLLING_START_PHASE1_CATCHUP, C.ROLLING_START_COMPACT_CATCHUP, k)
+  local behindStart = Lerp(C.ROLLING_START_PHASE1_BEHIND_START_GAP, C.ROLLING_START_COMPACT_BEHIND_START_GAP, k)
+  local behindFull = Lerp(C.ROLLING_START_PHASE1_BEHIND_FULL_GAP, C.ROLLING_START_COMPACT_BEHIND_FULL_GAP, k)
   local aheadCar
   if group and group.cars then
     -- Follow the nearest car ahead that is actually driving; a stalled/pitted car is skipped.
@@ -218,13 +258,13 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
   end
   if aheadCar and car then
     local gap = Spacing.SignedGap(aheadCar, car, trackLength)
-    if gap < C.ROLLING_START_PHASE1_MIN_GAP then
+    if gap < minGap then
       -- Too close to the car ahead: drop below its speed in proportion to the shortfall so the
       -- gap opens back up. A follower that is alongside or already past backs off hard and hands
       -- the place back, so the class keeps its grid order into the double-file zone.
       local aheadSpeed = aheadCar.speedKmh or 0
       local backOff = math.min(C.ROLLING_START_PHASE1_YIELD_KMH,
-          (C.ROLLING_START_PHASE1_MIN_GAP - gap) * C.ROLLING_START_PHASE1_GAP_GAIN_KMH)
+          (minGap - gap) * C.ROLLING_START_PHASE1_GAP_GAIN_KMH)
       formationSpeed = math.min(formationSpeed, math.max(0.0, aheadSpeed - backOff))
       if gap < 0 then
         formationSpeed = math.max(formationSpeed, C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH)
@@ -232,8 +272,7 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
       end
     else
       formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
-          Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
-              C.ROLLING_START_PHASE1_CATCHUP)
+          Spacing.GetLinearMultiplier(gap, minGap, fullGap, catchup)
     end
     if followingSafetyCar then
       -- Never close on the safety car faster than it can be matched at the follow gap: the cap is
@@ -266,9 +305,8 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
         local behindCar = getCar(behindIndex)
         if behindCar and type(behindCar.splinePosition) == "number" and (behindCar.speedKmh or 0) > 5.0 then
           local behind = -Spacing.SignedGap(behindCar, car, trackLength)
-          if behind > C.ROLLING_START_PHASE1_BEHIND_START_GAP then
-            local t = math.min(1.0, (behind - C.ROLLING_START_PHASE1_BEHIND_START_GAP) /
-                (C.ROLLING_START_PHASE1_BEHIND_FULL_GAP - C.ROLLING_START_PHASE1_BEHIND_START_GAP))
+          if behind > behindStart then
+            local t = math.min(1.0, (behind - behindStart) / math.max(1.0, behindFull - behindStart))
             local waitSpeed = formationSpeed + (C.ROLLING_START_PHASE1_BEHIND_MIN_SPEED - formationSpeed) * t
             formationSpeed = math.min(formationSpeed, waitSpeed)
           end
@@ -329,15 +367,22 @@ end
 -- farthest released car is that has not yet entered double file (see WAIT constants).
 local function WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
   if not (group and group.cars and car) then return targetSpeed, throttleLimit end
+  -- How far each car is behind where its slot would be: single-file cars count in full, a car
+  -- already in double file only by how far it trails its row (ROW_M per row). A big class enters
+  -- the double file strung out, so its rear rows are still far from their slot after the point.
   local farthest = 0.0
   for _, memberIndex in ipairs(group.cars) do
     local member = S.rollingStartCars[memberIndex]
-    if member and member.released and not member.enteredPhase2 and not member.dropped and not member.green then
+    if member and member.released and not member.dropped and not member.green then
       local other = getCar(memberIndex)
       if other and type(other.splinePosition) == "number" then
         local behind = -Spacing.SignedGap(other, car, trackLength)
-        if behind > 0 and behind <= C.ROLLING_START_WAIT_MAX_RANGE_M and behind > farthest then
-          farthest = behind
+        if behind > 0 and behind <= C.ROLLING_START_WAIT_MAX_RANGE_M then
+          if member.enteredPhase2 then
+            local slot = member.lockedPhase2Position or member.classPosition or 1
+            behind = behind - (math.ceil(slot / 2) - 1) * C.ROLLING_START_ROW_M
+          end
+          if behind > farthest then farthest = behind end
         end
       end
     end
@@ -349,6 +394,10 @@ local function WaitForStragglers(group, car, trackLength, targetSpeed, throttleL
   if waitSpeed < targetSpeed then
     targetSpeed = math.max(0.0, waitSpeed)
     throttleLimit = math.min(throttleLimit, 1.0 - 0.5 * t)
+    -- The AI only eases off gently when its top speed drops (about 2 m/s^2), which on a 300 m
+    -- double-file zone means the front row never really slows. Lift completely while well above
+    -- the wait speed so it gets there quickly.
+    if (car.speedKmh or 0) > targetSpeed + C.ROLLING_START_WAIT_LIFT_MARGIN_KMH then throttleLimit = 0.0 end
   end
   return targetSpeed, throttleLimit
 end
@@ -366,6 +415,38 @@ local function IsFrontRow(carIndex, group)
   return true
 end
 
+-- Class gap in double file: the front row keeps DF_CLASS_GAP_M behind the previous class's last car,
+-- so every class gets the same clear gap before its own green. Without it the only spacing was the
+-- anti-collision class guard (30 m), so a class whose front row did not have to wait for its own
+-- tail ran right up to the class ahead while the next class sat 140 m back.
+local function KeepClassGap(state, car, trackLength, targetSpeed, throttleLimit)
+  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
+  if not (prev and prev.cars and car) or prev.green then return targetSpeed, throttleLimit end
+  local nearestGap, nearestSpeed
+  for _, otherIndex in ipairs(prev.cars) do
+    local other = S.rollingStartCars[otherIndex]
+    if other and other.released and not other.dropped then
+      local otherCar = getCar(otherIndex)
+      if otherCar and type(otherCar.splinePosition) == "number" then
+        local g = Spacing.SignedGap(otherCar, car, trackLength)
+        if g > -4.0 and (not nearestGap or g < nearestGap) then
+          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
+        end
+      end
+    end
+  end
+  if not nearestGap or nearestGap >= C.ROLLING_START_DF_CLASS_GAP_M + C.ROLLING_START_DF_CLASS_GAP_BAND_M then
+    return targetSpeed, throttleLimit
+  end
+  local cap = nearestSpeed + (nearestGap - C.ROLLING_START_DF_CLASS_GAP_M) * C.ROLLING_START_DF_CLASS_GAP_GAIN_KMH
+  cap = math.max(C.ROLLING_START_DF_CLASS_GAP_MIN_KMH, cap)
+  if cap < targetSpeed then
+    targetSpeed = cap
+    if (car.speedKmh or 0) > cap + C.ROLLING_START_WAIT_LIFT_MARGIN_KMH then throttleLimit = math.min(throttleLimit, 0.0) end
+  end
+  return targetSpeed, throttleLimit
+end
+
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
   local targetOffset = Centre.LaneOffset(state, car, trackLength) + RGroups.GetOrganicLaneOffset(carIndex)
@@ -376,6 +457,7 @@ local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   -- brake less than the ones in front of them and run into them.
   if IsFrontRow(carIndex, group) then
     targetSpeed, throttleLimit = WaitForStragglers(group, car, trackLength, targetSpeed, throttleLimit)
+    targetSpeed, throttleLimit = KeepClassGap(state, car, trackLength, targetSpeed, throttleLimit)
   end
   return targetSpeed, targetOffset, cautionLevel, throttleLimit
 end
@@ -395,7 +477,9 @@ end
 -- the hard gap it brakes below that car's speed, and once level or ahead it stops until re-passed.
 local HARD_GAP_M = 8.0
 local FOLLOW_RANGE_M = 70.0
-local FOLLOW_DECEL = 2.5
+-- Braking the closing profile plans with. 2.5 m/s^2 started braking ~30 m out, so the human car
+-- could never close a 60 m gap to its slot on a short double-file zone (Long Beach).
+local FOLLOW_DECEL = 4.5
 local function ApplyNoOvertakeGuard(state, group, car, trackLength, targetSpeed, throttleLimit)
   local aheadIndex
   if state.enteredPhase2 then
@@ -498,6 +582,7 @@ local function CommandFormationAI(carIndex, state, group, car, trackLength, maxL
   end
   state.currentSplineOffset = applied
 
+  state.lastTargetSpeed, state.lastThrottleLimit = targetSpeed, throttleLimit
   setAITopSpeed(carIndex, targetSpeed)
   setAICaution(carIndex, cautionLevel)
   setAIThrottleLimit(carIndex, throttleLimit)
@@ -630,6 +715,19 @@ local function WatchForPitTeleport(carIndex, state, car, trackLength)
   end
 end
 
+-- True when the car is in double file and no more than GREEN_MAX_SLOT_EXCESS_M behind its slot
+-- (ROW_M per row behind its class leader).
+local function InDoubleFileSlot(state, group, car, trackLength)
+  if not state.enteredPhase2 then return false end
+  local leaderIndex = group and group.positionToCar and group.positionToCar[1]
+  if leaderIndex == nil or leaderIndex == state.carIndex then return true end
+  local leaderCar = getCar(leaderIndex)
+  if not leaderCar then return true end
+  local behind = -Spacing.SignedGap(car, leaderCar, trackLength)
+  local slot = state.lockedPhase2Position or state.classPosition or 1
+  return behind - (math.ceil(slot / 2) - 1) * C.ROLLING_START_ROW_M <= C.ROLLING_START_GREEN_MAX_SLOT_EXCESS_M
+end
+
 local function MaintainCar(carIndex, state, trackLength, moves)
   local car = getCar(carIndex)
   local isAI = (carIndex ~= 0)
@@ -667,6 +765,12 @@ local function MaintainCar(carIndex, state, trackLength, moves)
   local atHandover = false
   if autopiloted and state.hasRolledOver and car and type(car.splinePosition) == "number" then
     atHandover = car.splinePosition >= handoverPoint
+    -- On a short double-file zone the handover point can fall before the car has reached its
+    -- slot; keep driving until it is in place, but never past the late handover point.
+    if atHandover and car.splinePosition < 1.0 - C.AUTOPILOT_LATE_HANDOVER_METERS / trackLength
+        and not InDoubleFileSlot(state, group, car, trackLength) then
+      atHandover = false
+    end
     if S.autopilotEnabled and not S.developerMode and not state.autopilotWarned and not atHandover then
       local speed = math.max((car.speedKmh or 0) / 3.6, 5.0)
       local secondsLeft = (handoverPoint - car.splinePosition) * trackLength / speed
@@ -755,16 +859,17 @@ end
 -- Periodic diagnostic so the formation can be verified from the log.
 local function LogFormationDiagnostics()
   local now = os.clock()
-  if now - (S.rollingStartDiagAt or -1000) < 5.0 then return end
+  if now - (S.rollingStartDiagAt or -1000) < 2.5 then return end
   S.rollingStartDiagAt = now
   for _, carIndex in ipairs(S.rollingStartQueue) do
     local state = S.rollingStartCars[carIndex]
     local car = getCar(carIndex)
     if state and car then
       local group = S.rollingStartGroups and S.rollingStartGroups[state.groupIndex] or nil
-      U.Log(sFormat("ROLLING: car %d cls=%s cp=%d p=%.3f v=%.1f phase=%d off=%.2f rel=%s green=%s wrap=%d trav=%.2f",
+      U.Log(sFormat("ROLLING: car %d cls=%s cp=%d p=%.3f v=%.1f tgt=%.1f thr=%.2f phase=%d off=%.2f rel=%s green=%s wrap=%d trav=%.2f",
           carIndex, (group and group.label) or "?", state.classPosition or -1,
           U.NormalizeTrackProgress(car.splinePosition), car.speedKmh or -1,
+          state.lastTargetSpeed or -1, state.lastThrottleLimit or -1,
           state.enteredPhase2 and 2 or 1, state.currentSplineOffset or 0,
           tostring(state.released), tostring(state.green), state.wrapCount or 0,
           state.travelled or 0.0))

@@ -178,6 +178,7 @@ function M.PrepareRollingStart(sim)
   S.rollingStartStatus = "ROLLING START READY"
   S.rollingStartSessionKey = Sess.GetCurrentSessionKey(sim)
   S.rollingStartLastFrame = nil
+  S.rollingPostGreenOffsets = nil
   S.rollingStartDiagFrame = 0
   U.Log(sFormat("ROLLING: prepared %d cars in %d classes (reference-style, no teleport); lapOffset=%d",
       #queue, #groups, S.liveRollingStartLapOffset))

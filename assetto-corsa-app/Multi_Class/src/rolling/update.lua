@@ -7,6 +7,7 @@ local RCtl = require("src/rolling/control")
 local Prepare = require("src/rolling/prepare")
 local Formation = require("src/rolling/formation")
 local Green = require("src/rolling/green")
+local TrackShape = require("src/rolling/track_shape")
 local Audio = require("src/audio")
 
 local getCar = ac.getCar
@@ -106,12 +107,20 @@ local function ClassClosedUp(group, trackLength)
         group.greenBlocker = string.format("car %d is %.0f m behind the class leader", memberIndex, ahead * trackLength)
         return false
       end
+      -- Every car must also be close to its own double-file slot (ROW_M per row behind the leader),
+      -- so the class does not take green with a row still trailing.
+      local slot = st.lockedPhase2Position or st.classPosition or 1
+      local excess = ahead * trackLength - (math.ceil(slot / 2) - 1) * C.ROLLING_START_ROW_M
+      if excess > C.ROLLING_START_GREEN_MAX_SLOT_EXCESS_M then
+        group.greenBlocker = string.format("car %d is %.0f m behind its double-file slot", memberIndex, excess)
+        return false
+      end
     end
   end
   return true
 end
 
-local function CheckCarForGreen(carIndex, state, now)
+local function CheckCarForGreen(carIndex, state, now, trackLength)
   local car = getCar(carIndex)
   if not (car and type(car.splinePosition) == "number") then
     return
@@ -129,6 +138,12 @@ local function CheckCarForGreen(carIndex, state, now)
   -- starts), otherwise a car's first phase-2 frame measures from its stale grid progress and the
   -- class needs roughly an extra half lap before it can go green.
   if state.enteredPhase2 == true and crossedForward and (state.travelled or 0.0) >= C.ROLLING_START_GREEN_MIN_TRAVEL_LAP then
+    state.greenArmed = true
+  end
+  -- Green is taken at the green point: the line itself, or a little past it when a late hairpin
+  -- leaves too little double file before the line (TrackShape.GreenPoint).
+  local greenPoint = TrackShape.GreenPoint(trackLength)
+  if state.greenArmed and (greenPoint <= 0 or (progress >= greenPoint and progress < 0.5)) then
     local group = S.rollingStartGroups[state.groupIndex]
     if group and not group.green then
       -- Don't go green yet: wait for the rest of the class to close up into double file.
@@ -149,7 +164,7 @@ end
 local function DetectGreenCrossings(now, trackLength)
   for _, carIndex in ipairs(S.rollingStartQueue) do
     local state = S.rollingStartCars[carIndex]
-    if state and not state.green then CheckCarForGreen(carIndex, state, now) end
+    if state and not state.green then CheckCarForGreen(carIndex, state, now, trackLength) end
   end
 
   for _, group in ipairs(S.rollingStartGroups or {}) do
@@ -177,10 +192,19 @@ local function AllClassesGreen()
 end
 
 local function CompleteRollingStart()
-  -- Make sure no car is left holding a lane offset now that the whole field is racing.
+  -- No car is left holding a lane offset now that the whole field is racing. A class that went
+  -- green only just now (held for its tail, or a centred double file well off the racing line)
+  -- can still be metres off the line: snapping that to 0 made the whole class swerve at once, so
+  -- those cars keep easing back after completion (EasePostGreenOffsets).
+  S.rollingPostGreenOffsets = {}
   for carIndex, state in pairs(S.rollingStartCars) do
     if carIndex ~= 0 or RCtl.DevAutopilotActive() then
-      RCtl.SetRollingLaneOffset(carIndex, 0.0)
+      local offset = state.currentSplineOffset or 0.0
+      if math.abs(offset) > 0.05 then
+        S.rollingPostGreenOffsets[carIndex] = offset
+      else
+        RCtl.SetRollingLaneOffset(carIndex, 0.0)
+      end
     end
     state.currentSplineOffset = 0.0
   end
@@ -201,12 +225,33 @@ local function ClampedFrameDelta(now)
   return dt
 end
 
+-- After completion: ease the leftover lane offsets back to the racing line at the green rate.
+local function EasePostGreenOffsets(dt)
+  local pending = S.rollingPostGreenOffsets
+  if not pending or next(pending) == nil then return end
+  local step = C.ROLLING_START_GREEN_OFFSET_RAMP_MPS * dt
+  for carIndex, offset in pairs(pending) do
+    if math.abs(offset) <= step then
+      RCtl.SetRollingLaneOffset(carIndex, 0.0)
+      pending[carIndex] = nil
+    else
+      offset = offset - (offset > 0 and step or -step)
+      RCtl.SetRollingLaneOffset(carIndex, offset)
+      pending[carIndex] = offset
+    end
+  end
+end
+
 function M.UpdateRollingStart(sim)
   if S.rollingStartState == "idle" then return end
   if TearDownIfSessionChanged(sim) then return end
-  if S.rollingStartState == "unavailable" or S.rollingStartState == "complete" or S.rollingStartState == "finished" then return end
-
   local now = type(sim.time) == "number" and sim.time / 1000 or 0
+  if S.rollingStartState == "complete" then
+    EasePostGreenOffsets(ClampedFrameDelta(now))
+    return
+  end
+  if S.rollingStartState == "unavailable" or S.rollingStartState == "finished" then return end
+
   if HandleStagedOrEnded(sim, now) then return end
   if S.rollingStartState ~= "rolling" then return end
 

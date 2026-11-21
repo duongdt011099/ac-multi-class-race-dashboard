@@ -7,12 +7,14 @@
 --
 --   staged   -> the car is moved SAFETY_CAR_AHEAD_M in front of the first row of the first class and held
 --   rolling  -> it leads the formation lap, never faster than the race cars' formation speed
---   double file (first class leader) / green / session end -> it is sent to the pits and held there
+--   pole car at the normal double-file point (TrackShape.BasePoint, even when a late hairpin moves
+--   the double file itself further on) / green / session end -> it is sent to the pits and held there
 --              for the rest of the session
 local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
+local TrackShape = require("src/rolling/track_shape")
 
 local sFormat = string.format
 local getCar = ac.getCar
@@ -88,6 +90,23 @@ local function poleCarIndex()
     if st and not st.dropped and getCar(idx) then return idx, group, st end
   end
   return nil
+end
+
+-- True once the pole car is in double file or, on its flying lap, has reached the normal
+-- double-file point. A late hairpin can move the double file past the pit entry (Long Beach), so
+-- waiting for the double file itself left the safety car on track at green.
+local function PolePastPitPoint(poleState, trackLength)
+  if poleState.enteredPhase2 then return true end
+  if not (poleState.hasRolledOver and U.IsFinite(trackLength) and trackLength > 0) then return false end
+  local pole = getCar(poleState.carIndex)
+  return pole ~= nil and type(pole.splinePosition) == "number"
+      and pole.splinePosition >= TrackShape.BasePoint(trackLength)
+end
+
+-- True once the first class has gone green: the safety car must be off the racing line by then.
+local function FieldTookGreen()
+  local _, group, poleState = poleCarIndex()
+  return (group and group.green) or (poleState and poleState.green) or false
 end
 
 -- Move the safety car to the AI line AHEAD_M in front of the first row of the first class.
@@ -334,11 +353,11 @@ function M.Update(sim, dt)
     local _, _, poleState = poleCarIndex()
     if state ~= "rolling" then
       retire(i, car, "formation over")
-    elseif poleState and poleState.enteredPhase2 then
+    elseif poleState and PolePastPitPoint(poleState, trackLength) then
       if requestPitDrive(i) then
         phase = "pitting"
         pitStartAt, pitInAt, lastPitRequestAt = clock, nil, clock
-        U.Log(sFormat("SAFETY: car %d driving to the pits (field in double file)", i))
+        U.Log(sFormat("SAFETY: car %d driving to the pits (pole car at the double-file point)", i))
       else
         retire(i, car, "field in double file; no pit-drive support")
       end
@@ -364,7 +383,8 @@ function M.Update(sim, dt)
         hold(i)
         U.Log(sFormat("SAFETY: car %d parked in the pits; retired for the session", i))
       end
-    elseif state ~= "rolling" or clock - pitStartAt > C.SAFETY_CAR_PIT_TIMEOUT_SECONDS then
+    elseif state ~= "rolling" or clock - pitStartAt > C.SAFETY_CAR_PIT_TIMEOUT_SECONDS
+        or FieldTookGreen() then
       -- The formation is over (or the pit entry never came): do not leave it on the track.
       retire(i, car, "could not drive to the pits in time")
     elseif U.IsFinite(trackLength) then
