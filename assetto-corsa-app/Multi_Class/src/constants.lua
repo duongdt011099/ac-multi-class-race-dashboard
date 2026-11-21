@@ -381,6 +381,12 @@ C.SAFETY_CAR_PIT_TIMEOUT_SECONDS = 240
 C.SAFETY_CAR_PIT_SPEED_KMH = 80
 C.SAFETY_CAR_PARK_MAX_SECONDS = 25
 C.SAFETY_CAR_RELEASE_MAX_SECONDS = 6
+-- The pole car following the safety car never runs faster than it can and still settle FOLLOW_GAP_M
+-- behind it at the safety car's current speed, braking at FOLLOW_DECEL (m/s^2). The plain catch-up
+-- spacing used the formation speed instead of the safety car's, so right after the launch (while the
+-- safety car was still ramping up) the pole car ran ~100 km/h and drove past it.
+C.SAFETY_CAR_FOLLOW_GAP_M    = 30
+C.SAFETY_CAR_FOLLOW_DECEL    = 2.5
 
 -- The dashboard watches these subfolders and derives the session type from the
 -- folder name, so every file must be named yyMMdd-HHmmss.json, or quick-race-yyMMdd-HHmmss.json

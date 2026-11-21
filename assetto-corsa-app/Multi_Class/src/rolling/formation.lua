@@ -199,11 +199,15 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
   local throttleLimit = 1.0
   -- The class leader follows the safety car like any other car ahead, so it never closes on it.
   local leaderHasNoCarAhead = not aheadCar
+  local followingSafetyCar = false
   if not aheadCar and car and S.safetyCarIndex then
     local sc = getCar(S.safetyCarIndex)
     if sc and sc.isInPitlane ~= true and sc.isInPit ~= true and type(sc.splinePosition) == "number" then
       local scGap = Spacing.SignedGap(sc, car, trackLength)
-      if scGap > -20 and scGap < 400 then aheadCar = sc end
+      if scGap > -20 and scGap < 400 then
+        aheadCar = sc
+        followingSafetyCar = true
+      end
     end
   end
   -- A leader with nobody ahead cruises at the rolling speed while the rest of the field is still
@@ -230,6 +234,26 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
           Spacing.GetLinearMultiplier(gap, C.ROLLING_START_PHASE1_MIN_GAP, C.ROLLING_START_PHASE1_FULL_GAP,
               C.ROLLING_START_PHASE1_CATCHUP)
     end
+    if followingSafetyCar then
+      -- Never close on the safety car faster than it can be matched at the follow gap: the cap is
+      -- the safety car's own speed plus what braking at FOLLOW_DECEL can shed over the spare gap.
+      local scSpeed = math.max(0.0, aheadCar.speedKmh or 0)
+      local room = gap - C.SAFETY_CAR_FOLLOW_GAP_M
+      local cap
+      if room > 0 then
+        local v = scSpeed / 3.6
+        cap = math.sqrt(v * v + 2.0 * C.SAFETY_CAR_FOLLOW_DECEL * room) * 3.6
+      else
+        cap = math.max(0.0, scSpeed + room * C.ROLLING_START_PHASE1_GAP_GAIN_KMH)
+        throttleLimit = math.min(throttleLimit, 0.5)
+      end
+      formationSpeed = math.min(formationSpeed, cap)
+    end
+  end
+  -- The catch-up branch above replaces the speed; keep the leader at the rolling speed while the
+  -- rest of the field is still being released.
+  if leaderHasNoCarAhead and FieldStillLaunching() then
+    formationSpeed = math.min(formationSpeed, C.ROLLING_START_SPEED_KMH)
   end
   -- Wait for the car behind: nearest car further back in the class that is released, driving and
   -- still in single file.
