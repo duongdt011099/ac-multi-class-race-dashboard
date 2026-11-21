@@ -535,6 +535,11 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 .wec-update__published { color: var(--wec-muted); }
 .wec-update__asset, .wec-update__notes { background: var(--wec-surface-3); color: var(--wec-text-2); }
 .wec-update__notes { border-left-color: var(--wec-border); }
+.wec-update__notes h1, .wec-update__notes h2, .wec-update__notes h3,
+.wec-update__notes h4, .wec-update__notes h5, .wec-update__notes h6, .wec-update__notes strong { color: var(--wec-text); }
+.wec-update__notes code, .wec-update__notes pre { background: var(--wec-surface); color: var(--wec-text); }
+.wec-update__notes blockquote { border-left-color: var(--wec-border); color: var(--wec-muted); }
+.wec-update__notes hr, .wec-update__notes th, .wec-update__notes td { border-color: var(--wec-border); }
 .wec-update__error, .wec-alert { background: rgba(185, 28, 28, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ff8a85; }
 
 /* ---------- Spinner, toast ---------- */

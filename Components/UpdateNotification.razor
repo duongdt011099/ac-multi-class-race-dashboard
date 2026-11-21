@@ -46,7 +46,7 @@
                 }
                 @if (!string.IsNullOrWhiteSpace(truncatedNotes))
                 {
-                    <div class="wec-update__notes">@truncatedNotes</div>
+                    <div class="wec-update__notes">@((MarkupString)ReleaseNotesMarkdown.ToHtml(truncatedNotes))</div>
                 }
             }
             else if (result.HasError)

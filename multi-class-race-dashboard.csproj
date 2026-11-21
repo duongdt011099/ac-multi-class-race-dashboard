@@ -23,6 +23,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.6.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -85,31 +86,15 @@
     </ItemGroup>
 
     <ItemGroup>
-      <_WinExeMissingFrameworkStaticWebAssetCandidate
-        Include="@(_WinExeFrameworkStaticWebAssetCandidate)"
-        Condition="!EXISTS('%(Identity)')" />
+      <_WinExeMissingFrameworkStaticWebAssetCandidate Include="@(_WinExeFrameworkStaticWebAssetCandidate)" Condition="!EXISTS('%(Identity)')" />
       <_WinExeFrameworkStaticWebAssetCandidate Remove="@(_WinExeMissingFrameworkStaticWebAssetCandidate)" />
     </ItemGroup>
 
-    <DefineStaticWebAssets
-      Condition="'@(_WinExeFrameworkStaticWebAssetCandidate->Count())' != '0'"
-      CandidateAssets="@(_WinExeFrameworkStaticWebAssetCandidate)"
-      ContentRoot="$(BlazorFrameworkStaticWebAssetRoot)"
-      SourceId="$(PackageId)"
-      SourceType="Discovered"
-      AssetKind="All"
-      AssetMode="CurrentProject"
-      AssetRole="Primary"
-      FingerprintCandidates="true"
-      BasePath="$(StaticWebAssetBasePath)">
+    <DefineStaticWebAssets Condition="'@(_WinExeFrameworkStaticWebAssetCandidate-&gt;Count())' != '0'" CandidateAssets="@(_WinExeFrameworkStaticWebAssetCandidate)" ContentRoot="$(BlazorFrameworkStaticWebAssetRoot)" SourceId="$(PackageId)" SourceType="Discovered" AssetKind="All" AssetMode="CurrentProject" AssetRole="Primary" FingerprintCandidates="true" BasePath="$(StaticWebAssetBasePath)">
       <Output TaskParameter="Assets" ItemName="_WinExeFrameworkStaticWebAsset" />
     </DefineStaticWebAssets>
 
-    <DefineStaticWebAssetEndpoints
-      Condition="'@(_WinExeFrameworkStaticWebAsset)' != ''"
-      CandidateAssets="@(_WinExeFrameworkStaticWebAsset)"
-      ExistingEndpoints=""
-      ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+    <DefineStaticWebAssetEndpoints Condition="'@(_WinExeFrameworkStaticWebAsset)' != ''" CandidateAssets="@(_WinExeFrameworkStaticWebAsset)" ExistingEndpoints="" ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
       <Output TaskParameter="Endpoints" ItemName="_WinExeFrameworkStaticAssetEndpoint" />
     </DefineStaticWebAssetEndpoints>
 

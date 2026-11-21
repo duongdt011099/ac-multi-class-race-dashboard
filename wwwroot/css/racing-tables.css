@@ -1430,9 +1430,43 @@ a.wec-modal__btn {
     border-left: 4px solid #d4d4d8;
     font-size: 0.8rem;
     line-height: 1.45;
-    white-space: pre-wrap;
     word-break: break-word;
 }
+
+/* Release notes are Markdown rendered to HTML: keep its blocks compact inside the scrolling box. */
+.wec-update__notes > :first-child { margin-top: 0; }
+.wec-update__notes > :last-child { margin-bottom: 0; }
+.wec-update__notes h1, .wec-update__notes h2, .wec-update__notes h3,
+.wec-update__notes h4, .wec-update__notes h5, .wec-update__notes h6 {
+    margin: 0.9rem 0 0.4rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.wec-update__notes h1 { font-size: 1.05rem; }
+.wec-update__notes h2 { font-size: 0.98rem; }
+.wec-update__notes h3, .wec-update__notes h4, .wec-update__notes h5, .wec-update__notes h6 { font-size: 0.88rem; }
+.wec-update__notes p { margin: 0 0 0.5rem; }
+.wec-update__notes ul, .wec-update__notes ol { margin: 0 0 0.5rem; padding-left: 1.3rem; }
+.wec-update__notes li { margin: 0.15rem 0; }
+.wec-update__notes li > ul, .wec-update__notes li > ol { margin-bottom: 0; }
+.wec-update__notes li.task-list-item { list-style: none; margin-left: -1.1rem; }
+.wec-update__notes code {
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+.wec-update__notes pre {
+    margin: 0 0 0.5rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+.wec-update__notes pre code { padding: 0; background: none; }
+.wec-update__notes blockquote { margin: 0 0 0.5rem; padding-left: 0.75rem; border-left: 3px solid; }
+.wec-update__notes hr { margin: 0.75rem 0; border: 0; border-top: 1px solid; }
+.wec-update__notes img { max-width: 100%; height: auto; }
+.wec-update__notes table { margin: 0 0 0.5rem; border-collapse: collapse; }
+.wec-update__notes th, .wec-update__notes td { padding: 0.25rem 0.5rem; border: 1px solid; text-align: left; }
 
 .wec-modal--small {
     max-width: 22rem;
