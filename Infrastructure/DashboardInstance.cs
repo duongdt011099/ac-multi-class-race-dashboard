@@ -18,6 +18,10 @@ internal sealed class DashboardInstance : IDisposable
 {
     private const string MutexName = @"Local\EnduranceRace.Dashboard";
     private const string ShowEventName = @"Local\EnduranceRace.Dashboard.Show";
+    private const int AsfwAny = -1;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int processId);
 
     private readonly Mutex _handle;
     private readonly EventWaitHandle _showEvent;
@@ -46,6 +50,9 @@ internal sealed class DashboardInstance : IDisposable
 
         try
         {
+            // This copy was just started by the user, so it may take the foreground; pass that right
+            // on, or the running copy's window would only flash in the taskbar.
+            AllowSetForegroundWindow(AsfwAny);
             showEvent.Set();
         }
         catch

@@ -143,7 +143,7 @@ public class RacesPageTests : PageTestContext
 
         Assert.Contains("Standard (default)", cut.Find("#race-point-setting").TextContent);
         Assert.Equal("WEC (default)", cut.Find("#race-class-setting option[selected], #race-class-setting option:nth-child(2)").TextContent);
-        Assert.Contains("1:25", cut.Find("#race-point-setting").ParentElement!.TextContent);
+        Assert.Contains("1:25", cut.Find("#race-point-setting").Closest(".wec-form-field")!.TextContent);
     }
 
     [Fact]

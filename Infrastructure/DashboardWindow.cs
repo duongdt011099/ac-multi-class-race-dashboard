@@ -75,6 +75,24 @@ internal sealed class DashboardWindow : Form
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
@@ -215,12 +233,48 @@ internal sealed class DashboardWindow : Form
             WindowState = FormWindowState.Normal;
         }
 
-        Activate();
+        BringToForeground();
 
         if (!_initializing && !_initialized)
         {
             _initializing = true;
             _ = InitializeBrowserAsync();
+        }
+    }
+
+    // Windows only lets the process the user is working in take the foreground. This one is usually
+    // in the background (started by the update installer after it closed, or woken by a shortcut
+    // click), so a plain Activate just flashes the taskbar button and the window stays behind.
+    // Briefly joining the input of the foreground window's thread lifts that restriction, and the
+    // top-most toggle keeps the window on top even if Windows still refuses to move the focus.
+    private void BringToForeground()
+    {
+        var foreground = GetForegroundWindow();
+
+        if (foreground == Handle)
+        {
+            return;
+        }
+
+        var thisThread = GetCurrentThreadId();
+        var foregroundThread = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
+        var attached = foregroundThread != 0 && foregroundThread != thisThread &&
+            AttachThreadInput(thisThread, foregroundThread, true);
+
+        try
+        {
+            TopMost = true;
+            TopMost = false;
+            BringWindowToTop(Handle);
+            SetForegroundWindow(Handle);
+            Activate();
+        }
+        finally
+        {
+            if (attached)
+            {
+                AttachThreadInput(thisThread, foregroundThread, false);
+            }
         }
     }
 

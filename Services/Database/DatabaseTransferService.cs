@@ -44,7 +44,7 @@ public class DatabaseTransferService : IDatabaseTransferService
         ValidateImportFile(filePath);
 
         Directory.CreateDirectory(_safetyCopyFolder);
-        var safetyCopy = Path.Combine(_safetyCopyFolder, $"before-import-{DateTime.Now:yyyyMMdd-HHmmss}.db");
+        var safetyCopy = NewSafetyCopyPath();
 
         await Task.Run(() =>
         {
@@ -74,6 +74,22 @@ public class DatabaseTransferService : IDatabaseTransferService
         await _context.Database.MigrateAsync();
 
         return safetyCopy;
+    }
+
+    // Never reuses a name: two imports within the same second would otherwise write the second safety
+    // copy over the first, and undoing an import by importing its safety copy would then overwrite the
+    // very file being imported before it is read.
+    private string NewSafetyCopyPath()
+    {
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var path = Path.Combine(_safetyCopyFolder, $"before-import-{stamp}.db");
+
+        for (var attempt = 2; File.Exists(path); attempt++)
+        {
+            path = Path.Combine(_safetyCopyFolder, $"before-import-{stamp}-{attempt}.db");
+        }
+
+        return path;
     }
 
     private string LiveConnectionString =>
