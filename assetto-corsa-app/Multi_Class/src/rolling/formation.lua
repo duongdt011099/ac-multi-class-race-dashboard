@@ -6,6 +6,7 @@ local RCtl = require("src/rolling/control")
 local PoleSide = require("src/rolling/pole_side")
 local RGroups = require("src/rolling/groups")
 local Spacing = require("src/rolling/spacing")
+local Centre = require("src/rolling/centre")
 local Audio = require("src/audio")
 
 local sFormat = string.format
@@ -367,7 +368,7 @@ end
 
 local function DoubleFileTargets(carIndex, state, group, car, trackLength)
   local cautionLevel = 0.7
-  local targetOffset = (state.startSide or 1) * C.ROLLING_START_LANE_METERS + RGroups.GetOrganicLaneOffset(carIndex)
+  local targetOffset = Centre.LaneOffset(state, car, trackLength) + RGroups.GetOrganicLaneOffset(carIndex)
   local targetSpeed, throttleLimit = Spacing.ApplyRollingPhaseTwoSpacing(state, group, trackLength)
   targetSpeed, throttleLimit = ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimit)
   -- Only the front row waits for the stragglers. Every other car follows the car ahead through the
@@ -789,6 +790,7 @@ function M.MaintainRollingFormation(dt, trackLength)
   end
 
   RampClassCaution(dt)
+  Centre.Calibrate()
   ProbeLaneSide()
   LogFormationDiagnostics()
 end

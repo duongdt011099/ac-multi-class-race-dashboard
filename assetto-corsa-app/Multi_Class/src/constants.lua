@@ -48,6 +48,19 @@ C.ROLLING_START_ROLLED_OVER_SPLINE  = 0.3
 -- the metre-based setAISplineAbsoluteOffset; single file is offset 0.
 C.ROLLING_START_LANE_METERS         = 3.0
 C.ROLLING_START_LANE_RAMP_MPS       = 1.5
+-- Centred double file (rolling/centre.lua): the two columns sit either side of the track centre
+-- (from the AI spline's side data) rather than either side of the racing line. The centre is
+-- averaged over SAMPLES points up to LOOKAHEAD_M ahead; the shift from the racing line is capped at
+-- MAX_SHIFT_M; on a narrow track each column is pulled in to keep EDGE_MARGIN_M (car centre to edge)
+-- but never closer than MIN_LANE_M to the centre. CALIBRATION_VOTES frames of a side-by-side pair
+-- learn which way a positive offset moves a car before centring switches on.
+C.ROLLING_START_CENTRE_ENABLED          = true
+C.ROLLING_START_CENTRE_SAMPLES          = 4
+C.ROLLING_START_CENTRE_LOOKAHEAD_M      = 30.0
+C.ROLLING_START_CENTRE_MAX_SHIFT_M      = 6.0
+C.ROLLING_START_CENTRE_EDGE_MARGIN_M    = 2.0
+C.ROLLING_START_CENTRE_MIN_LANE_M       = 1.8
+C.ROLLING_START_CENTRE_CALIBRATION_VOTES = 30
 -- Tyre-warming weave in single file: every cycle the car drives straight for STRAIGHT_SECONDS, then
 -- swings gently left/right for WEAVE_SECONDS (AMPLITUDE_M each way, one swing per PERIOD_SECONDS).
 C.ROLLING_START_WEAVE_STRAIGHT_SECONDS = 10.0
