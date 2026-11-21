@@ -771,9 +771,14 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 }
 .wec-window-btn:active { transform: scale(0.9); }
 
-/* Drag the frameless window by the sidebar header. */
-.top-row { -webkit-app-region: drag; app-region: drag; }
-.top-row a, .top-row button { -webkit-app-region: no-drag; app-region: no-drag; }
+/* Maximize shows one square; once maximized it becomes the restore icon. */
+.wec-window-btn--maximize { font-size: 0.7rem; }
+.wec-window-btn__restore { display: none; }
+.wec-window-maximized .wec-window-btn__maximize { display: none; }
+.wec-window-maximized .wec-window-btn__restore { display: inline-block; }
+
+/* The frameless window is dragged by the sidebar header and the empty top band of the page (js/window-controls.js). */
+.top-row { cursor: default; }
 
 /* ---------- Stylish scrollbars ---------- */
 

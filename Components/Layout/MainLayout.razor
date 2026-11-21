@@ -6,6 +6,11 @@
             onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('minimize')">
         <i class="bi bi-dash-lg"></i>
     </button>
+    <button type="button" class="wec-window-btn wec-window-btn--maximize" title="Maximize" aria-label="Maximize window"
+            onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('maximize')">
+        <i class="bi bi-square wec-window-btn__maximize"></i>
+        <i class="bi bi-copy wec-window-btn__restore"></i>
+    </button>
     <button type="button" class="wec-window-btn wec-window-btn--close" title="Close" aria-label="Close window"
             onclick="window.chrome && window.chrome.webview && window.chrome.webview.postMessage('close')">
         <i class="bi bi-x-lg"></i>

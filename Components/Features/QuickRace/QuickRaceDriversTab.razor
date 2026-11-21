@@ -115,7 +115,7 @@
                         }
                     </header>
 
-                    <ol class="wec-qr-col__list">
+                    <ol class="wec-qr-col__list @(current.Entries.Any(e => e.QualifyingTimeMs is not null) ? "wec-qr-col__list--timed" : "")">
                         @for (var index = 0; index < current.Entries.Count; index++)
                         {
                             var entry = current.Entries[index];

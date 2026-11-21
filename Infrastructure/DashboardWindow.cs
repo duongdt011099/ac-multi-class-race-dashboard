@@ -21,6 +21,16 @@ internal sealed class DashboardWindow : Form
 {
     private const string LoopbackHost = "127.0.0.1";
 
+    // Width of the strip around the page that resizes the window. The page covers the rest of the form,
+    // so only this strip reaches the form's own hit testing.
+    private const int ResizeBorder = 6;
+
+    private const int WmNcHitTest = 0x0084;
+    private const int HtLeft = 10, HtRight = 11, HtTop = 12, HtTopLeft = 13, HtTopRight = 14;
+    private const int HtBottom = 15, HtBottomLeft = 16, HtBottomRight = 17;
+    private const int WsMinimizeBox = 0x00020000, WsMaximizeBox = 0x00010000;
+    private const int WmNcLButtonDown = 0x00A1, HtCaption = 2;
+
     private readonly Uri _baseUri;
     private readonly AppAccessToken _token;
     private readonly ILogger _logger;
@@ -42,10 +52,14 @@ internal sealed class DashboardWindow : Form
         StartPosition = FormStartPosition.CenterScreen;
         WindowState = FormWindowState.Maximized;
 
-        // No native title bar: the page draws its own close button. A borderless form would cover the
+        // No native title bar: the page draws its own window buttons. A borderless form would cover the
         // taskbar when maximized, so the maximized bounds are limited to the working area.
         FormBorderStyle = FormBorderStyle.None;
         MaximizedBounds = Screen.FromPoint(Cursor.Position).WorkingArea;
+
+        // The strip around the page, used to resize the window while it is not maximized.
+        BackColor = Color.FromArgb(0x1f, 0x1f, 0x26);
+        UpdateResizeBorder();
 
         if (icon is not null)
         {
@@ -54,6 +68,12 @@ internal sealed class DashboardWindow : Form
 
         Controls.Add(_webView);
     }
+
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -68,6 +88,103 @@ internal sealed class DashboardWindow : Form
         if (DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int)) != 0)
         {
             DwmSetWindowAttribute(Handle, 19, ref dark, sizeof(int));
+        }
+    }
+
+    // A borderless form has no minimize/maximize boxes, which also turns off minimizing from the taskbar,
+    // Aero snap and double-clicking the drag area to maximize. These styles bring those back without drawing anything.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.Style |= WsMinimizeBox | WsMaximizeBox;
+            return parameters;
+        }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        base.WndProc(ref m);
+
+        if (m.Msg == WmNcHitTest && WindowState == FormWindowState.Normal)
+        {
+            var lParam = (long)m.LParam;
+            var screenPoint = new Point(unchecked((short)lParam), unchecked((short)(lParam >> 16)));
+            var hit = ResizeHitTest(PointToClient(screenPoint));
+
+            if (hit != 0)
+            {
+                m.Result = hit;
+            }
+        }
+    }
+
+    private int ResizeHitTest(Point point)
+    {
+        var left = point.X < ResizeBorder;
+        var right = point.X >= ClientSize.Width - ResizeBorder;
+        var top = point.Y < ResizeBorder;
+        var bottom = point.Y >= ClientSize.Height - ResizeBorder;
+
+        return (top, bottom, left, right) switch
+        {
+            (true, _, true, _) => HtTopLeft,
+            (true, _, _, true) => HtTopRight,
+            (_, true, true, _) => HtBottomLeft,
+            (_, true, _, true) => HtBottomRight,
+            (true, _, _, _) => HtTop,
+            (_, true, _, _) => HtBottom,
+            (_, _, true, _) => HtLeft,
+            (_, _, _, true) => HtRight,
+            _ => 0,
+        };
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        UpdateResizeBorder();
+        PostWindowState();
+    }
+
+    // The resize strip only shows while the window is not maximized.
+    private void UpdateResizeBorder()
+    {
+        Padding = WindowState == FormWindowState.Normal ? new Padding(ResizeBorder) : Padding.Empty;
+    }
+
+    private void ToggleMaximize()
+    {
+        if (WindowState == FormWindowState.Maximized)
+        {
+            WindowState = FormWindowState.Normal;
+            return;
+        }
+
+        MaximizedBounds = Screen.FromHandle(Handle).WorkingArea;
+        WindowState = FormWindowState.Maximized;
+    }
+
+    // The page asks for this while the mouse is held down on an empty part of its top band. Pretending the
+    // press landed on a title bar hands the move to Windows, which also snaps and restores a maximized window.
+    private void StartDrag()
+    {
+        if (WindowState == FormWindowState.Minimized || (MouseButtons & MouseButtons.Left) == 0)
+        {
+            return;
+        }
+
+        ReleaseCapture();
+        SendMessage(Handle, WmNcLButtonDown, (IntPtr)HtCaption, IntPtr.Zero);
+    }
+
+    // Tells the page whether the window is maximized, so its maximize button shows the right icon.
+    private void PostWindowState()
+    {
+        if (_initialized && WindowState != FormWindowState.Minimized)
+        {
+            _webView.CoreWebView2?.PostWebMessageAsString(WindowState == FormWindowState.Maximized ? "maximized" : "normal");
         }
     }
 
@@ -187,7 +304,7 @@ internal sealed class DashboardWindow : Form
         core.CookieManager.AddOrUpdateCookie(cookie);
     }
 
-    // The page's own close button asks the window to hide, exactly like the old title-bar X did.
+    // The page's own window buttons. Close only hides the window, exactly like the old title-bar X did.
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         switch (e.TryGetWebMessageAsString())
@@ -197,6 +314,16 @@ internal sealed class DashboardWindow : Form
                 break;
             case "minimize":
                 WindowState = FormWindowState.Minimized;
+                break;
+            case "maximize":
+                ToggleMaximize();
+                break;
+            case "state":
+                PostWindowState();
+                break;
+            case "drag":
+                // Posted so the page's message handler returns before Windows runs its move loop.
+                BeginInvoke(StartDrag);
                 break;
         }
     }
