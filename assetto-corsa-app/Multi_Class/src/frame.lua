@@ -12,6 +12,7 @@ local Prepare = require("src/rolling/prepare")
 local RUpdate = require("src/rolling/update")
 local Audio = require("src/audio")
 local Yellow = require("src/yellow/yellow")
+local BlueFlag = require("src/race_control/blue_flag")
 local CrashGuard = require("src/crashguard/crashguard")
 local AITuning = require("src/ai/tuning")
 local SafetyCar = require("src/safetycar/safetycar")
@@ -125,6 +126,7 @@ end
 local function resetAttemptState()
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(BlueFlag.Reset)
   pcall(CrashGuard.Reset)
   pcall(DevRecovery.Reset)
   pcall(AITuning.Reset)
@@ -315,6 +317,11 @@ local function updateRolling(sim, dt)
     U.Log("YELLOW: update failed: " .. tostring(yellowErr))
     pcall(Yellow.Reset)
   end
+  local blueOk, blueErr = pcall(BlueFlag.Update, sim, dt)
+  if not blueOk then
+    U.Log("BLUE: update failed: " .. tostring(blueErr))
+    pcall(BlueFlag.Reset)
+  end
   local cgOk, cgErr = pcall(CrashGuard.Update, sim, dt)
   if not cgOk then U.Log("CRASH: update failed: " .. tostring(cgErr)) end
   if RCtl.DevAutopilotActive() then
@@ -337,6 +344,7 @@ local function stopAllFeatures(sim, keepRaceState)
   RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
+  pcall(BlueFlag.Reset)
   pcall(AITuning.Reset)
   pcall(SafetyCar.Reset)
   -- A race that is already under way keeps its "complete" / "unavailable" state through a replay:
@@ -402,6 +410,7 @@ function Frame.Update(dt)
         RCtl.SetPlayerAutopilot(false)
       end
       pcall(Yellow.Reset)
+      pcall(BlueFlag.Reset)
       pcall(AITuning.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
       ac.setWindowOpen("cl_greenlights", false)

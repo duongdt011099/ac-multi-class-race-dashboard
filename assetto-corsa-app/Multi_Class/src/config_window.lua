@@ -351,6 +351,10 @@ local function drawYellowFlagSection(w)
     S.yellowFlagEnabled = not S.yellowFlagEnabled
     S.storedSettings.yellowFlagEnabled = S.yellowFlagEnabled
   end
+  if checkRow("Blue flag lights when you are lapping a car", S.blueFlagEnabled) then
+    S.blueFlagEnabled = not S.blueFlagEnabled
+    S.storedSettings.blueFlagEnabled = S.blueFlagEnabled
+  end
   if checkRow("Play yellow / green flag sounds", S.flagSoundEnabled) then
     S.flagSoundEnabled = not S.flagSoundEnabled
     S.storedSettings.flagSoundEnabled = S.flagSoundEnabled

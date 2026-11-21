@@ -279,6 +279,26 @@ C.YELLOW_AUDIO_FALLBACK_MARGIN = 1.0
 C.YELLOW_NO_AUDIO_COUNTDOWN_SECONDS = 5.0
 C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 
+-- Blue flag on the track's own flag panels (race_control/blue_flag.lua + panels.lua), never through
+-- AC's racing flag, so the car's own dash screen does not show blue. While the human car is within
+-- LOOKAHEAD_M behind a car it is lapping, the nearest MAX_PANELS panels from MIN_AHEAD_M ahead of it
+-- up to PAST_LAPPED_M past the lapped car blink blue.
+C.BLUE_LOOKAHEAD_M            = 250
+C.BLUE_MIN_AHEAD_M            = 10
+C.BLUE_PAST_LAPPED_M          = 120
+C.BLUE_MAX_PANELS             = 3
+C.BLUE_GROUP_STEP_M           = 20     -- spline sampling step when checking a group of boards (COTA)
+C.BLUE_LAPPED_MIN_LAPS        = 0.5    -- race distance the human car must be ahead by to count as lapping
+C.BLUE_SCAN_SECONDS           = 0.25
+C.BLUE_HOLD_SECONDS           = 1.5    -- panels stay blue this long after the condition clears (no flicker)
+C.BLUE_BLINK_SECONDS          = 0.35   -- half period of the blink
+-- Panel colours (0-255) and emissive multiplier, as track configs write them (Imola 2024's values).
+C.PANEL_BLUE_RGB              = { 30, 90, 255 }    -- saturated blue, a little lighter than the track's 15,15,200
+C.PANEL_BLUE_BRIGHTNESS       = 3.0
+C.PANEL_YELLOW_RGB            = { 230, 185, 20 }
+C.PANEL_GREEN_RGB             = { 30, 230, 10 }
+C.PANEL_BRIGHTNESS            = 1.1
+
 -- Multi-class pass (ai/modifiers.lua): a faster-class AI car within RANGE_M of a slower-class car
 -- (inside LATERAL_M sideways) with a clear side lowers its caution to CAUTION and raises aggression
 -- to AGGRESSION so it commits to the pass instead of tailgating.

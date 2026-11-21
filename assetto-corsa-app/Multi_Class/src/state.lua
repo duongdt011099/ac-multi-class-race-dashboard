@@ -14,6 +14,7 @@ S.storedSettings = ac.storage({
   flagSoundEnabled = true,
   flagSoundVolume = C.AUDIO_VOLUME,
   yellowFlagEnabled = true,
+  blueFlagEnabled = true,
   autopilotEnabled = true,
   autoExitAfterRace = true,
   showPositionLap = true,
@@ -61,6 +62,7 @@ S.rollingMusicVolume  = C.AUDIO_VOLUME
 S.flagSoundEnabled    = S.storedSettings.flagSoundEnabled ~= false
 S.flagSoundVolume     = C.AUDIO_VOLUME
 S.yellowFlagEnabled   = S.storedSettings.yellowFlagEnabled ~= false
+S.blueFlagEnabled     = S.storedSettings.blueFlagEnabled ~= false
 S.autopilotEnabled    = S.storedSettings.autopilotEnabled ~= false
 S.autoExitAfterRace   = S.storedSettings.autoExitAfterRace ~= false
 S.showPositionLap     = S.storedSettings.showPositionLap ~= false
