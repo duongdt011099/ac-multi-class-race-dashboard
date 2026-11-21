@@ -1,7 +1,8 @@
 -- Rolling-start music. The track is timed so it ends as the class leader crosses the line (green):
 -- it starts once the estimated time to green drops to the track length, and is seeked into when
--- the player enters double file late. Once playing it is left alone (no rate or volume changes
--- except the fade at green), because touching the media player every frame makes it stutter.
+-- the player enters double file late (then it fades in instead of cutting in mid-song). Once playing
+-- it is left alone (no rate or volume changes except those fades), because touching the media
+-- player every frame makes it stutter.
 local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
@@ -19,6 +20,7 @@ local player = nil
 local armed = false      -- the human car has entered double file
 local started = false
 local fadeLeft = nil
+local fadeInLeft = nil   -- seconds of fade-in left when the track was started part-way through
 local finishing = false  -- green arrived near the end: let the track finish on its own
 local doubleFilePlayed = false   -- the callouts play once per attempt (reset in M.Reset)
 local autopilotOffPlayed = false
@@ -32,6 +34,7 @@ local function dispose()
   player = nil
   started = false
   fadeLeft = nil
+  fadeInLeft = nil
   finishing = false
 end
 
@@ -116,10 +119,14 @@ end
 function M.FadeOut()
   if not (player and started) or fadeLeft or finishing then return end
   local ok, remaining = pcall(function() return player:duration() - player:currentTime() end)
-  if ok and type(remaining) == "number" and remaining < FINISH_NATURALLY_SECONDS then
+  if ok and type(remaining) == "number" and remaining < FINISH_NATURALLY_SECONDS and not fadeInLeft then
     finishing = true
   else
-    fadeLeft = FADE_SECONDS
+    -- Still fading in: fade out from the current level, not from full volume.
+    local level = 1.0
+    if fadeInLeft then level = 1.0 - fadeInLeft / C.ROLLING_MUSIC_FADE_IN_SECONDS end
+    fadeInLeft = nil
+    fadeLeft = FADE_SECONDS * math.max(0.05, level)
   end
 end
 
@@ -147,11 +154,15 @@ local function EstimateTimeToGreen(dt)
 end
 
 local function StartPlayback(duration, position)
-  player:setVolume(S.rollingMusicVolume)
+  -- Starting part-way through the song (a short double file) sounds like a cut-in, so fade it in.
+  local fadeIn = position > C.ROLLING_MUSIC_FADE_IN_MIN_POSITION and C.ROLLING_MUSIC_FADE_IN_SECONDS > 0
+  fadeInLeft = fadeIn and C.ROLLING_MUSIC_FADE_IN_SECONDS or nil
+  player:setVolume(fadeIn and 0.0 or S.rollingMusicVolume)
   if position > 0.2 then player:setCurrentTime(position) end
   player:play()
   started = true
-  U.Log(sFormat("AUDIO: rolling music started at %.1fs of %.1fs", position, duration))
+  U.Log(sFormat("AUDIO: rolling music started at %.1fs of %.1fs%s", position, duration,
+      fadeIn and sFormat(" (fading in over %.1fs)", C.ROLLING_MUSIC_FADE_IN_SECONDS) or ""))
 end
 
 -- Yellow / green flag callouts: short one-shot clips. A new yellow replaces a playing green; a green
@@ -406,6 +417,16 @@ function M.Update(dt)
     if finishing then
       if player:ended() then dispose() end
       return
+    end
+
+    if fadeInLeft then
+      fadeInLeft = fadeInLeft - dt
+      if fadeInLeft <= 0 then
+        fadeInLeft = nil
+        player:setVolume(S.rollingMusicVolume)
+      else
+        player:setVolume(S.rollingMusicVolume * (1.0 - fadeInLeft / C.ROLLING_MUSIC_FADE_IN_SECONDS))
+      end
     end
 
     if not armed then return end

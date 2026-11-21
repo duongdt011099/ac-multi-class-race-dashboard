@@ -205,6 +205,11 @@ C.ROLLING_START_CAR_SECONDS         = 0.7
 -- playback-rate trim used to stay in sync.
 C.ROLLING_MUSIC_END_LEAD_SECONDS = 6.0
 C.ROLLING_MUSIC_RATE_RANGE       = 0.04
+-- When the music has to start part-way through (a short double file, e.g. Long Beach), it fades in
+-- over this many seconds instead of starting at full volume mid-song. A start from the beginning
+-- (within FADE_IN_MIN_POSITION seconds of 0) plays at full volume straight away.
+C.ROLLING_MUSIC_FADE_IN_SECONDS      = 4.0
+C.ROLLING_MUSIC_FADE_IN_MIN_POSITION = 1.0
 C.ROLLING_START_RELEASE_MOVED_METERS     = 7
 C.ROLLING_START_RELEASE_MOVED_KMH        = 15
 C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 4.0
