@@ -358,6 +358,7 @@ C.YELLOW_GREEN_PANEL_SECONDS  = 4.0
 -- LOOKAHEAD_M behind a car it is lapping, the nearest MAX_PANELS panels from MIN_AHEAD_M ahead of it
 -- up to PAST_LAPPED_M past the lapped car blink blue.
 C.BLUE_LOOKAHEAD_M            = 250
+C.BLUE_PIT_LANE_OFFSET_M      = 6     -- a car this far (m) beyond the track edge is in the pit lane: no blue for it
 C.BLUE_MIN_AHEAD_M            = 10
 C.BLUE_PAST_LAPPED_M          = 120
 C.BLUE_MAX_PANELS             = 3

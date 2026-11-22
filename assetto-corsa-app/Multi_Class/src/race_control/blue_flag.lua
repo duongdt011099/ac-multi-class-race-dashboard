@@ -39,13 +39,36 @@ local function colour(c, scale)
   return rgb(c[1] * k, c[2] * k, c[3] * k)
 end
 
-local function inPit(car)
-  return car.isInPitlane == true or car.isInPit == true
-end
-
 local function progress(car)
   if type(car.splinePosition) ~= "number" then return nil end
   return U.NormalizeTrackProgress(car.splinePosition)
+end
+
+-- True when the car is not out on the racing track: in the pit lane or its pit box. AC's own pit
+-- flags miss the pit lane on some tracks (its "pits area" is not always marked), so the pit-lane
+-- surface under the wheels and the distance from the racing line count too: a pit lane running
+-- beside the main straight is further from the AI spline than the track is wide. Cars in the pits
+-- take no part in lapping, either way round.
+local function inPit(car, p)
+  if car.isInPitlane == true or car.isInPit == true then return true end
+  local wheels = U.SafeGet(car, "wheels")
+  if wheels then
+    for w = 0, 3 do
+      local wheel = wheels[w]
+      if wheel and U.SafeGet(wheel, "surfacePitlane") == true then return true end
+    end
+  end
+  if p and car.position and ac.getTrackAISplineSides and ac.trackProgressToWorldCoordinate then
+    local ok, off = pcall(function()
+      local sides = ac.getTrackAISplineSides(p)
+      if math.max(sides.x, sides.y) < 1.0 then return nil end   -- no track width data
+      local centre = ac.trackProgressToWorldCoordinate(p)
+      local dx, dz = car.position.x - centre.x, car.position.z - centre.z
+      return math.sqrt(dx * dx + dz * dz) - math.max(sides.x, sides.y)
+    end)
+    if ok and U.IsFinite(off) and off > C.BLUE_PIT_LANE_OFFSET_M then return true end
+  end
+  return false
 end
 
 -- Every car about to be lapped, with the nearest car lapping it: the lapper is physically behind
@@ -62,7 +85,7 @@ local function findLappingPairs(sim, trackLength)
     if i ~= S.safetyCarIndex and not (i == 0 and S.playerRetired == true and not inReplay) then
       local car = getCar(i)
       local p = car and progress(car)
-      if p and not inPit(car) and car.isRetired ~= true and car.isActive ~= false then
+      if p and car.isRetired ~= true and car.isActive ~= false and not inPit(car, p) then
         local laps = car.lapCount or 0
         if lastLapCount[i] ~= nil and lastLapCount[i] ~= laps then lapChangedAt[i] = clock end
         lastLapCount[i] = laps
