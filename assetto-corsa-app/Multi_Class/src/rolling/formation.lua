@@ -215,6 +215,39 @@ local function ClassCompaction(group, trackLength)
   return 1.0 - distM / zone
 end
 
+-- Nearest released car of the previous class that is physically ahead of `car` (its tail, in a
+-- settled formation): returns the gap in metres and that car's speed, or nil.
+local function NearestPrevClassCar(state, car, trackLength)
+  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
+  if not (prev and prev.cars and car) then return nil end
+  local nearestGap, nearestSpeed
+  for _, otherIndex in ipairs(prev.cars) do
+    local other = S.rollingStartCars[otherIndex]
+    if other and other.released and not other.dropped then
+      local otherCar = getCar(otherIndex)
+      if otherCar and type(otherCar.splinePosition) == "number" then
+        local g = Spacing.SignedGap(otherCar, car, trackLength)
+        if g > -4.0 and (not nearestGap or g < nearestGap) then
+          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
+        end
+      end
+    end
+  end
+  return nearestGap, nearestSpeed, prev
+end
+
+-- Single-file run-up: the leader of every class after the first closes up to DF_CLASS_GAP_M behind
+-- the previous class's tail. Without it a class leader with nobody ahead cruised at exactly the
+-- formation speed while the first class followed the faster safety car, so the gap behind the
+-- first class grew to 300 m+ while every later class sat ~100 m apart (their release spacing).
+local function ClassLeaderCatchup(state, car, trackLength, formationSpeed)
+  local gap, prevSpeed, prev = NearestPrevClassCar(state, car, trackLength)
+  if not gap or prev.green or gap <= C.ROLLING_START_DF_CLASS_GAP_M then return formationSpeed end
+  local maxSpeed = C.ROLLING_START_FORMATION_SPEED_KMH * C.ROLLING_START_PHASE1_CATCHUP
+  local wanted = prevSpeed + (gap - C.ROLLING_START_DF_CLASS_GAP_M) * C.ROLLING_START_DF_CLASS_GAP_GAIN_KMH
+  return math.max(formationSpeed, math.min(maxSpeed, wanted))
+end
+
 local function SingleFileTargets(carIndex, state, group, car, trackLength)
   local formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH
   -- Approaching the double-file point the class closes up: shorter follow gap, earlier and
@@ -289,6 +322,8 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
       end
       formationSpeed = math.min(formationSpeed, cap)
     end
+  elseif leaderHasNoCarAhead and car then
+    formationSpeed = ClassLeaderCatchup(state, car, trackLength, formationSpeed)
   end
   -- The catch-up branch above replaces the speed; keep the leader at the rolling speed while the
   -- rest of the field is still being released.
@@ -352,21 +387,7 @@ end
 
 -- Keep a gap to the nearest car of the previous class that is physically ahead (see CLASS_GUARD constants).
 local function ApplyClassGuard(state, car, trackLength, targetSpeed, throttleLimit)
-  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
-  if not (prev and car) then return targetSpeed, throttleLimit end
-  local nearestGap, nearestSpeed
-  for _, otherIndex in ipairs(prev.cars) do
-    local other = S.rollingStartCars[otherIndex]
-    if other and other.released and not other.dropped then
-      local otherCar = getCar(otherIndex)
-      if otherCar and type(otherCar.splinePosition) == "number" then
-        local g = Spacing.SignedGap(otherCar, car, trackLength)
-        if g > -4.0 and (not nearestGap or g < nearestGap) then
-          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
-        end
-      end
-    end
-  end
+  local nearestGap, nearestSpeed = NearestPrevClassCar(state, car, trackLength)
   if not nearestGap or nearestGap >= C.ROLLING_START_CLASS_GUARD_GAP then return targetSpeed, throttleLimit end
   local cap = nearestSpeed + (nearestGap - C.ROLLING_START_CLASS_HOLD_GAP) * C.ROLLING_START_CLASS_GUARD_GAIN_KMH
   if cap < targetSpeed then
@@ -433,23 +454,15 @@ end
 -- anti-collision class guard (30 m), so a class whose front row did not have to wait for its own
 -- tail ran right up to the class ahead while the next class sat 140 m back.
 local function KeepClassGap(state, car, trackLength, targetSpeed, throttleLimit)
-  local prev = S.rollingStartGroups[(state.groupIndex or 1) - 1]
-  if not (prev and prev.cars and car) or prev.green then return targetSpeed, throttleLimit end
-  local nearestGap, nearestSpeed
-  for _, otherIndex in ipairs(prev.cars) do
-    local other = S.rollingStartCars[otherIndex]
-    if other and other.released and not other.dropped then
-      local otherCar = getCar(otherIndex)
-      if otherCar and type(otherCar.splinePosition) == "number" then
-        local g = Spacing.SignedGap(otherCar, car, trackLength)
-        if g > -4.0 and (not nearestGap or g < nearestGap) then
-          nearestGap, nearestSpeed = g, otherCar.speedKmh or 0
-        end
-      end
-    end
-  end
-  if not nearestGap or nearestGap >= C.ROLLING_START_DF_CLASS_GAP_M + C.ROLLING_START_DF_CLASS_GAP_BAND_M then
-    return targetSpeed, throttleLimit
+  local nearestGap, nearestSpeed, prev = NearestPrevClassCar(state, car, trackLength)
+  if not nearestGap or prev.green then return targetSpeed, throttleLimit end
+  local farEdge = C.ROLLING_START_DF_CLASS_GAP_M + C.ROLLING_START_DF_CLASS_GAP_BAND_M
+  if nearestGap >= farEdge then
+    -- Too far behind the class ahead (it ran away on the run-up): close up, so every class takes
+    -- its green with the same gap ahead of it.
+    local mult = Spacing.GetLinearMultiplier(nearestGap, farEdge,
+        farEdge + C.ROLLING_START_DF_CLASS_GAP_CATCHUP_FULL_M, C.ROLLING_START_DF_CLASS_GAP_CATCHUP)
+    return targetSpeed * mult, throttleLimit
   end
   local cap = nearestSpeed + (nearestGap - C.ROLLING_START_DF_CLASS_GAP_M) * C.ROLLING_START_DF_CLASS_GAP_GAIN_KMH
   cap = math.max(C.ROLLING_START_DF_CLASS_GAP_MIN_KMH, cap)

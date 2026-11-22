@@ -5,8 +5,10 @@
 -- re-tuned as soon as they are free again.
 -- Also: stuck cars. A car that crawls under STUCK_KMH for STUCK_SECONDS with nothing slow ahead of
 -- it to explain it is sent to the pits (the crash guard repairs it there) and held for
--- STUCK_FREEZE_SECONDS.
+-- STUCK_FREEZE_SECONDS. It only goes back out when CSP's AI rejoin setting is on (or in developer
+-- mode); otherwise it stays retired in the pits.
 local C = require("src/constants")
+local CspSettings = require("src/csp_settings")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
@@ -109,8 +111,15 @@ local function updateStuck(dt)
           pcall(physics.setAIStopCounter, i, C.ROLLING_START_STOP_COUNTER_HELD)
           if clock - froze >= C.AI_STUCK_FREEZE_SECONDS then
             frozen[i] = nil
-            RCtl.RestoreAIControl(i, false)
-            U.Log(sFormat("AI: car %d released from the pits after a stuck teleport", i))
+            if CspSettings.AIRejoinAllowed() then
+              RCtl.RestoreAIControl(i, false)
+              U.Log(sFormat("AI: car %d released from the pits after a stuck teleport", i))
+            else
+              -- CSP's "rejoin after going to pits" is off: the car is out of the race. The crash
+              -- guard holds it in the pits from now on.
+              S.crashLocked[i] = true
+              U.Log(sFormat("AI: car %d retired in the pits after a stuck teleport (CSP rejoin off)", i))
+            end
           end
         elseif clock - froze > 3.0 then
           frozen[i] = nil   -- the teleport did not take; start watching again

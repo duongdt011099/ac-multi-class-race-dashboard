@@ -1,6 +1,7 @@
 -- Crash guard: an AI car that crashes and is taken to the pits (CSP's "teleport to pit on damage")
 -- gets its damage repaired and one more chance. If it crashes into the pits a second time it is locked
--- in the pit lane for the rest of the race, like the safety car.
+-- in the pit lane for the rest of the race, like the safety car. With CSP's AI rejoin setting off
+-- (and developer mode off) there is no second chance: the first crash into the pits locks it there.
 --
 -- A "crash" is a yellow-flag hazard (a car stopped or slow on track) that ends with the car in the
 -- pit lane after at least CRASH_MIN_HAZARD_SECONDS; yellow.lua reports that in S.crashPitEvents.
@@ -8,6 +9,7 @@ local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
 local Sess = require("src/session")
+local CspSettings = require("src/csp_settings")
 
 local M = {}
 
@@ -82,7 +84,12 @@ function M.Update(sim, dt)
         if held >= C.CRASH_MIN_HAZARD_SECONDS and not S.crashLocked[i] then
           local strikes = (S.crashStrikes[i] or 0) + 1
           S.crashStrikes[i] = strikes
-          if strikes >= C.CRASH_MAX_PIT_TRIPS then
+          if not CspSettings.AIRejoinAllowed() then
+            -- CSP's "rejoin after going to pits" is off: no repair and no second chance.
+            S.crashLocked[i] = true
+            U.Log(sFormat("CRASH: car %d crashed and went to the pits (stopped %.0f s); retired there (CSP rejoin off)",
+                i, held))
+          elseif strikes >= C.CRASH_MAX_PIT_TRIPS then
             S.crashLocked[i] = true
             U.Log(sFormat("CRASH: car %d crashed again (strike %d, stopped %.0f s); locked in the pits for good",
                 i, strikes, held))

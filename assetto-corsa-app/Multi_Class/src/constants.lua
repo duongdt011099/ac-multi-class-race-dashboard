@@ -199,6 +199,11 @@ C.ROLLING_START_DF_CLASS_GAP_M        = 100.0
 C.ROLLING_START_DF_CLASS_GAP_BAND_M   = 40.0
 C.ROLLING_START_DF_CLASS_GAP_GAIN_KMH = 1.0
 C.ROLLING_START_DF_CLASS_GAP_MIN_KMH  = 30.0
+-- Beyond GAP + BAND the front row closes up instead: its speed is raised up to DF_CLASS_GAP_CATCHUP
+-- times, reached CATCHUP_FULL_M past GAP + BAND. (The single-file run-up already closes the class
+-- leader up to GAP behind the class ahead; this only catches what is left.)
+C.ROLLING_START_DF_CLASS_GAP_CATCHUP        = 1.3
+C.ROLLING_START_DF_CLASS_GAP_CATCHUP_FULL_M = 100.0
 -- Last-resort proximity guard: any formation car (the autopilot-driven human car included) never
 -- closes on whatever is physically in front of it in its own path, whatever class or phase that car
 -- is in. Distances are centre to centre, in metres.

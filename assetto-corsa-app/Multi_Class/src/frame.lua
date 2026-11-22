@@ -340,6 +340,15 @@ local function updateRolling(sim, dt)
   end
 end
 
+-- Closes the in-race windows. leaderboardOpened is cleared with them, so Frame.Update opens them
+-- again on the next live frame (after a replay, or once the app is enabled again).
+local function closeRaceWindows()
+  S.leaderboardOpened = false
+  ac.setWindowOpen("cl_leaderboard", false)
+  ac.setWindowOpen("cl_greenlights", false)
+  ac.setWindowOpen("cl_trackmap", false)
+end
+
 local function stopAllFeatures(sim, keepRaceState, keepBlueFlag)
   RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
@@ -353,10 +362,7 @@ local function stopAllFeatures(sim, keepRaceState, keepBlueFlag)
     S.rollingStartState = "idle"
     S.rollingStartStatus = ""
   end
-  S.leaderboardOpened = false
-  ac.setWindowOpen("cl_leaderboard", false)
-  ac.setWindowOpen("cl_greenlights", false)
-  ac.setWindowOpen("cl_trackmap", false)
+  closeRaceWindows()
 end
 
 function Frame.Update(dt)
@@ -412,9 +418,8 @@ function Frame.Update(dt)
       end
       pcall(Yellow.Reset)
       pcall(AITuning.Reset)
-      ac.setWindowOpen("cl_leaderboard", false)
-      ac.setWindowOpen("cl_greenlights", false)
-      ac.setWindowOpen("cl_trackmap", false)
+      -- Clears leaderboardOpened too: the windows must come back when the replay ends.
+      closeRaceWindows()
     else
       if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
         S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
