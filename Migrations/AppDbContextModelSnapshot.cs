@@ -417,6 +417,28 @@ namespace multi_class_race_dashboard.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MulticlassRace.Models.QuickRacePreset", b =>
+                {
+                    b.Property<Guid>("QuickRacePresetId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GridJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("QuickRacePresetId");
+
+                    b.ToTable("QuickRacePresets");
+                });
+
             modelBuilder.Entity("MulticlassRace.Models.QuickRaceResult", b =>
                 {
                     b.Property<Guid>("QuickRaceResultId")

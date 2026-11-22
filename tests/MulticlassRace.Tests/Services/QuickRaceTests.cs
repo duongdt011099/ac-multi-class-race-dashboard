@@ -197,6 +197,53 @@ public class QuickRaceGridTests
 
         Assert.Equal(new[] { "GT4", "GT3 Pro" }, setup.SystemClasses.Select(c => c.Name).ToArray());
     }
+
+    [Fact]
+    public void ApplyPreset_ReplacesTheGridWithACopy_AndForgetsQualifying()
+    {
+        var source = Setup();
+        source.CustomClasses[0].Entries[1].QualifyingTimeMs = 90000;
+        var preset = QuickRaceGrid.CapturePreset(source);
+
+        Assert.All(preset.Classes.SelectMany(c => c.Entries), e => Assert.Null(e.QualifyingTimeMs));
+
+        var target = new QuickRaceSetupModel { QualifyingCompleted = true };
+        target.CustomClasses.Add(new QuickRaceClassModel { Name = "Old", Entries = { Entry("Me", human: true) } });
+
+        Assert.True(QuickRaceGrid.ApplyPreset(target, preset, null));
+
+        Assert.False(target.QualifyingCompleted);
+        Assert.Equal(new[] { "GT3", "GT4" }, target.CustomClasses.Select(c => c.Name).ToArray());
+        Assert.Equal(Names(source.CustomClasses[0]), Names(target.CustomClasses[0]));
+        Assert.DoesNotContain(target.CustomClasses[0].Entries[1].EntryId, source.CustomClasses[0].Entries.Select(e => e.EntryId));
+
+        // Editing the loaded grid leaves the preset alone.
+        target.CustomClasses[0].Entries.Clear();
+        Assert.Equal(4, preset.Classes[0].Entries.Count);
+    }
+
+    [Fact]
+    public void ApplyPreset_OfAClassSystemGrid_FollowsTheClassSetting_OrFallsBackToCustomClasses()
+    {
+        var gt3 = new ClassSettingItemModel { ClassSettingItemId = Guid.NewGuid(), Name = "GT3", Order = 0, Color = "#111111" };
+        var setting = new ClassSettingModel { ClassSettingId = Guid.NewGuid(), ClassSettingName = "S", Items = { gt3 } };
+        var source = new QuickRaceSetupModel { Mode = QuickRaceGridMode.ExistingClasses, ClassSettingId = setting.ClassSettingId };
+        QuickRaceGrid.SyncSystemClasses(source, setting);
+        source.SystemClasses[0].Entries.Add(Entry("A"));
+        var preset = QuickRaceGrid.CapturePreset(source);
+
+        var kept = new QuickRaceSetupModel();
+        Assert.True(QuickRaceGrid.ApplyPreset(kept, preset, setting));
+        Assert.Equal(QuickRaceGridMode.ExistingClasses, kept.Mode);
+        Assert.Equal(setting.ClassSettingId, kept.ClassSettingId);
+        Assert.Equal(new[] { "A" }, Names(kept.SystemClasses[0]));
+
+        var orphaned = new QuickRaceSetupModel();
+        Assert.False(QuickRaceGrid.ApplyPreset(orphaned, preset, null));
+        Assert.Equal(QuickRaceGridMode.Custom, orphaned.Mode);
+        Assert.Equal("GT3", orphaned.CustomClasses.Single().Name);
+        Assert.Equal(new[] { "A" }, Names(orphaned.CustomClasses[0]));
+    }
 }
 
 public class QuickRaceFileTests
@@ -455,6 +502,47 @@ public class QuickRaceServiceTests : IDisposable
         await CreateService().DeleteResultAsync(result.ResultId);
 
         Assert.Empty(await CreateService().GetHistoryAsync());
+    }
+
+    private static QuickRaceSetupModel GridWith(params string[] names)
+    {
+        var setup = new QuickRaceSetupModel();
+        setup.CustomClasses.Add(new QuickRaceClassModel { Name = "GT3" });
+        setup.CustomClasses[0].Entries.AddRange(names.Select(n => new QuickRaceEntryModel { DriverName = n, Car = "c" }));
+
+        return setup;
+    }
+
+    [Fact]
+    public async Task Presets_SaveOverwriteAndDelete()
+    {
+        var saved = await CreateService().SavePresetAsync("  Endurance ", GridWith("A"));
+        await CreateService().SavePresetAsync("Sprint", GridWith("B"));
+
+        Assert.Equal("Endurance", saved.Name);
+        Assert.Equal(new[] { "Endurance", "Sprint" }, (await CreateService().GetPresetsAsync()).Select(p => p.Name).ToArray());
+
+        await CreateService().SavePresetAsync("Endurance", GridWith("A", "C"), saved.PresetId);
+        var grid = await CreateService().GetPresetGridAsync(saved.PresetId);
+
+        Assert.Equal(new[] { "A", "C" }, grid!.Classes[0].Entries.Select(e => e.DriverName).ToArray());
+        Assert.Equal(2, (await CreateService().GetPresetsAsync()).Count);
+
+        await CreateService().DeletePresetAsync(saved.PresetId);
+
+        Assert.Null(await CreateService().GetPresetGridAsync(saved.PresetId));
+        Assert.Equal("Sprint", Assert.Single(await CreateService().GetPresetsAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Presets_RejectABlankOrDuplicateName()
+    {
+        await CreateService().SavePresetAsync("Endurance", GridWith("A"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SavePresetAsync("   ", GridWith("A")));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SavePresetAsync("endurance", GridWith("A")));
+
+        Assert.Contains("already exists", error.Message);
     }
 }
 

@@ -32,7 +32,7 @@ local MAX_GROUP_SIZE_M = 1500
 local GROUP_MARGIN_M = 30
 
 local discovered = false
-local panels = {}   -- { { ref, method, state, center, p, group, min, max, applied }, ... }
+local panels = {}   -- { { ref, method, state, center, p, size, group, min, max, applied }, ... }
 
 local function methodFor(filter, config)
   for _, method in ipairs(METHODS) do
@@ -82,7 +82,8 @@ function M.Discover()
             pcall(function() ref:ensureUniqueMaterials() end)
             local p = ac.worldCoordinateToTrackProgress(center)
             if type(p) == "number" and p >= 0 then
-              local panel = { ref = ref, method = method, state = method.Prepare(ref), center = center, p = p }
+              local panel = { ref = ref, method = method, state = method.Prepare(ref), center = center, p = p,
+                              size = size }
               if size > MAX_PANEL_SIZE_M then
                 local grow = vec3(GROUP_MARGIN_M, GROUP_MARGIN_M, GROUP_MARGIN_M)
                 panel.group = true

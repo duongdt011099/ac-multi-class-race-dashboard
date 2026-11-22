@@ -283,6 +283,67 @@ public static class QuickRaceGrid
     public static string Signature(QuickRaceSetupModel setup)
         => string.Join(",", setup.ActiveClasses.SelectMany(c => c.Entries).Select(e => e.EntryId).Order());
 
+    /// <summary>A copy of the grid on screen, without qualifying times, to be saved as a preset.</summary>
+    public static QuickRacePresetGrid CapturePreset(QuickRaceSetupModel setup)
+    {
+        var classes = QuickRaceJson.TryDeserialize<List<QuickRaceClassModel>>(QuickRaceJson.Serialize(setup.ActiveClasses))
+            ?? new List<QuickRaceClassModel>();
+
+        foreach (var entry in classes.SelectMany(c => c.Entries))
+        {
+            entry.QualifyingTimeMs = null;
+        }
+
+        return new QuickRacePresetGrid
+        {
+            Mode = setup.Mode,
+            ClassSettingId = setup.Mode == QuickRaceGridMode.ExistingClasses ? setup.ClassSettingId : null,
+            Classes = classes
+        };
+    }
+
+    /// <summary>
+    /// Replaces the grid with the preset's classes and drivers. A class-system preset whose class setting
+    /// no longer exists is loaded as custom classes; returns false in that case so the page can say so.
+    /// The cars get new ids, so a qualifying run for the previous grid no longer applies.
+    /// </summary>
+    public static bool ApplyPreset(QuickRaceSetupModel setup, QuickRacePresetGrid preset, ClassSettingModel? setting)
+    {
+        var classes = QuickRaceJson.TryDeserialize<List<QuickRaceClassModel>>(QuickRaceJson.Serialize(preset.Classes))
+            ?? new List<QuickRaceClassModel>();
+
+        foreach (var entry in classes.SelectMany(c => c.Entries))
+        {
+            entry.EntryId = Guid.NewGuid();
+            entry.QualifyingTimeMs = null;
+        }
+
+        ClearQualifying(setup);
+
+        var asSystem = preset.Mode == QuickRaceGridMode.ExistingClasses && setting is not null;
+
+        if (asSystem)
+        {
+            setup.Mode = QuickRaceGridMode.ExistingClasses;
+            setup.ClassSettingId = setting!.ClassSettingId;
+            setup.SystemClasses = classes;
+            SyncSystemClasses(setup, setting);
+        }
+        else
+        {
+            setup.Mode = QuickRaceGridMode.Custom;
+
+            if (classes.Count == 0)
+            {
+                classes.Add(NewCustomClass(classes));
+            }
+
+            setup.CustomClasses = classes;
+        }
+
+        return asSystem || preset.Mode == QuickRaceGridMode.Custom;
+    }
+
     /// <summary>Forgets the qualifying result: the grid order is the user's own again.</summary>
     public static void ClearQualifying(QuickRaceSetupModel setup)
     {

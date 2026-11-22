@@ -115,9 +115,25 @@ public class QuickRaceSetupModel
     /// <summary>The qualifying order the grid follows; copied into the race result so it is kept with the race.</summary>
     public List<QuickRaceResultRow> QualifyingRows { get; set; } = new();
 
+    /// <summary>The preset the grid was last loaded from or saved to; Save overwrites it.</summary>
+    public Guid? PresetId { get; set; }
+
     [JsonIgnore]
     public List<QuickRaceClassModel> ActiveClasses => Mode == QuickRaceGridMode.Custom ? CustomClasses : SystemClasses;
 }
+
+/// <summary>What a preset keeps: the class system and the drivers of the grid that was on screen.</summary>
+public class QuickRacePresetGrid
+{
+    public QuickRaceGridMode Mode { get; set; } = QuickRaceGridMode.Custom;
+
+    public Guid? ClassSettingId { get; set; }
+
+    public List<QuickRaceClassModel> Classes { get; set; } = new();
+}
+
+/// <summary>A line of the preset list.</summary>
+public sealed record QuickRacePresetItem(Guid PresetId, string Name, DateTime UpdatedUtc);
 
 /// <summary>The human driver as the quick race will use them: settings override the side menu driver.</summary>
 public sealed record QuickRaceHuman(string DriverName, string Car, string Skin, string CarDisplayName)

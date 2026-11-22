@@ -167,6 +167,83 @@ public class QuickRacePageTests : PageTestContext
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    private static void AddCustomDriver(IRenderedComponent<QuickRacePage> cut)
+    {
+        cut.Find(".wec-qr-col__add").Click();
+        cut.FindAll(".wec-qr-picker .wec-tab").First(t => t.TextContent.Contains("Custom Driver")).Click();
+        cut.Find("#qr-custom-car").Change("porsche_963");
+        cut.FindAll(".wec-qr-picker .wec-modal__btn--primary").Single().Click();
+    }
+
+    private static void SaveAsNewPreset(IRenderedComponent<QuickRacePage> cut, string name)
+    {
+        cut.Find("#qr-preset-name").Input(name);
+        cut.FindAll(".wec-modal__btn--primary").Last().Click();
+    }
+
+    [Fact]
+    public void Presets_DropdownIsDisabledUntilAPresetIsSaved()
+    {
+        var cut = RenderPage();
+        OpenTab(cut, "Drivers");
+
+        Assert.True(cut.Find("#qr-preset-select").HasAttribute("disabled"));
+
+        cut.Find("#qr-preset-save").Click();
+        Assert.Contains("Preset Name", cut.Find(".wec-modal").TextContent);
+        SaveAsNewPreset(cut, "Le Mans grid");
+
+        cut.WaitForAssertion(() => Assert.False(cut.Find("#qr-preset-select").HasAttribute("disabled")));
+        Assert.Contains("Le Mans grid", cut.Find("#qr-preset-select").TextContent);
+    }
+
+    [Fact]
+    public void Presets_LoadingAPreset_BringsBackItsDrivers()
+    {
+        var cut = RenderPage();
+        OpenTab(cut, "Drivers");
+        AddCustomDriver(cut);
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".wec-qr-col .wec-qr-row").Count));
+
+        cut.Find("#qr-preset-save").Click();
+        SaveAsNewPreset(cut, "Two cars");
+        cut.WaitForAssertion(() => Assert.False(cut.Find("#qr-preset-select").HasAttribute("disabled")));
+
+        cut.FindAll(".wec-qr-row .wec-qr-icon--danger").Single().Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".wec-qr-col .wec-qr-row")));
+
+        cut.Find("#qr-preset-select").Click();
+        cut.FindAll(".wec-qr-presets__item .wec-qr-presets__load").Single().Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".wec-qr-col .wec-qr-row").Count));
+        Assert.Contains("Ann Lee", cut.Find(".wec-qr-col").TextContent);
+    }
+
+    [Fact]
+    public void Presets_SavingAgain_AsksToOverwrite_AndSaveAsAsksForANewName()
+    {
+        var cut = RenderPage();
+        OpenTab(cut, "Drivers");
+
+        cut.Find("#qr-preset-save").Click();
+        SaveAsNewPreset(cut, "First");
+        cut.WaitForAssertion(() => Assert.Contains("First", cut.Find("#qr-preset-select").TextContent));
+
+        cut.Find("#qr-preset-save").Click();
+        Assert.Contains("Overwrite the preset \"First\"", cut.Find(".wec-modal").TextContent);
+        cut.Find(".wec-modal__btn--danger").Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-modal")));
+
+        cut.Find("#qr-preset-save-menu").Click();
+        cut.Find("#qr-preset-save-as").Click();
+        SaveAsNewPreset(cut, "Second");
+        cut.WaitForAssertion(() => Assert.Contains("Second", cut.Find("#qr-preset-select").TextContent));
+
+        cut.Find("#qr-preset-select").Click();
+        Assert.Equal(new[] { "First", "Second" },
+            cut.FindAll(".wec-qr-presets__item .wec-qr-presets__load").Select(b => b.TextContent.Trim()).ToArray());
+    }
 }
 
 public class QuickRaceQualifyingPageTests : PageTestContext

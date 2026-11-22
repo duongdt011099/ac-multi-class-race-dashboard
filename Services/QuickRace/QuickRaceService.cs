@@ -65,6 +65,58 @@ public class QuickRaceService : IQuickRaceService
 
     public Task DeleteResultAsync(Guid resultId) => _repository.DeleteResultAsync(resultId);
 
+    public const int PresetNameMaxLength = 60;
+
+    public async Task<IReadOnlyList<QuickRacePresetItem>> GetPresetsAsync()
+    {
+        var presets = await _repository.GetPresetsAsync();
+
+        return presets.Select(p => new QuickRacePresetItem(p.QuickRacePresetId, p.Name, p.UpdatedUtc)).ToList();
+    }
+
+    public async Task<QuickRacePresetGrid?> GetPresetGridAsync(Guid presetId)
+    {
+        var preset = await _repository.GetPresetAsync(presetId);
+
+        return preset is null ? null : QuickRaceJson.TryDeserialize<QuickRacePresetGrid>(preset.GridJson) ?? new QuickRacePresetGrid();
+    }
+
+    public async Task<QuickRacePresetItem> SavePresetAsync(string name, QuickRaceSetupModel setup, Guid? overwriteId = null)
+    {
+        var trimmed = name?.Trim() ?? string.Empty;
+
+        if (trimmed.Length == 0)
+        {
+            throw new InvalidOperationException("Enter a preset name.");
+        }
+
+        if (trimmed.Length > PresetNameMaxLength)
+        {
+            throw new InvalidOperationException($"The preset name can have at most {PresetNameMaxLength} characters.");
+        }
+
+        var presets = await _repository.GetPresetsAsync();
+
+        if (presets.Any(p => p.QuickRacePresetId != overwriteId && string.Equals(p.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException($"A preset named \"{trimmed}\" already exists.");
+        }
+
+        var preset = new QuickRacePreset
+        {
+            QuickRacePresetId = overwriteId ?? Guid.NewGuid(),
+            Name = trimmed,
+            GridJson = QuickRaceJson.Serialize(QuickRaceGrid.CapturePreset(setup)),
+            UpdatedUtc = DateTime.UtcNow
+        };
+
+        await _repository.SavePresetAsync(preset);
+
+        return new QuickRacePresetItem(preset.QuickRacePresetId, preset.Name, preset.UpdatedUtc);
+    }
+
+    public Task DeletePresetAsync(Guid presetId) => _repository.DeletePresetAsync(presetId);
+
     public async Task<QuickRaceResultModel> ImportResultFromPathAsync(string fullPath, string? fileName)
     {
         var resolvedName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(fullPath) : fileName.Trim();

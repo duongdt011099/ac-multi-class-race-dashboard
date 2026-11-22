@@ -1,0 +1,304 @@
+@using MulticlassRace.Services.Notifications
+@using MulticlassRace.Services.QuickRace
+@using MulticlassRace.ViewModels
+@inject IQuickRaceService QuickRaceService
+@inject ToastService Toast
+
+<div class="wec-qr-presets">
+    <div class="wec-dropdown">
+        <button type="button" class="wec-qr-presets__select" id="qr-preset-select" disabled="@(presets.Count == 0)"
+                title="@(presets.Count == 0 ? "No presets saved yet" : "Load a saved driver list")"
+                aria-haspopup="listbox" aria-expanded="@(loadMenuOpen ? "true" : "false")"
+                @onclick="() => { loadMenuOpen = !loadMenuOpen; saveMenuOpen = false; }">
+            <i class="bi bi-collection" aria-hidden="true"></i>
+            <span class="wec-qr-presets__label">@(CurrentPreset?.Name ?? "Presets")</span>
+            <i class="bi bi-chevron-down wec-qr-presets__chevron" aria-hidden="true"></i>
+        </button>
+
+        @if (loadMenuOpen && presets.Count > 0)
+        {
+            <div class="wec-dropdown__backdrop" @onclick="CloseMenus"></div>
+            <ul class="wec-dropdown__menu wec-qr-presets__menu" role="listbox" aria-label="Presets">
+                @foreach (var preset in presets)
+                {
+                    var current = preset;
+
+                    <li class="wec-qr-presets__item @(current.PresetId == Setup.PresetId ? "wec-qr-presets__item--active" : "")"
+                        role="option" aria-selected="@(current.PresetId == Setup.PresetId ? "true" : "false")">
+                        <button type="button" class="wec-qr-presets__load" title="@($"Load {current.Name}")" @onclick="() => LoadAsync(current)">
+                            @current.Name
+                        </button>
+                        <button type="button" class="wec-qr-icon wec-qr-icon--danger" title="@($"Delete {current.Name}")"
+                                aria-label="@($"Delete {current.Name}")" @onclick="() => AskDelete(current)">
+                            <i class="bi bi-trash3-fill"></i>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="wec-dropdown wec-qr-presets__split">
+        <button type="button" class="wec-toolbar__btn wec-qr-presets__save" id="qr-preset-save"
+                title="@(CurrentPreset is null ? "Save the drivers and classes as a preset" : $"Save over {CurrentPreset.Name}")"
+                @onclick="Save">
+            <i class="bi bi-floppy"></i> Save
+        </button>
+        <button type="button" class="wec-toolbar__btn wec-qr-presets__arrow" id="qr-preset-save-menu" aria-label="More save options"
+                aria-haspopup="menu" aria-expanded="@(saveMenuOpen ? "true" : "false")"
+                @onclick="() => { saveMenuOpen = !saveMenuOpen; loadMenuOpen = false; }">
+            <i class="bi bi-chevron-down"></i>
+        </button>
+
+        @if (saveMenuOpen)
+        {
+            <div class="wec-dropdown__backdrop" @onclick="CloseMenus"></div>
+            <div class="wec-dropdown__menu wec-qr-presets__menu wec-qr-presets__menu--right" role="menu">
+                <button type="button" class="wec-qr-presets__load" role="menuitem" id="qr-preset-save-as" @onclick="SaveAs">
+                    <i class="bi bi-floppy2"></i> Save As...
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@if (dialog == PresetDialog.Name)
+{
+    <Modal Title="Save Preset" Size="ModalSize.Small" OnClose="CloseDialog">
+        <ChildContent>
+            <FormField For="qr-preset-name" Label="Preset Name">
+                <input id="qr-preset-name" type="text" maxlength="@NameMaxLength" placeholder="Type a name for this preset"
+                       value="@nameInput" @oninput="e => nameInput = e.Value?.ToString() ?? string.Empty"
+                       @onkeydown="HandleNameKeyAsync" autofocus />
+            </FormField>
+        </ChildContent>
+        <Footer>
+            <ModalActions ConfirmText="Save" BusyText="Saving..." IsBusy="isBusy" Disabled="@string.IsNullOrWhiteSpace(nameInput)"
+                          OnCancel="CloseDialog" OnConfirm="ConfirmNameAsync" />
+        </Footer>
+    </Modal>
+}
+
+@if (dialog == PresetDialog.Overwrite && overwriteTarget is not null)
+{
+    <ConfirmDialog Title="Overwrite Preset" ConfirmText="Overwrite" BusyText="Saving..." IsBusy="isBusy"
+                   OnCancel="CloseDialog" OnConfirm="ConfirmOverwriteAsync">
+        Overwrite the preset "@overwriteTarget.Name" with the current drivers and classes?
+    </ConfirmDialog>
+}
+
+@if (dialog == PresetDialog.Delete && deleteTarget is not null)
+{
+    <ConfirmDialog Title="Delete Preset" IsBusy="isBusy" OnCancel="CloseDialog" OnConfirm="ConfirmDeleteAsync">
+        Delete the preset "@deleteTarget.Name"? The drivers on the grid now are kept.
+    </ConfirmDialog>
+}
+
+@code {
+    private enum PresetDialog
+    {
+        None,
+        Name,
+        Overwrite,
+        Delete
+    }
+
+    private const int NameMaxLength = MulticlassRace.Services.QuickRace.QuickRaceService.PresetNameMaxLength;
+
+    private IReadOnlyList<QuickRacePresetItem> presets = Array.Empty<QuickRacePresetItem>();
+    private bool loadMenuOpen;
+    private bool saveMenuOpen;
+    private PresetDialog dialog;
+    private string nameInput = string.Empty;
+    private string pendingName = string.Empty;
+    private QuickRacePresetItem? overwriteTarget;
+    private QuickRacePresetItem? deleteTarget;
+    private bool isBusy;
+
+    [Parameter, EditorRequired] public QuickRaceSetupModel Setup { get; set; } = default!;
+
+    [Parameter] public IReadOnlyList<ClassSettingModel> ClassSettings { get; set; } = Array.Empty<ClassSettingModel>();
+
+    /// <summary>Raised after a preset was loaded or the current preset changed; the page saves the setup.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private QuickRacePresetItem? CurrentPreset => presets.FirstOrDefault(p => p.PresetId == Setup.PresetId);
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            presets = await QuickRaceService.GetPresetsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not load the presets: {ex.Message}", isError: true);
+        }
+    }
+
+    private void CloseMenus()
+    {
+        loadMenuOpen = false;
+        saveMenuOpen = false;
+    }
+
+    private void CloseDialog()
+    {
+        dialog = PresetDialog.None;
+        overwriteTarget = null;
+        deleteTarget = null;
+        isBusy = false;
+    }
+
+    /// <summary>Save goes over the preset being edited (after asking); with none, it asks for a name.</summary>
+    private void Save()
+    {
+        CloseMenus();
+
+        if (CurrentPreset is { } current)
+        {
+            overwriteTarget = current;
+            pendingName = current.Name;
+            dialog = PresetDialog.Overwrite;
+            return;
+        }
+
+        OpenNameDialog();
+    }
+
+    private void SaveAs()
+    {
+        CloseMenus();
+        OpenNameDialog();
+    }
+
+    private void OpenNameDialog()
+    {
+        nameInput = string.Empty;
+        dialog = PresetDialog.Name;
+    }
+
+    private async Task HandleNameKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(nameInput))
+        {
+            await ConfirmNameAsync();
+        }
+    }
+
+    private async Task ConfirmNameAsync()
+    {
+        var name = nameInput.Trim();
+
+        if (name.Length == 0 || isBusy)
+        {
+            return;
+        }
+
+        // Saving under the name of another preset replaces it, so ask first.
+        var sameName = presets.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (sameName is not null)
+        {
+            overwriteTarget = sameName;
+            pendingName = sameName.Name;
+            dialog = PresetDialog.Overwrite;
+            return;
+        }
+
+        await SavePresetAsync(name, null);
+    }
+
+    private Task ConfirmOverwriteAsync()
+        => overwriteTarget is null ? Task.CompletedTask : SavePresetAsync(pendingName, overwriteTarget.PresetId);
+
+    private async Task SavePresetAsync(string name, Guid? overwriteId)
+    {
+        isBusy = true;
+
+        try
+        {
+            var saved = await QuickRaceService.SavePresetAsync(name, Setup, overwriteId);
+            Setup.PresetId = saved.PresetId;
+            await ReloadAsync();
+            CloseDialog();
+            Toast.Show(overwriteId is null ? $"Saved the preset \"{saved.Name}\"." : $"Overwrote the preset \"{saved.Name}\".");
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            isBusy = false;
+            Toast.Show(ex.Message, isError: true);
+        }
+    }
+
+    private async Task LoadAsync(QuickRacePresetItem preset)
+    {
+        CloseMenus();
+
+        try
+        {
+            var grid = await QuickRaceService.GetPresetGridAsync(preset.PresetId);
+
+            if (grid is null)
+            {
+                Toast.Show($"The preset \"{preset.Name}\" no longer exists.", isError: true);
+                await ReloadAsync();
+                return;
+            }
+
+            var setting = ClassSettings.FirstOrDefault(s => s.ClassSettingId == grid.ClassSettingId);
+            var classSystemKept = QuickRaceGrid.ApplyPreset(Setup, grid, setting);
+            Setup.PresetId = preset.PresetId;
+
+            Toast.Show(classSystemKept
+                ? $"Loaded the preset \"{preset.Name}\"."
+                : $"Loaded the preset \"{preset.Name}\" as custom classes: its class setting no longer exists.");
+
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.Show($"Could not load the preset: {ex.Message}", isError: true);
+        }
+    }
+
+    private void AskDelete(QuickRacePresetItem preset)
+    {
+        CloseMenus();
+        deleteTarget = preset;
+        dialog = PresetDialog.Delete;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (deleteTarget is null)
+        {
+            return;
+        }
+
+        var target = deleteTarget;
+        isBusy = true;
+
+        try
+        {
+            await QuickRaceService.DeletePresetAsync(target.PresetId);
+            await ReloadAsync();
+            CloseDialog();
+            Toast.Show($"Deleted the preset \"{target.Name}\".");
+
+            if (Setup.PresetId == target.PresetId)
+            {
+                Setup.PresetId = null;
+                await OnChanged.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            isBusy = false;
+            Toast.Show($"Could not delete the preset: {ex.Message}", isError: true);
+        }
+    }
+}

@@ -49,6 +49,8 @@
         }
 
         <span class="wec-qr-mode__summary">@CarCount cars in @Setup.ActiveClasses.Count class@(Setup.ActiveClasses.Count == 1 ? "" : "es")</span>
+
+        <QuickRacePresetBar Setup="Setup" ClassSettings="ClassSettings" OnChanged="HandlePresetChangedAsync" />
     </div>
 
     <p class="wec-text-muted wec-qr-hint">
@@ -284,6 +286,13 @@
         Setup.ClassSettingId = setting?.ClassSettingId;
         QuickRaceGrid.ResetSystemClasses(Setup, setting);
 
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandlePresetChangedAsync()
+    {
+        ClearDrag();
+        editingClassId = null;
         await OnChanged.InvokeAsync();
     }
 

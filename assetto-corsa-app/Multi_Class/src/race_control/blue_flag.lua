@@ -29,6 +29,10 @@ local blueUntil = {}      -- panel -> clock until which it stays blue
 local lastPairs = ""      -- "lapper>lapped" pairs of the last scan (for the log only)
 local active = false      -- true while any panel is driven by the app
 local inReplay = false    -- the last Update was for a replay
+local lastLapCount = {}   -- car index -> lap count at the last scan
+local lapChangedAt = {}   -- car index -> clock of its last lap count change
+local pairSince = {}      -- "lapper>lapped" -> clock the pair was first seen (unbroken)
+local preStart = {}       -- car index -> true while it is on the grid behind the line (lap 0)
 
 local function colour(c, scale)
   local k = (scale or 1.0) / 255
@@ -48,6 +52,9 @@ end
 -- within C.BLUE_LOOKAHEAD_M and at least C.BLUE_LAPPED_MIN_LAPS ahead in race distance. Covers the
 -- human car on either side and AI cars lapping each other. When AC itself shows the player the blue
 -- flag (sim.raceFlagType), the car that caused it counts too.
+-- Around the start/finish line AC's lap count and spline position are briefly out of step, which
+-- puts a car a whole lap up or down for a moment; a car is left out until its lap count has been
+-- steady for C.BLUE_LINE_SETTLE_SECONDS.
 -- Returns { { lapped, lapper, gap (m), pLapper }, ... }.
 local function findLappingPairs(sim, trackLength)
   local cars = {}
@@ -56,24 +63,42 @@ local function findLappingPairs(sim, trackLength)
       local car = getCar(i)
       local p = car and progress(car)
       if p and not inPit(car) and car.isRetired ~= true and car.isActive ~= false then
-        cars[#cars + 1] = { i = i, p = p, d = (car.lapCount or 0) + p }
+        local laps = car.lapCount or 0
+        if lastLapCount[i] ~= nil and lastLapCount[i] ~= laps then lapChangedAt[i] = clock end
+        lastLapCount[i] = laps
+        -- A car first seen on the grid (lap count 0, just behind the line) has not started its lap:
+        -- its race distance is p - 1 until it crosses the line, or it would look a lap ahead of the
+        -- cars already past it.
+        if preStart[i] == nil then preStart[i] = laps == 0 and p > C.BLUE_GRID_PROGRESS end
+        if preStart[i] and (laps > 0 or p < 0.5) then preStart[i] = false end
+        local settled = clock - (lapChangedAt[i] or -1000.0) >= C.BLUE_LINE_SETTLE_SECONDS
+        local nearLine = p < C.BLUE_LINE_MARGIN or p > 1.0 - C.BLUE_LINE_MARGIN
+        if settled and not nearLine then
+          cars[#cars + 1] = { i = i, p = p, d = laps + p - (preStart[i] and 1 or 0) }
+        end
       end
     end
   end
   local pairs_ = {}
   for _, a in ipairs(cars) do
     local best, bestGap = nil, nil
+    local player, playerGap = nil, nil   -- the human car, when it is lapping `a` too (not the nearest)
     for _, b in ipairs(cars) do
       if b ~= a then
         local gap = ((a.p - b.p) % 1.0) * trackLength
-        if gap > 1.0 and gap <= C.BLUE_LOOKAHEAD_M and b.d - a.d >= C.BLUE_LAPPED_MIN_LAPS
-            and (not bestGap or gap < bestGap) then
-          best, bestGap = b, gap
+        if gap > 1.0 and gap <= C.BLUE_LOOKAHEAD_M and b.d - a.d >= C.BLUE_LAPPED_MIN_LAPS then
+          if not bestGap or gap < bestGap then best, bestGap = b, gap end
+          if b.i == 0 then player, playerGap = b, gap end
         end
       end
     end
     if best then
       pairs_[#pairs_ + 1] = { lapped = a.i, lapper = best.i, gap = bestGap, pLapper = best.p }
+      -- An AI car between the human car and the lapped car: the human car laps it as well, so its
+      -- stretch (from further back, wide groups of boards allowed) gets blue too.
+      if player and player ~= best then
+        pairs_[#pairs_ + 1] = { lapped = a.i, lapper = 0, gap = playerGap, pLapper = player.p }
+      end
     elseif a.i == 0 and sim.raceFlagType == ac.FlagType.FasterCar then
       local cause = tonumber(sim.raceFlagCause) or -1
       local car = cause > 0 and getCar(cause) or nil
@@ -99,12 +124,16 @@ local function groupAhead(panel, p0, fromM, toM, trackLength)
 end
 
 -- The nearest panels ahead of the lapping car (at lap progress p0), up to toM metres ahead (just past
--- the lapped car).
-local function markBluePanels(p0, toM, trackLength)
+-- the lapped car). Groups of boards wider than C.BLUE_WIDE_GROUP_M (Le Mans merges boards over a
+-- kilometre into one mesh) light only for a lapping that involves the human car (allowWide):
+-- lighting them for AI cars would put blue all over the track.
+local function markBluePanels(p0, toM, trackLength, allowWide)
   local candidates = {}
   for _, panel in ipairs(Panels.List()) do
     local ahead
-    if panel.group then
+    if panel.group and not allowWide and (panel.size or 0) > C.BLUE_WIDE_GROUP_M then
+      ahead = nil
+    elseif panel.group then
       ahead = groupAhead(panel, p0, C.BLUE_MIN_AHEAD_M, toM, trackLength)
     else
       ahead = ((panel.p - p0) % 1.0) * trackLength
@@ -162,24 +191,109 @@ local function pushColours()
   end
 end
 
--- Second write right before the track is drawn, after CSP's own per-frame material adjustments.
+-- Diagnostics: how often the track config rewrote a driven panel between the app's update and the
+-- scene-ready write (logged every few seconds while panels are driven).
+local overwriteFrames, checkedFrames, overwriteLogAt = 0, 0, 0.0
+
+local function checkOverwritten()
+  for _, panel in ipairs(Panels.List()) do
+    if panel.want then
+      local e = Panels.ReadEmissive(panel)
+      local w = panel.want
+      checkedFrames = checkedFrames + 1
+      if math.abs(e.r - w.r) + math.abs(e.g - w.g) + math.abs(e.b - w.b) > 0.05 then
+        overwriteFrames = overwriteFrames + 1
+      end
+      break
+    end
+  end
+  if clock >= overwriteLogAt and checkedFrames > 0 then
+    U.Log(sFormat("BLUE: track config rewrote a driven panel in %d of %d frames before the scene-ready write%s",
+        overwriteFrames, checkedFrames, inReplay and " (replay)" or ""))
+    overwriteFrames, checkedFrames, overwriteLogAt = 0, 0, clock + 5.0
+  end
+end
+
+-- Redraws every driven panel's own mesh in its colour, over the track's drawing of it. The track
+-- config's flag adjustments can rewrite the panel material after every write the app makes (seen in
+-- replays: the green "start" flag flashing through the blue); a redraw does not depend on the
+-- material, so the colour always shows. The shader stays trivial: one that fails to compile halts
+-- the whole script.
+local overlayParams = {
+  mesh = nil,
+  transform = "original",
+  textures = {},
+  values = { gColor = rgbm(0, 0, 0, 1) },
+  -- gWhiteRefPoint: the scene's white level (as CSP's own debug app uses it), so 0..1 colours show
+  -- as themselves whatever the exposure.
+  shader = "float4 main(PS_IN pin) { return float4(gColor.rgb * gWhiteRefPoint, 1); }",
+}
+local overlayFailed = false
+
+-- The plain 0..1 colour of a panel state (the material glow values are scaled for the track's
+-- lighting and look dark when drawn directly).
+local OVERLAY_RGB = { blue = C.PANEL_BLUE_RGB, yellow = C.PANEL_YELLOW_RGB, green = C.PANEL_GREEN_RGB }
+
+local function overlayColour(key)
+  local c = OVERLAY_RGB[key]
+  if not c then return rgbm(0, 0, 0, 1) end
+  local k = C.PANEL_OVERLAY_BRIGHTNESS / 255
+  return rgbm(c[1] * k, c[2] * k, c[3] * k, 1)
+end
+
+local function drawOverlays()
+  if overlayFailed then return end
+  render.setBlendMode(render.BlendMode.Opaque)
+  render.setDepthMode(render.DepthMode.ReadOnlyLessEqual)
+  render.setCullMode(render.CullMode.None)
+  for _, panel in ipairs(Panels.List()) do
+    if panel.want then
+      overlayParams.mesh = panel.ref
+      overlayParams.values.gColor = overlayColour(panel.wantKey)
+      local ok, err = pcall(render.mesh, overlayParams)
+      if not ok then
+        overlayFailed = true
+        U.Log("BLUE: board redraw failed, using material colours only: " .. tostring(err))
+        return
+      end
+    end
+  end
+end
+
+-- Extra writes after CSP's own per-frame material adjustments (which run after script.update):
+-- when the scene is ready (before the main pass is drawn) and again while the track is drawn, plus
+-- the redraw of the driven panels.
 local function ensureDrawHandle()
   if drawHandle then return end
-  local ok, handle = pcall(render.on, "main.track.opaque", function()
-    if active then pcall(pushColours) end
+  local handles = {}
+  local okReady, ready = pcall(render.onSceneReady, function()
+    if active then
+      pcall(checkOverwritten)
+      pcall(pushColours)
+    end
   end)
-  if ok and handle then
-    drawHandle = handle
-  else
-    U.Log("BLUE: could not register the render callback: " .. tostring(handle))
+  if okReady and ready then handles[#handles + 1] = ready end
+  local okDraw, draw = pcall(render.on, "main.track.opaque", function()
+    if active then
+      pcall(pushColours)
+      pcall(drawOverlays)
+    end
+  end)
+  if okDraw and draw then handles[#handles + 1] = draw end
+  if #handles == 0 then
+    U.Log("BLUE: could not register the render callbacks: " .. tostring(ready) .. " / " .. tostring(draw))
+    return
   end
+  drawHandle = handles
 end
 
 local function disposeDrawHandle()
   if not drawHandle then return end
-  local handle = drawHandle
+  local handles = drawHandle
   drawHandle = nil
-  if not pcall(function() handle:dispose() end) then pcall(handle) end
+  for _, handle in ipairs(handles) do
+    if not pcall(function() handle:dispose() end) then pcall(handle) end
+  end
 end
 
 -- One log line per lapping: what a blue panel really shows half a second after it went blue.
@@ -212,16 +326,25 @@ function M.Reset()
   active = false
   if lastPairs ~= "" then U.Log("BLUE: lights off (reset)") end
   lastPairs = ""
+  lastLapCount, lapChangedAt, pairSince, preStart = {}, {}, {}, {}
   lastScanAt = -1000.0
   clock = 0.0
 end
 
+-- A race session, by name or (a replay opened from Content Manager may have no session name) by
+-- AC's session type. Practice and qualifying are left out: lap counts there mean nothing for lapping.
+local function isRace(sim)
+  if Sess.IsRaceMode(sim) then return true end
+  local ok, raceType = pcall(function() return sim.raceSessionType end)
+  return ok and ac.SessionType ~= nil and raceType == ac.SessionType.Race
+end
+
 local function shouldRun(sim, replay)
   if not S.blueFlagEnabled then return false end
-  if not Sess.IsRaceMode(sim) then return false end
   -- A replay is usually watched once the race is over: the live session state (finished, formation
   -- lap paused by the replay) says nothing about the moment being replayed.
-  if replay then return true end
+  if replay then return isRace(sim) end
+  if not Sess.IsRaceMode(sim) then return false end
   if sim.isSessionStarted ~= true then return false end
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return false end
   if Sess.IsSessionFinished(sim) then return false end
@@ -235,8 +358,14 @@ function M.Update(sim, dt, replay)
   if replay ~= inReplay then
     if active or lastPairs ~= "" then M.Reset() end
     inReplay = replay
-    U.Log(replay and "BLUE: replay started, blue flag lights follow the replay"
-        or "BLUE: replay ended, blue flag lights follow the live race")
+    if replay then
+      local okType, raceType = pcall(function() return sim.raceSessionType end)
+      U.Log(sFormat("BLUE: replay started (session '%s', type %s, %d cars); blue flag lights %s",
+          Sess.GetSessionNameLower(sim), tostring(okType and raceType), S.driverCount or 0,
+          shouldRun(sim, true) and "follow the replay" or "off: not a race, or the blue flag option is off"))
+    else
+      U.Log("BLUE: replay ended, blue flag lights follow the live race")
+    end
   end
   if not shouldRun(sim, replay) then
     if active or lastPairs ~= "" then M.Reset() end
@@ -251,11 +380,21 @@ function M.Update(sim, dt, replay)
     lastScanAt = clock
     local yellow = not inReplay and S.fcy ~= nil and S.fcy ~= "green"
     local found = yellow and {} or findLappingPairs(sim, trackLength)
-    local parts, lit = {}, 0
+    local parts, lit, seen = {}, 0, {}
     for _, pair in ipairs(found) do
-      local n = markBluePanels(pair.pLapper, pair.gap + C.BLUE_PAST_LAPPED_M, trackLength)
-      lit = lit + math.min(n, C.BLUE_MAX_PANELS)
-      parts[#parts + 1] = sFormat("%d>%d", pair.lapper, pair.lapped)
+      local pairKey = sFormat("%d>%d", pair.lapper, pair.lapped)
+      seen[pairKey] = true
+      pairSince[pairKey] = pairSince[pairKey] or clock
+      -- Only a lapping that holds for a moment counts (no blue for a one-scan glitch).
+      if clock - pairSince[pairKey] >= C.BLUE_CONFIRM_SECONDS then
+        local involvesPlayer = pair.lapper == 0 or pair.lapped == 0
+        local n = markBluePanels(pair.pLapper, pair.gap + C.BLUE_PAST_LAPPED_M, trackLength, involvesPlayer)
+        lit = lit + math.min(n, C.BLUE_MAX_PANELS)
+        parts[#parts + 1] = pairKey
+      end
+    end
+    for pairKey in pairs(pairSince) do
+      if not seen[pairKey] then pairSince[pairKey] = nil end
     end
     table.sort(parts)
     local key = table.concat(parts, " ")

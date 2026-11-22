@@ -373,7 +373,8 @@ function Frame.Update(dt)
 
   -- Paused from the in-game menu: the whole app stands still (no session tracking, rolling start,
   -- flags, timers or exports) with its audio held, and carries on from the same spot on resume.
-  if sim.isPaused == true and sim.isInMainMenu ~= true then
+  -- (Not during a replay: only the blue flag lights run then, and they must keep following it.)
+  if sim.isPaused == true and sim.isInMainMenu ~= true and not U.IsReplayActive(sim) then
     if not pausedAt then pausedAt = os.clock() end
     pcall(Audio.Suspend)
     return
@@ -421,7 +422,9 @@ function Frame.Update(dt)
       stopAllFeatures(sim, true, true)
     end
     ac.setWindowOpen("cl_config", false)
-    if not Sess.AppDisabled() then
+    -- Not Sess.AppDisabled(): a replay opened from Content Manager is never a dashboard launch, and
+    -- the blue flag lights should still follow it.
+    if S.enduranceEnabled then
       local blueOk, blueErr = pcall(BlueFlag.Update, sim, dt, true)
       if not blueOk then
         U.Log("BLUE: replay update failed: " .. tostring(blueErr))

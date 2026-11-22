@@ -82,4 +82,47 @@ public class QuickRaceRepository : IQuickRaceRepository
         _context.QuickRaceResults.Remove(result);
         await _context.SaveChangesAsync();
     }
+
+    public async Task<List<QuickRacePreset>> GetPresetsAsync()
+    {
+        var presets = await _context.QuickRacePresets.AsNoTracking().ToListAsync();
+
+        return presets.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public Task<QuickRacePreset?> GetPresetAsync(Guid presetId)
+    {
+        return _context.QuickRacePresets.AsNoTracking().FirstOrDefaultAsync(p => p.QuickRacePresetId == presetId);
+    }
+
+    public async Task SavePresetAsync(QuickRacePreset preset)
+    {
+        var existing = await _context.QuickRacePresets.FirstOrDefaultAsync(p => p.QuickRacePresetId == preset.QuickRacePresetId);
+
+        if (existing is null)
+        {
+            _context.QuickRacePresets.Add(preset);
+        }
+        else
+        {
+            existing.Name = preset.Name;
+            existing.GridJson = preset.GridJson;
+            existing.UpdatedUtc = preset.UpdatedUtc;
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task DeletePresetAsync(Guid presetId)
+    {
+        var preset = await _context.QuickRacePresets.FirstOrDefaultAsync(p => p.QuickRacePresetId == presetId);
+
+        if (preset is null)
+        {
+            return;
+        }
+
+        _context.QuickRacePresets.Remove(preset);
+        await _context.SaveChangesAsync();
+    }
 }

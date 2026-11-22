@@ -45,3 +45,16 @@ public class QuickRaceResult
     /// <summary>The serialized list of <c>QuickRaceResultRow</c>.</summary>
     public string ResultJson { get; set; } = "[]";
 }
+
+/// <summary>A saved Quick Race grid (its classes and drivers) the user can load back onto the Drivers tab.</summary>
+public class QuickRacePreset
+{
+    public Guid QuickRacePresetId { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The serialized <c>QuickRacePresetGrid</c>.</summary>
+    public string GridJson { get; set; } = "{}";
+
+    public DateTime UpdatedUtc { get; set; }
+}
