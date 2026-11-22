@@ -340,11 +340,11 @@ local function updateRolling(sim, dt)
   end
 end
 
-local function stopAllFeatures(sim, keepRaceState)
+local function stopAllFeatures(sim, keepRaceState, keepBlueFlag)
   RCtl.SetPlayerAutopilot(false)
   RCtl.RestoreRollingStartControls(false)
   pcall(Yellow.Reset)
-  pcall(BlueFlag.Reset)
+  if not keepBlueFlag then pcall(BlueFlag.Reset) end
   pcall(AITuning.Reset)
   pcall(SafetyCar.Reset)
   -- A race that is already under way keeps its "complete" / "unavailable" state through a replay:
@@ -394,9 +394,9 @@ function Frame.Update(dt)
   -- A long hitch must never advance the flag and race clocks by more than a moment either.
   dt = math.min(dt or 0.016, 0.25)
 
-  -- Replay: the app is fully disabled while a replay is being watched, and no session
-  -- result may be auto-saved from replay data. The auto-save preference itself is left
-  -- untouched, so it comes back as soon as the replay ends.
+  -- Replay: the app is disabled while a replay is being watched, except the blue flag lights on
+  -- the track's boards, and no session result may be auto-saved from replay data. The auto-save
+  -- preference itself is left untouched, so it comes back as soon as the replay ends.
   if U.IsReplayActive(sim) then
     -- Positions and gaps cached before the replay are stale (and stamped on another clock).
     pcall(function() Pos.InvalidateLeaderboardCache() end)
@@ -410,7 +410,6 @@ function Frame.Update(dt)
         RCtl.SetPlayerAutopilot(false)
       end
       pcall(Yellow.Reset)
-      pcall(BlueFlag.Reset)
       pcall(AITuning.Reset)
       ac.setWindowOpen("cl_leaderboard", false)
       ac.setWindowOpen("cl_greenlights", false)
@@ -419,9 +418,18 @@ function Frame.Update(dt)
       if sim.isSessionStarted == true and Sess.IsRaceMode(sim) then
         S.rollingSkipSessionKey = Sess.GetCurrentSessionKey(sim)
       end
-      stopAllFeatures(sim, true)
+      stopAllFeatures(sim, true, true)
     end
     ac.setWindowOpen("cl_config", false)
+    if not Sess.AppDisabled() then
+      local blueOk, blueErr = pcall(BlueFlag.Update, sim, dt, true)
+      if not blueOk then
+        U.Log("BLUE: replay update failed: " .. tostring(blueErr))
+        pcall(BlueFlag.Reset)
+      end
+    else
+      pcall(BlueFlag.Reset)
+    end
     return
   end
 

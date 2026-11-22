@@ -1,13 +1,13 @@
--- Race control for the track's own flag panels: blue near the human car when it laps a car or is
--- being lapped, in the same (app) blue both ways.
+-- Race control for the track's own flag panels: blue wherever a car is about to be lapped, for every
+-- car on track (the human car lapping or being lapped, and AI cars lapping each other).
 --
 -- AC's own blue flag (physics.overrideRacingFlag(ac.FlagType.FasterCar)) feeds FLAG_TYPE, which lights
 -- every flag panel on the track and also the car's dash screen. Instead, the app finds the panels
 -- itself (race_control/panels.lua), gives each one its own material and colours them one by one:
---   - blue, blinking: the panels from the human car up to just past the car it is lapping;
---   - blue, blinking: the panels just ahead of the human car while a faster car is lapping it. AC
---     shows the player its own blue flag then (dash screen included, which is right); its track-wide
---     blue on the other panels is held back to their original look;
+--   - blue, blinking: for each car about to be lapped, the panels from the car lapping it up to just
+--     past the lapped car. When the human car is the one being lapped, AC shows it its own blue flag
+--     (dash screen included, which is right); that flag's track-wide blue on the other panels is
+--     held back to their original look;
 --   - yellow / green: every panel while the full course yellow (or its green panel) is out, because
 --     panels with their own material may no longer follow the track config's flag condition;
 --   - otherwise the panel's original look.
@@ -26,9 +26,9 @@ local M = {}
 local clock = 0.0
 local lastScanAt = -1000.0
 local blueUntil = {}      -- panel -> clock until which it stays blue
-local lappedCar = nil     -- index of the car the human car is lapping (for the log only)
-local lappingCar = nil    -- index of the car lapping the human car (for the log only)
+local lastPairs = ""      -- "lapper>lapped" pairs of the last scan (for the log only)
 local active = false      -- true while any panel is driven by the app
+local inReplay = false    -- the last Update was for a replay
 
 local function colour(c, scale)
   local k = (scale or 1.0) / 255
@@ -44,68 +44,49 @@ local function progress(car)
   return U.NormalizeTrackProgress(car.splinePosition)
 end
 
--- The car the human car is about to lap: physically ahead within the lookahead, at least
--- C.BLUE_LAPPED_MIN_LAPS behind in race distance. Returns its index, the gap in metres and the
--- human car's lap progress.
-local function findLappedCar(trackLength)
-  local player = getCar(0)
-  local p0 = player and progress(player)
-  if not p0 or inPit(player) then return nil end
-  local d0 = (player.lapCount or 0) + p0
-  local best, bestGap = nil, nil
-  for j = 1, S.driverCount - 1 do
-    if j ~= S.safetyCarIndex then
-      local car = getCar(j)
-      local pj = car and progress(car)
-      if pj and not inPit(car) then
-        local gap = ((pj - p0) % 1.0) * trackLength
-        local behindLaps = d0 - ((car.lapCount or 0) + pj)
-        if gap > 1.0 and gap <= C.BLUE_LOOKAHEAD_M and behindLaps >= C.BLUE_LAPPED_MIN_LAPS
-            and (not bestGap or gap < bestGap) then
-          best, bestGap = j, gap
-        end
+-- Every car about to be lapped, with the nearest car lapping it: the lapper is physically behind
+-- within C.BLUE_LOOKAHEAD_M and at least C.BLUE_LAPPED_MIN_LAPS ahead in race distance. Covers the
+-- human car on either side and AI cars lapping each other. When AC itself shows the player the blue
+-- flag (sim.raceFlagType), the car that caused it counts too.
+-- Returns { { lapped, lapper, gap (m), pLapper }, ... }.
+local function findLappingPairs(sim, trackLength)
+  local cars = {}
+  for i = 0, S.driverCount - 1 do
+    if i ~= S.safetyCarIndex and not (i == 0 and S.playerRetired == true and not inReplay) then
+      local car = getCar(i)
+      local p = car and progress(car)
+      if p and not inPit(car) and car.isRetired ~= true and car.isActive ~= false then
+        cars[#cars + 1] = { i = i, p = p, d = (car.lapCount or 0) + p }
       end
     end
   end
-  return best, bestGap, p0
-end
-
--- The car about to lap the human car: physically behind within C.BLUE_BEHIND_M, at least
--- C.BLUE_LAPPED_MIN_LAPS ahead in race distance. When AC itself shows the player the blue flag
--- (sim.raceFlagType), the car that caused it counts too. Returns its index, the gap behind in metres
--- and the human car's lap progress.
-local function findLappingCar(sim, trackLength)
-  local player = getCar(0)
-  local p0 = player and progress(player)
-  if not p0 or inPit(player) then return nil end
-  local d0 = (player.lapCount or 0) + p0
-  local best, bestGap = nil, nil
-  for j = 1, S.driverCount - 1 do
-    if j ~= S.safetyCarIndex then
-      local car = getCar(j)
-      local pj = car and progress(car)
-      if pj and not inPit(car) then
-        local gap = ((p0 - pj) % 1.0) * trackLength
-        local aheadLaps = ((car.lapCount or 0) + pj) - d0
-        if gap > 1.0 and gap <= C.BLUE_BEHIND_M and aheadLaps >= C.BLUE_LAPPED_MIN_LAPS
+  local pairs_ = {}
+  for _, a in ipairs(cars) do
+    local best, bestGap = nil, nil
+    for _, b in ipairs(cars) do
+      if b ~= a then
+        local gap = ((a.p - b.p) % 1.0) * trackLength
+        if gap > 1.0 and gap <= C.BLUE_LOOKAHEAD_M and b.d - a.d >= C.BLUE_LAPPED_MIN_LAPS
             and (not bestGap or gap < bestGap) then
-          best, bestGap = j, gap
+          best, bestGap = b, gap
         end
       end
     end
-  end
-  if not best and sim.raceFlagType == ac.FlagType.FasterCar then
-    local cause = tonumber(sim.raceFlagCause) or -1
-    if cause > 0 then
-      local car = getCar(cause)
-      local pj = car and progress(car)
-      best, bestGap = cause, pj and ((p0 - pj) % 1.0) * trackLength or 0
+    if best then
+      pairs_[#pairs_ + 1] = { lapped = a.i, lapper = best.i, gap = bestGap, pLapper = best.p }
+    elseif a.i == 0 and sim.raceFlagType == ac.FlagType.FasterCar then
+      local cause = tonumber(sim.raceFlagCause) or -1
+      local car = cause > 0 and getCar(cause) or nil
+      local pc = car and progress(car)
+      if pc then
+        pairs_[#pairs_ + 1] = { lapped = 0, lapper = cause, gap = ((a.p - pc) % 1.0) * trackLength, pLapper = pc }
+      end
     end
   end
-  return best, bestGap, p0
+  return pairs_
 end
 
--- How far ahead (m) the stretch from the human car to just past the lapped car first enters a group
+-- How far ahead (m) the stretch from the lapping car to just past the lapped car first enters a group
 -- of boards, or nil. The stretch is sampled every C.BLUE_GROUP_STEP_M along the AI spline.
 local function groupAhead(panel, p0, fromM, toM, trackLength)
   local m = fromM
@@ -117,8 +98,8 @@ local function groupAhead(panel, p0, fromM, toM, trackLength)
   return nil
 end
 
--- The nearest panels ahead of the human car, up to toM metres ahead (just past the lapped car, or
--- C.BLUE_BEING_LAPPED_AHEAD_M while the human car is being lapped).
+-- The nearest panels ahead of the lapping car (at lap progress p0), up to toM metres ahead (just past
+-- the lapped car).
 local function markBluePanels(p0, toM, trackLength)
   local candidates = {}
   for _, panel in ipairs(Panels.List()) do
@@ -229,24 +210,36 @@ function M.Reset()
   Panels.RestoreAll()
   blueUntil = {}
   active = false
-  if lappedCar or lappingCar then U.Log("BLUE: lights off (reset)") end
-  lappedCar = nil
-  lappingCar = nil
+  if lastPairs ~= "" then U.Log("BLUE: lights off (reset)") end
+  lastPairs = ""
   lastScanAt = -1000.0
   clock = 0.0
 end
 
-local function shouldRun(sim)
+local function shouldRun(sim, replay)
   if not S.blueFlagEnabled then return false end
-  if sim.isSessionStarted ~= true or not Sess.IsRaceMode(sim) then return false end
+  if not Sess.IsRaceMode(sim) then return false end
+  -- A replay is usually watched once the race is over: the live session state (finished, formation
+  -- lap paused by the replay) says nothing about the moment being replayed.
+  if replay then return true end
+  if sim.isSessionStarted ~= true then return false end
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return false end
   if Sess.IsSessionFinished(sim) then return false end
   return true
 end
 
-function M.Update(sim, dt)
-  if not shouldRun(sim) then
-    if active or lappedCar or lappingCar then M.Reset() end
+-- replay: true while a replay is being watched (the only part of the app that runs then). Switching
+-- between live and replay starts the lights over.
+function M.Update(sim, dt, replay)
+  replay = replay == true
+  if replay ~= inReplay then
+    if active or lastPairs ~= "" then M.Reset() end
+    inReplay = replay
+    U.Log(replay and "BLUE: replay started, blue flag lights follow the replay"
+        or "BLUE: replay ended, blue flag lights follow the live race")
+  end
+  if not shouldRun(sim, replay) then
+    if active or lastPairs ~= "" then M.Reset() end
     return
   end
   local trackLength = sim.trackLengthM
@@ -256,33 +249,25 @@ function M.Update(sim, dt)
   clock = clock + (dt or 0.016)
   if clock - lastScanAt >= C.BLUE_SCAN_SECONDS then
     lastScanAt = clock
-    local j, gap, p0 = nil, nil, nil
-    local k, kGap, kp0 = nil, nil, nil
-    local yellow = S.fcy ~= nil and S.fcy ~= "green"
-    if not yellow and S.playerRetired ~= true then
-      j, gap, p0 = findLappedCar(trackLength)
-      k, kGap, kp0 = findLappingCar(sim, trackLength)
+    local yellow = not inReplay and S.fcy ~= nil and S.fcy ~= "green"
+    local found = yellow and {} or findLappingPairs(sim, trackLength)
+    local parts, lit = {}, 0
+    for _, pair in ipairs(found) do
+      local n = markBluePanels(pair.pLapper, pair.gap + C.BLUE_PAST_LAPPED_M, trackLength)
+      lit = lit + math.min(n, C.BLUE_MAX_PANELS)
+      parts[#parts + 1] = sFormat("%d>%d", pair.lapper, pair.lapped)
     end
-    local lit = j and markBluePanels(p0, gap + C.BLUE_PAST_LAPPED_M, trackLength) or 0
-    local kLit = k and markBluePanels(kp0, C.BLUE_BEING_LAPPED_AHEAD_M, trackLength) or 0
-    if j ~= lappedCar then
-      if j then
-        U.Log(sFormat("BLUE: t=%.1f lapping car %d, %.0f m ahead; %d panel(s) in range", clock, j, gap, lit))
-        if lit > 0 then readbackAt = clock + 0.5 end
+    table.sort(parts)
+    local key = table.concat(parts, " ")
+    if key ~= lastPairs then
+      if key ~= "" then
+        U.Log(sFormat("BLUE: t=%.1f lapping (lapper>lapped): %s; %d panel(s) blue (AC flag %s)",
+            clock, key, lit, tostring(sim.raceFlagType)))
+        if lit > 0 and lastPairs == "" then readbackAt = clock + 0.5 end
       else
-        U.Log(sFormat("BLUE: t=%.1f no car to lap ahead; blue panels off", clock))
+        U.Log(sFormat("BLUE: t=%.1f nobody being lapped; blue panels off", clock))
       end
-      lappedCar = j
-    end
-    if k ~= lappingCar then
-      if k then
-        U.Log(sFormat("BLUE: t=%.1f being lapped by car %d, %.0f m behind; %d panel(s) in range (AC flag %s)",
-            clock, k, kGap, kLit, tostring(sim.raceFlagType)))
-        if kLit > 0 then readbackAt = clock + 0.5 end
-      else
-        U.Log(sFormat("BLUE: t=%.1f no longer being lapped", clock))
-      end
-      lappingCar = k
+      lastPairs = key
     end
   end
   applyColours(sim)
