@@ -4,148 +4,240 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Endurance Race Dashboard — Multi-Class Racing for Assetto Corsa</title>
-<meta name="description" content="Run a full Hypercar / LMP2 / GT3 championship in Assetto Corsa and Content Manager. Teams, drivers, results, points, trophies — all in one dashboard.">
+<meta name="description" content="Run a full Hypercar / LMP2 / GT3 championship in Assetto Corsa. Teams, drivers, automatic results, points and trophies in one dashboard, plus an in-game app with rolling starts, safety car, full course yellows and a class leaderboard.">
+<meta name="theme-color" content="#070708">
 <meta property="og:title" content="Endurance Race Dashboard">
 <meta property="og:description" content="Run your own multi-class endurance championship in Assetto Corsa.">
 <meta property="og:image" content="https://duongdt011099.github.io/ac-multi-class-race-dashboard/images/dashboard.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bruno+Ace&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<nav>
+<a class="skip" href="#features">Skip to content</a>
+
+<nav id="nav">
   <div class="wrap">
-    <a href="#top" class="logo"><i></i>ENDURANCE RACE DASHBOARD</a>
-    <ul><li><a href="#features">Features</a></li><li><a href="#gallery">Screenshots</a></li><li><a href="#how">How it works</a></li><li><a href="#trophies">Trophies</a></li></ul>
-    <a class="btn pri" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases" target="_blank" rel="noopener">Download</a>
+    <a href="#top" class="logo" aria-label="Endurance Race Dashboard home"><span class="mark"><i></i><i></i><i></i></span><span>Endurance<b>Race Dashboard</b></span></a>
+    <ul>
+      <li><a href="#features">Dashboard</a></li>
+      <li><a href="#ingame">In-game app</a></li>
+      <li><a href="#gallery">Screenshots</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#trophies">Trophies</a></li>
+    </ul>
+    <a class="btn pri sm" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases/latest" target="_blank" rel="noopener">Download</a>
   </div>
 </nav>
 
 <header class="hero" id="top">
-  <div class="streaks" id="streaks"></div>
+  <div class="grid-bg" aria-hidden="true"></div>
+  <div class="streaks" id="streaks" aria-hidden="true"></div>
   <div class="wrap hero-grid">
-    <div>
-      <span class="pill"><b></b> Windows · Assetto Corsa · Content Manager</span>
-      <h1>Your own <span class="grad">multi-class</span> endurance championship.</h1>
-      <p class="lead">Hypercar. LMP2. GT3. One grid, one dashboard. Manage teams, import results, score points and crown your World Champion — straight from your Assetto Corsa sessions.</p>
+    <div class="hero-copy">
+      <a class="pill" id="relpill" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases/latest" target="_blank" rel="noopener">
+        <b></b><span id="relver">Latest release</span><em>What's new →</em>
+      </a>
+      <h1>Your own <span class="hl">multi-class</span> endurance championship.</h1>
+      <p class="lead">Hypercar, LMP2 and GT3 on one grid. Plan the season, start each session from the dashboard and race with rolling starts, a safety car and full course yellows. Results come back on their own, points included.</p>
       <div class="cta">
-        <a class="btn pri" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases" target="_blank" rel="noopener">⬇ Download for Windows</a>
-        <a class="btn ghost" href="#features">Explore features →</a>
+        <a class="btn pri" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases/latest" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>Download for Windows
+        </a>
+        <a class="btn ghost" href="#ingame">See the in-game app</a>
       </div>
-      <div class="classes">
-        <div class="chip h"><span>HYPERCAR</span></div>
-        <div class="chip l"><span>LMP2</span></div>
-        <div class="chip g"><span>GT3</span></div>
+      <div class="classes" aria-label="Default classes">
+        <span class="chip h">HYPERCAR</span>
+        <span class="chip l">LMP2</span>
+        <span class="chip g">GT3</span>
+        <span class="chip x">+ your own</span>
       </div>
     </div>
-    <div class="visual float">
-      <div class="shot-main" id="tilt">
-        <img src="images/dashboard.png" alt="Dashboard screenshot">
+    <div class="visual">
+      <div class="window" id="tilt">
+        <div class="bar"><i></i><i></i><i></i><span>Endurance Race Dashboard</span></div>
+        <img src="images/dashboard.png" alt="The dashboard's Drivers page listing drivers with their car, team and class" width="1895" height="1013">
       </div>
+      <div class="float-card lb" aria-hidden="true">
+        <div class="t">CLASS LEADERBOARD <span>LAP 14/30</span></div>
+        <div class="r"><s class="h"></s>1 <span>Ferrari AF Corse</span><em>LEADER</em></div>
+        <div class="r"><s class="h"></s>2 <span>Team JOTA</span><em>+2.418</em></div>
+        <div class="r me"><s class="l"></s>1 <span>You · LMP2</span><em>LEADER</em></div>
+        <div class="r"><s class="g"></s>1 <span>Vista AF Corse</span><em>LEADER</em></div>
+      </div>
+      <div class="float-card flag" aria-hidden="true"><span class="lamp"></span>FULL COURSE YELLOW</div>
     </div>
   </div>
 </header>
 
-<div class="ticker"><div>
-  <span>CHAMPIONSHIPS</span><em>◆</em><span>SEASONS</span><em>◆</em><span>TEAMS &amp; DRIVERS</span><em>◆</em><span>POINT SYSTEMS</span><em>◆</em><span>GRID PRESETS</span><em>◆</em><span>LIVE CLASS LEADERBOARD</span><em>◆</em><span>TROPHIES</span><em>◆</em>
-  <span>CHAMPIONSHIPS</span><em>◆</em><span>SEASONS</span><em>◆</em><span>TEAMS &amp; DRIVERS</span><em>◆</em><span>POINT SYSTEMS</span><em>◆</em><span>GRID PRESETS</span><em>◆</em><span>LIVE CLASS LEADERBOARD</span><em>◆</em><span>TROPHIES</span><em>◆</em>
-</div></div>
-
-<section>
+<section class="stats-sec">
   <div class="wrap">
     <div class="stats">
-      <div class="stat rv"><div class="n grad" data-n="3" data-s="+">0</div><p>Classes, fully customizable</p></div>
-      <div class="stat rv d1"><div class="n grad" data-n="8" data-s="">0</div><p>Rounds per season by default</p></div>
-      <div class="stat rv d2"><div class="n grad" data-n="4" data-s="">0</div><p>Cup tiers to collect</p></div>
-      <div class="stat rv d3"><div class="n grad" data-n="1" data-s=" click">0</div><p>To export a Content Manager grid</p></div>
+      <div class="stat rv"><div class="n" data-n="3" data-s="+">0</div><p>Classes per grid, fully customizable</p></div>
+      <div class="stat rv d1"><div class="n" data-n="24" data-s="h">0</div><p>Longest timed race the in-game clock runs</p></div>
+      <div class="stat rv d2"><div class="n" data-n="4" data-s="">0</div><p>Cup tiers for your trophy cabinet</p></div>
+      <div class="stat rv d3"><div class="n" data-n="0" data-s="">0</div><p>Result files to import by hand</p></div>
     </div>
   </div>
 </section>
 
-<section id="features" style="padding-top:40px">
+<section id="features">
   <div class="wrap">
-    <div class="center rv">
-      <div class="eyebrow">Everything you need</div>
-      <h2>From entry list to <span class="grad">checkered flag</span></h2>
-      <p class="sub">Stop juggling spreadsheets. The dashboard handles the whole championship lifecycle in one place.</p>
+    <div class="head rv">
+      <div class="eyebrow">The dashboard</div>
+      <h2>From entry list to <span class="hl">chequered flag</span></h2>
+      <p class="sub">No more spreadsheets. The whole championship lives in one desktop app that sits in the tray while you race.</p>
     </div>
-    <div class="cards">
-      <div class="card rv"><div class="ic">🏆</div><h3>Manage your series</h3><p>Create championships and seasons, build the race calendar, and watch every round move from not started → in progress → finished. Clone a season to reuse its calendar.</p></div>
-      <div class="card rv d1"><div class="ic">🎨</div><h3>Define your classes</h3><p>Build class settings with your own names and colors, reorder them, and set a default. Hypercar, LMP2, GT3 — or anything you invent.</p></div>
-      <div class="card rv d2"><div class="ic">👥</div><h3>Teams &amp; drivers</h3><p>Assign classes per team, set each driver's car, skin, AI strength and aggression, nationality — and flag the human drivers.</p></div>
-      <div class="card rv"><div class="ic">⚡</div><h3>Auto-import results</h3><p>Load practice, qualifying and race results. Standings and points are calculated for you — correct a result by simply importing it again.</p></div>
-      <div class="card rv d1"><div class="ic">🏁</div><h3>Ready-to-load grids</h3><p>Generate grid and race presets for Content Manager, ordered by class and qualifying position. Open and race.</p></div>
-      <div class="card rv d2"><div class="ic">🚗</div><h3>Livery previews</h3><p>See every car's livery right from your game install, so you always know who's who on the grid.</p></div>
-      <div class="card rv"><div class="ic">🧮</div><h3>Your points, your rules</h3><p>Create custom point systems and apply them per race. Who scores for finishing where is entirely up to you.</p></div>
-      <div class="card rv d1"><div class="ic">📊</div><h3>Multi-class leaderboard</h3><p>An in-game Lua app orders the leaderboard by class using your car tags, so you always see your real class position.</p></div>
-      <div class="card rv"><div class="ic">⏱️</div><h3>Timed races</h3><p>Race by the clock instead of laps, from 5 minutes up to 24 hours. The in-game app runs the race clock and ends the race on the leader's final lap once time is up.</p></div>
-      <div class="card rv d2"><div class="ic">🔄</div><h3>Stay up to date</h3><p>The sidebar shows your version and checks for new releases. Updates keep all your data.</p></div>
+    <div class="bento">
+      <article class="card span2 rv">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg></div>
+        <h3>Championships &amp; seasons</h3>
+        <p>Create championships, add seasons with a fixed number of rounds and build the calendar. Every round goes from <em>not started</em> to <em>in progress</em> to <em>finished</em> on its own. When the last round ends the season locks and the champion is crowned. Clone a season to reuse its calendar.</p>
+        <div class="status-row"><span class="st ns">Not started</span><span class="st ip">In progress</span><span class="st fin">Finished</span></div>
+      </article>
+      <article class="card rv d1">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>Automatic results</h3>
+        <p>The in-game app exports every practice, qualifying and race result. The dashboard picks them up and updates standings and points. You don't touch a file.</p>
+      </article>
+      <article class="card rv">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></div>
+        <h3>One-click sessions</h3>
+        <p>Start practice, qualifying or the race straight from the dashboard. The grid is ordered by class and qualifying position and the entry list is written for you.</p>
+      </article>
+      <article class="card rv d1">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+        <h3>Quick Race</h3>
+        <p>A one-off race with no championship and no points. Pick a track, build a custom grid, drag cars into the start order and go. Your results are kept in a history.</p>
+      </article>
+      <article class="card rv d2">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></div>
+        <h3>Teams &amp; drivers</h3>
+        <p>Give each team its classes and each driver a car, skin, nationality, AI strength and aggression. Flag the human drivers, or add a whole batch from a preset.</p>
+      </article>
+      <article class="card rv">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Your classes, your colors</h3>
+        <p>Name your classes, choose their colors and order, and keep several class settings with one set as the default.</p>
+      </article>
+      <article class="card rv d1">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <h3>Your points, your rules</h3>
+        <p>Create your own point systems and pick one for each race. You decide who scores for finishing where.</p>
+      </article>
+      <article class="card rv d2">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 15l2-6h14l2 6v3H3zM6 18v2M18 18v2M7 13h.01M17 13h.01"/></svg></div>
+        <h3>Livery previews</h3>
+        <p>See each car's livery from your own game install, so you always know who is who on the grid.</p>
+      </article>
+      <article class="card rv">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg></div>
+        <h3>Updates built in</h3>
+        <p>The app checks GitHub for new releases. Run the new installer and all your data stays.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="ingame" id="ingame">
+  <div class="track-lines" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="head rv">
+      <div class="eyebrow">In-game app · Custom Shaders Patch</div>
+      <h2>Race control, <span class="hl">inside the sim</span></h2>
+      <p class="sub">The Multi_Class Lua app installs with the dashboard and switches on when you start a session from it. It runs the race the way an endurance race should run.</p>
+    </div>
+    <div class="rc-grid rv">
+      <article class="rc"><span class="tag green">START</span><h3>Rolling start</h3><p>A formation lap behind the safety car, single file, then double file by class. The music is timed to end at the green and five green lights mark the start. Street circuits with hairpins get a safer double-file point.</p></article>
+      <article class="rc"><span class="tag amber">SC</span><h3>Safety car</h3><p>A real car leads the field during the formation lap and keeps the AI from passing it.</p></article>
+      <article class="rc"><span class="tag yellow">FCY</span><h3>Full course yellow</h3><p>A stopped or crashed car brings out a yellow. Every car slows to the yellow speed with no closing up until the track is clear, then a countdown restarts the race.</p></article>
+      <article class="rc"><span class="tag blue">BLUE</span><h3>Blue flag lights</h3><p>The track's own marshal panels show blue only near a car that is about to be lapped. They work in replays too.</p></article>
+      <article class="rc"><span class="tag red">LB</span><h3>Class leaderboard</h3><p>Overall and class positions with gaps, plus a compact view of your own class with fuel levels.</p></article>
+      <article class="rc"><span class="tag white">MAP</span><h3>Live track map</h3><p>The track outline with one dot per car in its class color, showing class or overall position.</p></article>
+      <article class="rc"><span class="tag white">AI</span><h3>Smarter multi-class AI</h3><p>Faster classes go around slower cars instead of queueing behind them. AI cars race side by side with care, and cars that get stuck are freed.</p></article>
+      <article class="rc"><span class="tag red">PIT</span><h3>Crash guard</h3><p>An AI car sent to the pits after a crash is repaired and gets one more chance. A second crash ends its race.</p></article>
+      <article class="rc"><span class="tag green">⏱</span><h3>Timed races</h3><p>Race from 5 minutes to 24 hours. Assetto Corsa only knows lap races, so the app runs the clock and ends the race on the leader's final lap.</p></article>
     </div>
   </div>
 </section>
 
 <section class="showcase" id="gallery">
-  <div class="wrap center">
-    <div class="eyebrow rv">Inside the app</div>
-    <h2 class="rv">Built for <span class="grad">race control</span></h2>
-    <p class="sub rv">A clean, fast desktop experience in its own window — and it hides in the tray while you race.</p>
-    <div class="tabs rv" id="tabs"></div>
-    <div class="frame rv"><div class="bar"><i></i><i></i><i></i></div><img id="shot" alt="Screenshot"></div>
+  <div class="wrap">
+    <div class="head rv">
+      <div class="eyebrow">Inside the app</div>
+      <h2>Built for <span class="hl">race control</span></h2>
+      <p class="sub">A fast desktop app in its own window. Close the window and it waits in the tray.</p>
+    </div>
+    <div class="tabs rv" id="tabs" role="tablist"></div>
+    <div class="frame rv">
+      <div class="bar"><i></i><i></i><i></i><span id="shotname"></span></div>
+      <img id="shot" alt="">
+      <div class="progress" id="progress"></div>
+    </div>
   </div>
 </section>
 
 <section id="how">
   <div class="wrap">
-    <div class="center rv">
+    <div class="head rv">
       <div class="eyebrow">How it works</div>
-      <h2>Race weekend in <span class="grad">six steps</span></h2>
+      <h2>Race weekend in <span class="hl">six steps</span></h2>
     </div>
-    <div class="steps">
-      <div class="step rv"><div class="num">1</div><div><h3>Create your championship</h3><p>Add a championship and a season. Clone a past season to reuse its calendar.</p></div></div>
-      <div class="step rv"><div class="num">2</div><div><h3>Set up classes, teams &amp; drivers</h3><p>Pick colors for each class, then assign teams and drivers — or batch-add from a preset file.</p></div></div>
-      <div class="step rv"><div class="num">3</div><div><h3>Build the calendar</h3><p>Add each round with a country and a point system, and choose a lap count or a timed race.</p></div></div>
-      <div class="step rv"><div class="num">4</div><div><h3>Practice &amp; qualifying</h3><p>Import the session results, then export the qualifying grid and race preset for Content Manager.</p></div></div>
-      <div class="step rv"><div class="num">5</div><div><h3>Race!</h3><p>Rolling start, mixed-class traffic. Import the result afterwards — standings and points are done.</p></div></div>
-      <div class="step rv"><div class="num">6</div><div><h3>Crown a champion</h3><p>Finish the final round: the season locks, trophies are awarded, and the confetti flies.</p></div></div>
-    </div>
+    <ol class="steps">
+      <li class="step rv"><div class="num">01</div><h3>Create your championship</h3><p>Add a championship and a season with its number of rounds. Or clone a past season to reuse its calendar.</p></li>
+      <li class="step rv d1"><div class="num">02</div><h3>Classes, teams &amp; drivers</h3><p>Choose your class colors, then give each team its classes and add its drivers, one by one or from a preset.</p></li>
+      <li class="step rv d2"><div class="num">03</div><h3>Build the calendar</h3><p>Add each round with a country, a point system and a race length in laps or time.</p></li>
+      <li class="step rv"><div class="num">04</div><h3>Practice &amp; qualifying</h3><p>Start each session from the dashboard. The results come back on their own and set the race grid.</p></li>
+      <li class="step rv d1"><div class="num">05</div><h3>Lights out</h3><p>Rolling start, safety car, mixed-class traffic. Once you cross the line, standings and points are done.</p></li>
+      <li class="step rv d2"><div class="num">06</div><h3>Crown a champion</h3><p>After the final round the season locks, trophies are handed out and the confetti flies.</p></li>
+    </ol>
   </div>
 </section>
 
 <section class="trophies" id="trophies">
-  <div class="confetti" id="confetti"></div>
-  <div class="wrap center" style="position:relative">
-    <div class="eyebrow rv">Achievements</div>
-    <h2 class="rv">Build your <span class="grad">trophy cabinet</span></h2>
-    <p class="sub rv">Win a race, earn a gold cup. Finish the season on the podium for silver or bronze — and take the world title for the legendary diamond cup, engraved with the race or season.</p>
-    <div class="cups rv">
-      <div class="cup"><span class="e">🥉</span><b>BRONZE</b>Season P3</div>
-      <div class="cup"><span class="e">🥈</span><b>SILVER</b>Season P2</div>
-      <div class="cup big"><span class="e">💎</span><b>WORLD CHAMPION</b>Diamond cup</div>
-      <div class="cup"><span class="e">🏆</span><b>GOLD</b>Race win</div>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="head rv">
+      <div class="eyebrow">Achievements</div>
+      <h2>Build your <span class="hl">trophy cabinet</span></h2>
+      <p class="sub">Win a race and earn a gold cup. Finish the season second or third for silver or bronze. Take the world title for the diamond cup, engraved with the season.</p>
     </div>
+    <div class="podium rv">
+      <div class="cup p2"><span class="e">🥈</span><b>Silver</b><small>Season P2</small><div class="block">2</div></div>
+      <div class="cup p1"><span class="e">💎</span><b>World Champion</b><small>Diamond cup</small><div class="block">1</div></div>
+      <div class="cup p3"><span class="e">🥉</span><b>Bronze</b><small>Season P3</small><div class="block">3</div></div>
+    </div>
+    <p class="gold-note rv"><span>🏆</span> Plus a <b>gold cup</b> for every race you win</p>
   </div>
 </section>
 
-<div class="checker"></div>
+<div class="checker" aria-hidden="true"></div>
 <section class="final">
-  <div class="wrap" style="position:relative">
+  <div class="wrap">
     <div class="eyebrow rv">Ready on the grid?</div>
-    <h2 class="rv">Start your <span class="grad">first season</span> today</h2>
-    <p class="sub rv" style="margin:0 auto 34px">Free installer for Windows. Your data is kept across updates.</p>
-    <a class="btn pri rv" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases" target="_blank" rel="noopener" style="font-size:17px;padding:18px 38px">⬇ Download the installer</a>
-    <p class="dl rv" id="dlbox" hidden>🔥 <b class="grad" id="dlcount">0</b> downloads and counting</p>
-    <div class="req rv"><span>✔ Assetto Corsa</span><span>✔ Content Manager</span></div>
+    <h2 class="rv">Start your <span class="hl">first season</span> today</h2>
+    <p class="sub rv">A free installer for Windows. The dashboard and the in-game app are installed together, and your data is kept across updates.</p>
+    <a class="btn pri lg rv" href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases/latest" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>Download the installer
+    </a>
+    <p class="dl rv" id="dlbox" hidden><b id="dlcount">0</b> downloads and counting</p>
+    <div class="req rv">
+      <span>Windows 10 / 11</span><span>Assetto Corsa</span><span>Content Manager</span><span>Custom Shaders Patch</span>
+    </div>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    © Duong Do · MIT License with additional terms ·
-    <a href="https://github.com/duongdt011099/ac-multi-class-race-dashboard" target="_blank" rel="noopener">GitHub</a> ·
-    <a href="https://github.com/duongdt011099/ac-multi-class-race" target="_blank" rel="noopener">Multi Class Race Leaderboard (Lua app)</a>
+    <span>© Duong Do · MIT License with additional terms</span>
+    <span class="links">
+      <a href="https://github.com/duongdt011099/ac-multi-class-race-dashboard" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/duongdt011099/ac-multi-class-race-dashboard/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/duongdt011099/ac-multi-class-race" target="_blank" rel="noopener">Lua app</a>
+    </span>
   </div>
 </footer>
 
