@@ -107,6 +107,9 @@ C.ROLLING_START_GREEN_MAX_TAIL_GAP_M  = 140.0
 -- ...and until every car is within this many metres of its own double-file slot (ROW_M per row
 -- behind the class leader), so a class never takes green with a row still trailing.
 C.ROLLING_START_GREEN_MAX_SLOT_EXCESS_M = 20.0
+-- Green check, row by row: every car must be within this many metres (spline distance) of the car
+-- one row up in its own lane. A settled double file runs ~10-12 m per row (proximity guard).
+C.ROLLING_START_GREEN_MAX_ROW_GAP_M = 22.0
 -- The front row waits for the rest of its class: while any class car is further behind than its
 -- double-file slot (a single-file car counts in full), the front row slows from full speed (excess
 -- WAIT_START_GAP_M or less) down to WAIT_MIN_SPEED_KMH (excess WAIT_FULL_GAP_M or more) so the tail
@@ -153,7 +156,11 @@ C.ROLLING_START_COMPACT_BEHIND_FULL_GAP  = 100.0
 -- Double file: rows are about ROW_M apart (the column spacing in rolling/spacing.lua). A car more
 -- than 22 m behind the car two rows ahead runs up to DF_FAR_CATCHUP times the double-file speed,
 -- reached at DF_FAR_CATCHUP_FULL_M behind, so a strung-out rear reaches its slot before the line.
-C.ROLLING_START_ROW_M                    = 8.0
+-- ROW_M is the settled row spacing the slot checks expect (front row waiting for stragglers, the
+-- autopilot handover). It was 8 m, but the proximity guard holds same-lane cars ~10 m apart and a
+-- settled double file measures ~11.5-12 m per row, so a 16-car class always looked 25 m short and
+-- the front row crawled at ~56 km/h instead of the 70 km/h rolling speed.
+C.ROLLING_START_ROW_M                    = 12.0
 C.ROLLING_START_DF_FAR_CATCHUP           = 1.7
 C.ROLLING_START_DF_FAR_CATCHUP_FULL_M    = 120.0
 -- Inside PHASE1_MIN_GAP the follower runs below the car ahead's speed, by GAP_GAIN km/h for every
@@ -171,6 +178,12 @@ C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH = 50.0
 C.ROLLING_START_LANE_GUARD_GAP      = 8.0
 C.ROLLING_START_LANE_GUARD_HOLD_GAP = 5.5
 C.ROLLING_START_LANE_GUARD_GAIN_KMH = 4.0
+-- Beyond GUARD_GAP the lane guard also caps the speed to what braking at BRAKE_DECEL (m/s^2) can
+-- shed before HOLD_GAP, out to BRAKE_RANGE_M. The far catch-up runs a strung-out car at up to 1.7x
+-- the double-file speed on distance alone, so when the car ahead braked (front row waiting, the
+-- autopilot car lifting) a follower closing at 60 km/h only reacted 8 m out and rear-ended it.
+C.ROLLING_START_LANE_GUARD_BRAKE_RANGE_M = 90.0
+C.ROLLING_START_LANE_GUARD_BRAKE_DECEL   = 3.0
 -- Class guard: every car also watches the previous class's cars. Inside CLASS_GUARD_GAP metres it
 -- is capped to that car's speed plus (gap - CLASS_HOLD_GAP) * GAIN km/h, so a class arriving at 100
 -- km/h never runs into the previous class's tail after that tail slows to the double-file speed,

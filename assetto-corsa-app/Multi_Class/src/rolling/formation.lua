@@ -327,7 +327,20 @@ local function ApplyLaneGuard(state, car, trackLength, targetSpeed, throttleLimi
   local aheadCar = aheadIndex and getCar(aheadIndex)
   if not (aheadCar and car) then return targetSpeed, throttleLimit end
   local gap = Spacing.SignedGap(aheadCar, car, trackLength)
-  if gap >= C.ROLLING_START_LANE_GUARD_GAP then return targetSpeed, throttleLimit end
+  if gap >= C.ROLLING_START_LANE_GUARD_GAP then
+    -- Braking-distance cap: arrive at HOLD_GAP no faster than the car ahead is going.
+    if gap < C.ROLLING_START_LANE_GUARD_BRAKE_RANGE_M then
+      local v = math.max(0.0, aheadCar.speedKmh or 0) / 3.6
+      local room = gap - C.ROLLING_START_LANE_GUARD_HOLD_GAP
+      local cap = math.sqrt(v * v + 2.0 * C.ROLLING_START_LANE_GUARD_BRAKE_DECEL * room) * 3.6
+      if cap < targetSpeed then
+        targetSpeed = cap
+        -- The AI only eases off gently when its top speed drops; lift fully while well above the cap.
+        if (car.speedKmh or 0) > cap + C.ROLLING_START_WAIT_LIFT_MARGIN_KMH then throttleLimit = 0.0 end
+      end
+    end
+    return targetSpeed, throttleLimit
+  end
   local cap = (aheadCar.speedKmh or 0) +
       (gap - C.ROLLING_START_LANE_GUARD_HOLD_GAP) * C.ROLLING_START_LANE_GUARD_GAIN_KMH
   if cap < targetSpeed then

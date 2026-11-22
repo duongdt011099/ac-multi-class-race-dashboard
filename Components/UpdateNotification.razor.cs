@@ -30,6 +30,19 @@ public partial class UpdateNotification : IDisposable
 
     private string? InstallError => installerMessage ?? (InstallPhase == UpdateInstallPhase.Failed ? Installer.Error : null);
 
+    private string ProgressDetail
+    {
+        get
+        {
+            var total = Installer.TotalBytes;
+            var received = Installer.ReceivedBytes;
+
+            return total > 0
+                ? $"{FormatSize(received)} of {FormatSize(total)}"
+                : "Starting download...";
+        }
+    }
+
     private UpdateCheckResult? result;
     private string? truncatedNotes;
     private bool CheckBlocked => isChecking || DateTime.UtcNow < blockedUntilUtc;

@@ -155,6 +155,16 @@ public sealed class UpdateInstallerService : IHostedService, IDisposable
         get { lock (_gate) { return _error; } }
     }
 
+    public long ReceivedBytes
+    {
+        get { lock (_gate) { return _received; } }
+    }
+
+    public long TotalBytes
+    {
+        get { lock (_gate) { return _total; } }
+    }
+
     public int ProgressPercent
     {
         get

@@ -542,6 +542,177 @@ tr:hover .wec-race-track__thumb { transform: scale(1.06); }
 .wec-update__notes hr, .wec-update__notes th, .wec-update__notes td { border-color: var(--wec-border); }
 .wec-update__error, .wec-alert { background: rgba(185, 28, 28, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ff8a85; }
 
+/* ---------- Update download progress ---------- */
+
+.wec-update-progress {
+    --wec-progress-accent: var(--wec-red-hot);
+    --wec-progress-from: var(--wec-red-deep);
+    --wec-progress-to: var(--wec-red-hot);
+    --wec-progress-glow: var(--wec-red-glow);
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 0.85rem;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--wec-border);
+    border-radius: 12px;
+    background:
+        radial-gradient(120% 140% at 100% 0%, var(--wec-red-soft), transparent 60%),
+        linear-gradient(180deg, var(--wec-surface-3), var(--wec-surface-2));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.4s var(--wec-ease), background 0.4s var(--wec-ease);
+}
+
+.wec-update-progress--ready {
+    --wec-progress-accent: #34d399;
+    --wec-progress-from: #059669;
+    --wec-progress-to: #34d399;
+    --wec-progress-glow: rgba(52, 211, 153, 0.45);
+    border-color: rgba(52, 211, 153, 0.35);
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(52, 211, 153, 0.12), transparent 60%),
+        linear-gradient(180deg, var(--wec-surface-3), var(--wec-surface-2));
+}
+
+.wec-update-progress__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+}
+
+.wec-update-progress__icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--wec-progress-accent) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--wec-progress-accent) 35%, transparent);
+    color: var(--wec-progress-accent);
+    font-size: 1.1rem;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--wec-progress-accent) 20%, transparent);
+}
+
+.wec-update-progress:not(.wec-update-progress--ready) .wec-update-progress__icon i {
+    animation: wec-update-bob 1.6s ease-in-out infinite;
+}
+
+.wec-update-progress--ready .wec-update-progress__icon i {
+    animation: wec-update-pop 0.5s var(--wec-spring) both;
+}
+
+.wec-update-progress__label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.wec-update-progress__title {
+    color: var(--wec-text);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.wec-update-progress__sub {
+    color: var(--wec-muted);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.wec-update-progress__percent {
+    flex: none;
+    color: var(--wec-text);
+    font-size: 1.9rem;
+    font-weight: 800;
+    font-style: italic;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 18px var(--wec-progress-glow);
+}
+
+.wec-update-progress__percent small {
+    margin-left: 0.1rem;
+    color: var(--wec-progress-accent);
+    font-size: 0.55em;
+    font-weight: 700;
+}
+
+.wec-update-progress__track {
+    position: relative;
+    height: 0.6rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+.wec-update-progress__fill {
+    position: relative;
+    height: 100%;
+    min-width: 0.6rem;
+    border-radius: inherit;
+    background:
+        repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.12) 0 6px, transparent 6px 12px),
+        linear-gradient(90deg, var(--wec-progress-from), var(--wec-progress-to));
+    background-size: 17px 17px, 100% 100%;
+    box-shadow: 0 0 12px var(--wec-progress-glow);
+    transition: width 0.6s var(--wec-ease);
+    animation: wec-update-stripes 0.8s linear infinite;
+}
+
+/* A bright sweep travelling along the filled part. */
+.wec-update-progress__fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    transform: translateX(-100%);
+    animation: wec-update-sheen 1.8s var(--wec-ease) infinite;
+}
+
+.wec-update-progress--ready .wec-update-progress__fill {
+    animation: none;
+    background: linear-gradient(90deg, var(--wec-progress-from), var(--wec-progress-to));
+}
+
+.wec-update-progress--ready .wec-update-progress__fill::after {
+    animation: wec-update-sheen 1.2s var(--wec-ease) 1 both;
+}
+
+@keyframes wec-update-stripes {
+    to { background-position: 17px 0, 0 0; }
+}
+
+@keyframes wec-update-sheen {
+    to { transform: translateX(100%); }
+}
+
+@keyframes wec-update-bob {
+    0%, 100% { transform: translateY(-1px); }
+    50% { transform: translateY(2px); }
+}
+
+@keyframes wec-update-pop {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wec-update-progress__fill,
+    .wec-update-progress__fill::after,
+    .wec-update-progress__icon i {
+        animation: none !important;
+    }
+
+    .wec-update-progress__fill { transition: none; }
+}
+
 /* ---------- Spinner, toast ---------- */
 
 .wec-spinner {

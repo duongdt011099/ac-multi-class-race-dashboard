@@ -26,19 +26,37 @@
                         <span>@result.Installer.Name (@FormatSize(result.Installer.SizeInBytes))</span>
                     </p>
                 }
-                @if (InstallPhase == UpdateInstallPhase.Downloading)
+                @if (InstallPhase is UpdateInstallPhase.Downloading or UpdateInstallPhase.Ready)
                 {
-                    <p class="wec-update__asset" role="status">
-                        <i class="bi bi-cloud-arrow-down" aria-hidden="true"></i>
-                        <span>Downloading update... @Installer.ProgressPercent%</span>
-                    </p>
-                }
-                else if (InstallPhase == UpdateInstallPhase.Ready)
-                {
-                    <p class="wec-update__asset" role="status">
-                        <i class="bi bi-check-circle" aria-hidden="true"></i>
-                        <span>Update downloaded and verified. The dashboard will restart to install it.</span>
-                    </p>
+                    var ready = InstallPhase == UpdateInstallPhase.Ready;
+                    var percent = ready ? 100 : Installer.ProgressPercent;
+                    <div class="wec-update-progress @(ready ? "wec-update-progress--ready" : null)" role="status" aria-live="polite">
+                        <div class="wec-update-progress__head">
+                            <span class="wec-update-progress__icon" aria-hidden="true">
+                                <i class="bi @(ready ? "bi-shield-check" : "bi-cloud-arrow-down")"></i>
+                            </span>
+                            <div class="wec-update-progress__label">
+                                <span class="wec-update-progress__title">
+                                    @(ready ? "Ready to install" : "Downloading update")
+                                </span>
+                                <span class="wec-update-progress__sub">
+                                    @if (ready)
+                                    {
+                                        @:Downloaded and verified. The dashboard will restart to install it.
+                                    }
+                                    else
+                                    {
+                                        @ProgressDetail
+                                    }
+                                </span>
+                            </div>
+                            <span class="wec-update-progress__percent">@percent<small>%</small></span>
+                        </div>
+                        <div class="wec-update-progress__track" role="progressbar" aria-label="Update download"
+                             aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent">
+                            <div class="wec-update-progress__fill" style="width: @(percent.ToString(CultureInfo.InvariantCulture))%"></div>
+                        </div>
+                    </div>
                 }
                 @if (!string.IsNullOrWhiteSpace(InstallError))
                 {

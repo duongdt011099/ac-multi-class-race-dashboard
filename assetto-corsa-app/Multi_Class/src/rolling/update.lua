@@ -87,6 +87,18 @@ local function AccumulateTravel(state, progress)
   return rawDelta < -0.5
 end
 
+-- Gap in metres from a double-file car to the car physically ahead of it in its own lane (the lane
+-- running order rebuilt every frame by formation.lua's BuildLaneOrder), nil for a lane leader.
+-- Measured by actual order, not grid slot: when two cars of a lane swap, the slot-based gap ran
+-- through the car in between and stayed ~27 m forever, holding the class until the 60 s timeout.
+local function RowGap(st, car, trackLength)
+  local other = st.laneAheadIndex and getCar(st.laneAheadIndex)
+  if not (other and type(other.splinePosition) == "number") then return nil end
+  local d = other.splinePosition - car.splinePosition
+  if d > 0.5 then d = d - 1.0 elseif d < -0.5 then d = d + 1.0 end
+  return d * trackLength
+end
+
 -- True once every active car of the class is in double file and the tail is within
 -- GREEN_MAX_TAIL_GAP_M of the class leader.
 local function ClassClosedUp(group, trackLength)
@@ -107,12 +119,13 @@ local function ClassClosedUp(group, trackLength)
         group.greenBlocker = string.format("car %d is %.0f m behind the class leader", memberIndex, ahead * trackLength)
         return false
       end
-      -- Every car must also be close to its own double-file slot (ROW_M per row behind the leader),
-      -- so the class does not take green with a row still trailing.
-      local slot = st.lockedPhase2Position or st.classPosition or 1
-      local excess = ahead * trackLength - (math.ceil(slot / 2) - 1) * C.ROLLING_START_ROW_M
-      if excess > C.ROLLING_START_GREEN_MAX_SLOT_EXCESS_M then
-        group.greenBlocker = string.format("car %d is %.0f m behind its double-file slot", memberIndex, excess)
+      -- Every car must also be tucked up to the row ahead of it, so the class does not take green
+      -- with a row still trailing. This is checked row by row, not as a cumulative distance from the
+      -- leader at ROW_M per row: the proximity guard holds same-lane cars ~10-12 m apart, so the
+      -- cumulative check failed on a big class (16 cars: +22 m at the tail) and green never came.
+      local rowGap = RowGap(st, car, trackLength)
+      if rowGap and rowGap > C.ROLLING_START_GREEN_MAX_ROW_GAP_M then
+        group.greenBlocker = string.format("car %d is %.0f m behind the row ahead", memberIndex, rowGap)
         return false
       end
     end
@@ -132,6 +145,15 @@ local function CheckCarForGreen(carIndex, state, now, trackLength)
     return
   end
   local progress = U.NormalizeTrackProgress(car.splinePosition)
+  -- A car teleported to the pits mid-formation jumps along the spline (e.g. 0.72 -> 0.03), which
+  -- AccumulateTravel would read as a line crossing and arm the green for its whole class far from
+  -- the line. Retired cars, and any frame that jumps further than a teleport, never arm green.
+  local jump = progress - state.lastProgress
+  if jump > 0.5 then jump = jump - 1.0 elseif jump < -0.5 then jump = jump + 1.0 end
+  if state.retired or math.abs(jump) * (trackLength or 0) > C.ROLLING_START_TELEPORT_JUMP_METERS then
+    state.lastProgress = progress
+    return
+  end
   local crossedForward = AccumulateTravel(state, progress)
 
   -- Travel is counted from the grid through the single-file run-up too (not only once double file
