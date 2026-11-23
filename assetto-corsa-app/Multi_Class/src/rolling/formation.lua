@@ -300,12 +300,29 @@ local function SingleFileTargets(carIndex, state, group, car, trackLength)
           (minGap - gap) * C.ROLLING_START_PHASE1_GAP_GAIN_KMH)
       formationSpeed = math.min(formationSpeed, math.max(0.0, aheadSpeed - backOff))
       if gap < 0 then
-        formationSpeed = math.max(formationSpeed, C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH)
-        throttleLimit = 0.5
+        -- Alongside or past: lift completely so the place is handed back. Only a car ahead that is
+        -- crawling (stalled) lets the follower keep the floor speed, so it cannot hold the class up;
+        -- otherwise the floor matched a car slowing for a chicane and the pass stuck.
+        throttleLimit = 0.0
+        if aheadSpeed < C.ROLLING_START_PHASE1_YIELD_FLOOR_CRAWL_KMH then
+          formationSpeed = math.max(formationSpeed, C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH)
+          throttleLimit = 0.5
+        end
       end
     else
       formationSpeed = C.ROLLING_START_FORMATION_SPEED_KMH *
           Spacing.GetLinearMultiplier(gap, minGap, fullGap, catchup)
+      -- Braking-distance cap: arrive at the follow gap no faster than the car ahead is going, so a
+      -- follower running the catch-up does not carry 100 km/h into a chicane the car ahead brakes for.
+      if gap < C.ROLLING_START_PHASE1_BRAKE_RANGE_M and not followingSafetyCar then
+        local v = math.max(0.0, aheadCar.speedKmh or 0) / 3.6
+        local cap = math.sqrt(v * v + 2.0 * C.ROLLING_START_PHASE1_BRAKE_DECEL * (gap - minGap)) * 3.6
+        formationSpeed = math.min(formationSpeed, cap)
+      end
+    end
+    -- The AI only eases off gently when its top speed drops; lift fully while well above the target.
+    if not followingSafetyCar and (car.speedKmh or 0) > formationSpeed + C.ROLLING_START_WAIT_LIFT_MARGIN_KMH then
+      throttleLimit = 0.0
     end
     if followingSafetyCar then
       -- Never close on the safety car faster than it can be matched at the follow gap: the cap is

@@ -171,6 +171,13 @@ C.ROLLING_START_DF_FAR_CATCHUP_FULL_M    = 120.0
 C.ROLLING_START_PHASE1_GAP_GAIN_KMH = 2.0
 C.ROLLING_START_PHASE1_YIELD_KMH    = 25.0
 C.ROLLING_START_PHASE1_YIELD_FLOOR_KMH = 50.0
+-- The floor only applies while the car that was passed is slower than this (stalled/crawling);
+-- a car merely slowing for a corner gets its place handed back.
+C.ROLLING_START_PHASE1_YIELD_FLOOR_CRAWL_KMH = 15.0
+-- Single-file braking-distance cap: within BRAKE_RANGE_M a follower is capped to what braking at
+-- BRAKE_DECEL (m/s^2) can shed before the follow gap, so it matches a car ahead braking for a corner.
+C.ROLLING_START_PHASE1_BRAKE_RANGE_M = 120.0
+C.ROLLING_START_PHASE1_BRAKE_DECEL   = 3.0
 -- Double-file lane guard: whatever is physically ahead in a car's own lane caps its speed once the
 -- centre-to-centre gap drops below GUARD_GAP, matching that car's speed at HOLD_GAP (about a car
 -- length plus margin) and slowing GAIN km/h per metre closer, so a car never drives into the back
