@@ -230,6 +230,13 @@ local function isRetiredInPit(idx, now)
   return now - since >= RETIRED_PIT_SECONDS
 end
 
+-- True when the car has been sitting stationary in the pits long enough to count as retired.
+function M.IsRetiredInPit(idx)
+  local sim = ac.getSim()
+  local now = (sim and type(sim.time) == "number") and sim.time / 1000 or 0
+  return isRetiredInPit(idx, now)
+end
+
 local function retiredIdxSet(allCars, now)
   local set = {}
   for _, c in ipairs(allCars) do

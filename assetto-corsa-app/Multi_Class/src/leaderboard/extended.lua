@@ -96,6 +96,12 @@ local function gapText(h, sim, qualiMode, c, playerRank, playerBest, leaderKey)
   if not sim.isSessionStarted then return "--" end
   -- No gap during the formation lap / double file: only after every class has gone green.
   if S.rollingStartState == "staged" or S.rollingStartState == "rolling" then return "--" end
+  -- Gaps are only shown to cars that are racing on track. A car that has already taken the flag keeps
+  -- its gap; otherwise a car parked in the pits for good is retired ("RET") and one making a stop is "PIT".
+  if not S.finishedRacePositions[c.idx] then
+    if Positions.IsRetiredInPit(c.idx) then return "RET" end
+    if c.car.isInPitlane == true or c.car.isInPit == true then return "PIT" end
+  end
   -- With the player in the pits (e.g. back in the pit after the finish) the engine gap is garbage.
   local pcar = ac.getCar(0)
   if pcar and (pcar.isInPitlane == true or pcar.isInPit == true) then return "--" end
