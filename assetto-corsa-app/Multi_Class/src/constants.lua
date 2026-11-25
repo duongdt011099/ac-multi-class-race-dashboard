@@ -235,6 +235,15 @@ C.ROLLING_MUSIC_RATE_RANGE       = 0.04
 -- (within FADE_IN_MIN_POSITION seconds of 0) plays at full volume straight away.
 C.ROLLING_MUSIC_FADE_IN_SECONDS      = 4.0
 C.ROLLING_MUSIC_FADE_IN_MIN_POSITION = 1.0
+-- The rolling music is a 3D sound source standing at the start/finish line (like a PA system), so
+-- the pack hears it faintly from far away and louder as it approaches the line. Inverse rolloff:
+-- full volume within MIN_DISTANCE metres, then volume ~ MIN_DISTANCE / distance (e.g. 200 m -> 1.0,
+-- 1 km -> 0.2, 2 km -> 0.1), no further fall-off past MAX_DISTANCE. HEIGHT lifts the speaker above
+-- the racing line. Set ROLLING_MUSIC_3D = false to go back to plain 2D music.
+C.ROLLING_MUSIC_3D              = true
+C.ROLLING_MUSIC_MIN_DISTANCE_M  = 200
+C.ROLLING_MUSIC_MAX_DISTANCE_M  = 4000
+C.ROLLING_MUSIC_HEIGHT_M        = 8
 C.ROLLING_START_RELEASE_MOVED_METERS     = 7
 C.ROLLING_START_RELEASE_MOVED_KMH        = 15
 C.ROLLING_START_RELEASE_WAIT_TIMEOUT     = 4.0

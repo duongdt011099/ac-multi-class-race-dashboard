@@ -2,7 +2,8 @@
 -- it starts once the estimated time to green drops to the track length, and is seeked into when
 -- the player enters double file late (then it fades in instead of cutting in mid-song). Once playing
 -- it is left alone (no rate or volume changes except those fades), because touching the media
--- player every frame makes it stutter.
+-- player every frame makes it stutter. The music is a 3D source standing at the start/finish line
+-- (C.ROLLING_MUSIC_3D), so it is heard faintly from afar and grows louder as the pack approaches.
 local C = require("src/constants")
 local S = require("src/state")
 local U = require("src/util")
@@ -13,10 +14,11 @@ local M = {}
 
 local FADE_SECONDS = 2.0
 local FINISH_NATURALLY_SECONDS = 3.0
-local DEFAULT_DURATION = 53.0
+local DEFAULT_DURATION = 48.0
 local FILE_NAME = "sounds/rolling.mp3"
 
 local player = nil
+local is3D = false       -- the player is a positional source at the start line
 local armed = false      -- the human car has entered double file
 local started = false
 local fadeLeft = nil
@@ -30,8 +32,12 @@ local function filePath()
 end
 
 local function dispose()
-  if player then pcall(function() player:pause() end) end
+  if player then
+    pcall(function() player:pause() end)
+    if is3D then pcall(function() player:dispose() end) end
+  end
   player = nil
+  is3D = false
   started = false
   fadeLeft = nil
   fadeInLeft = nil
@@ -46,11 +52,122 @@ function M.Reset()
   autopilotOffPlayed = false
 end
 
+-- World position of the start/finish line speaker and the track direction there, or nil.
+local function startLineSpeaker()
+  if not ac.trackProgressToWorldCoordinate then return nil end
+  local okA, here = pcall(ac.trackProgressToWorldCoordinate, 0.0)
+  local okB, ahead = pcall(ac.trackProgressToWorldCoordinate, 0.002)
+  if not (okA and here and U.IsFinite(here.x) and U.IsFinite(here.y) and U.IsFinite(here.z)) then return nil end
+  local pos = vec3(here.x, here.y + C.ROLLING_MUSIC_HEIGHT_M, here.z)
+  local dir = vec3(0, 0, 1)
+  if okB and ahead then
+    local d = vec3(ahead.x - here.x, 0, ahead.z - here.z)
+    if d:length() > 0.01 then dir = d:normalize() end
+  end
+  return pos, dir
+end
+
+-- A ui.MediaPlayer cannot be positioned from an app ("FMOD integration is not available"), so the
+-- 3D music is a file-based FMOD audio event standing at the start line, wrapped in the same small
+-- interface the media player offers (play/pause/currentTime/duration/ended/...) so the timing logic
+-- below works with either. FMOD events have no pause, so pause = stop and remember the position.
+-- The event loops (a non-looping file event becomes invalid after one play); the wrapper stops it
+-- itself when the position wraps back to the start, which is reported as ended().
+local function newSpeakerPlayer(pos, dir)
+  local ev = ac.AudioEvent.fromFile({
+    filename = filePath(),
+    use3D = true,
+    loop = true,
+    minDistance = C.ROLLING_MUSIC_MIN_DISTANCE_M,
+    maxDistance = C.ROLLING_MUSIC_MAX_DISTANCE_M,
+    dopplerEffect = 0,
+  }, true)
+  ev.cameraInteriorMultiplier = 1
+  ev.cameraExteriorMultiplier = 1
+  ev.cameraTrackMultiplier = 1
+  ev:setPosition(pos, dir, vec3(0, 1, 0), vec3())
+
+  local w = { playingNow = false, endedNow = false, heldAt = 0.0, lastPos = 0.0 }
+
+  local function position()
+    local t = ev:getTimelinePosition()
+    if type(t) ~= "number" or t < 0 then return w.lastPos end
+    return t
+  end
+
+  -- Detect the loop wrapping to the start: that is the end of the song.
+  local function poll()
+    if not w.playingNow then return end
+    local t = position()
+    local d = ev:getDuration()
+    if t < w.lastPos - 1.0 or (type(d) == "number" and d > 1.0 and t >= d - 0.05) then
+      ev:stop()
+      w.playingNow = false
+      w.endedNow = true
+      w.heldAt = 0.0
+      w.lastPos = 0.0
+      return
+    end
+    w.lastPos = t
+  end
+
+  function w:setAutoPlay() return self end
+  function w:setLooping() return self end
+  function w:setVolume(v) ev.volume = v return self end
+  function w:hasAudio() return ev:isValid() end
+  function w:duration() local d = ev:getDuration() return (type(d) == "number" and d > 0) and d or -1 end
+  function w:currentTime() poll() return self.playingNow and position() or self.heldAt end
+  function w:playing() poll() return self.playingNow end
+  function w:ended() poll() return self.endedNow end
+  function w:setCurrentTime(t)
+    self.heldAt = t
+    self.lastPos = t
+    if self.playingNow then ev:seek(t) end
+    return self
+  end
+  function w:play()
+    if self.playingNow then return self end
+    ev:start()
+    if self.heldAt > 0.05 then ev:seek(self.heldAt) end
+    self.lastPos = self.heldAt
+    self.playingNow = true
+    self.endedNow = false
+    return self
+  end
+  function w:pause()
+    if not self.playingNow then return self end
+    self.heldAt = position()
+    ev:stop()
+    self.playingNow = false
+    return self
+  end
+  function w:dispose() pcall(function() ev:dispose() end) end
+  return w
+end
+
 -- Load the track paused at the start of the formation so it is ready when needed.
 function M.Prepare()
   if not S.rollingMusicEnabled or player then return end
   local ok, err = pcall(function()
-    player = ui.MediaPlayer(filePath(), { use3D = false })
+    -- Fall back to 2D music when the start line position is unknown (no AI spline) or the FMOD
+    -- event cannot be created.
+    local pos, dir
+    if C.ROLLING_MUSIC_3D then pos, dir = startLineSpeaker() end
+    if pos then
+      local ok3D, p = pcall(newSpeakerPlayer, pos, dir)
+      if ok3D and p then
+        player = p
+        is3D = true
+        U.Log(sFormat("AUDIO: rolling music is a 3D source at the start line (%.0f, %.0f, %.0f)",
+            pos.x, pos.y, pos.z))
+      else
+        U.Log("AUDIO: 3D rolling music unavailable, using 2D: " .. tostring(p))
+      end
+    end
+    if not player then
+      player = ui.MediaPlayer(filePath(), { use3D = false })
+      is3D = false
+    end
     player:setAutoPlay(false)
     player:setLooping(false)
     player:setVolume(S.rollingMusicVolume)

@@ -44,5 +44,12 @@ public static class AiLevels
         return match.Name is null ? value.Value.ToString() : $"{match.Name} ({match.Value})";
     }
 
+    public const int Min = 0;
+
+    public const int Max = 100;
+
     public static int? Parse(string? value) => int.TryParse(value, out var number) ? number : null;
+
+    /// <summary>Keeps a typed AI level or aggression inside the 0-100 range AC accepts; empty stays empty.</summary>
+    public static int? Clamp(int? value) => value is null ? null : Math.Clamp(value.Value, Min, Max);
 }

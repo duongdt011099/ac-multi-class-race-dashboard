@@ -5,13 +5,13 @@
 
         <div class="wec-form-row wec-form-row--compact">
             <FormField For="batch-strength" Label="AI Strength" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <ImageSelect ShowImages="false" Id="batch-strength" Value="@Strength?.ToString()" ValueChanged="v => Strength = AiLevels.Parse(v)"
-                             Options="AiLevels.DifficultyOptions" EmptyLabel="Keep current" />
+                <input id="batch-strength" type="number" min="@AiLevels.Min" max="@AiLevels.Max" step="1" placeholder="Keep current"
+                       @bind:get="Strength" @bind:set="v => Strength = AiLevels.Clamp(v)" />
             </FormField>
 
             <FormField For="batch-agression" Label="AI Aggression" CssClass="wec-form-field--number wec-form-field--number--wide">
-                <ImageSelect ShowImages="false" Id="batch-agression" Value="@Aggression?.ToString()" ValueChanged="v => Aggression = AiLevels.Parse(v)"
-                             Options="AiLevels.AggressionOptions" EmptyLabel="Keep current" />
+                <input id="batch-agression" type="number" min="@AiLevels.Min" max="@AiLevels.Max" step="1" placeholder="Keep current"
+                       @bind:get="Aggression" @bind:set="v => Aggression = AiLevels.Clamp(v)" />
             </FormField>
         </div>
     </ChildContent>

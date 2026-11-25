@@ -64,8 +64,8 @@ public class DriverService : IDriverService
             Skin = model.Skin.Trim(),
             Nationality = string.IsNullOrWhiteSpace(model.Nationality) ? null : model.Nationality.Trim(),
             Age = model.Age,
-            DriverAgression = model.DriverAgression,
-            DriverStrength = model.DriverStrength,
+            DriverAgression = AiLevels.Clamp(model.DriverAgression),
+            DriverStrength = AiLevels.Clamp(model.DriverStrength),
             Team = model.TeamId is { } teamId ? await _teamRepository.GetByIdAsync(teamId) : null,
             IsActive = model.IsActive,
             IsHuman = model.IsHuman
@@ -94,8 +94,8 @@ public class DriverService : IDriverService
         driver.Skin = model.Skin.Trim();
         driver.Nationality = string.IsNullOrWhiteSpace(model.Nationality) ? null : model.Nationality.Trim();
         driver.Age = model.Age;
-        driver.DriverAgression = model.DriverAgression;
-        driver.DriverStrength = model.DriverStrength;
+        driver.DriverAgression = AiLevels.Clamp(model.DriverAgression);
+        driver.DriverStrength = AiLevels.Clamp(model.DriverStrength);
         driver.Team = model.TeamId is { } teamId ? await _teamRepository.GetByIdAsync(teamId) : null;
         driver.IsActive = model.IsActive;
         driver.IsHuman = model.IsHuman;
@@ -110,7 +110,7 @@ public class DriverService : IDriverService
             return;
         }
 
-        await _driverRepository.UpdateAiAsync(driverIds, aggression, strength);
+        await _driverRepository.UpdateAiAsync(driverIds, AiLevels.Clamp(aggression), AiLevels.Clamp(strength));
     }
 
     public async Task DeleteDriverAsync(Guid driverId)
