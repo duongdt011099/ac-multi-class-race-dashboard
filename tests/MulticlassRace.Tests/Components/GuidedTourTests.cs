@@ -42,7 +42,11 @@ public class GuidedTourTests : PageTestContext
 
     private IRenderedComponent<GuidedTour> RenderTour(string? storedDoneFlag = null)
     {
-        JSInterop.Setup<string?>("wecLocalStorage.get", _ => true).SetResult(storedDoneFlag);
+        if (storedDoneFlag is not null)
+        {
+            Storage.SetAsync("wec.tour.done", storedDoneFlag).GetAwaiter().GetResult();
+        }
+
         JSInterop.Setup<string?>("wecTour.focus", _ => true).SetResult("right");
 
         var cut = RenderComponent<GuidedTour>();
@@ -93,8 +97,7 @@ public class GuidedTourTests : PageTestContext
         cut.Find(".wec-tour__btn--ghost").Click();
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-tour")));
-        JSInterop.VerifyInvoke("wecLocalStorage.set");
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "wecLocalStorage.set" && (string?)i.Arguments[0] == "wec.tour.done");
+        Assert.Equal("1", Storage.GetAsync("wec.tour.done").GetAwaiter().GetResult());
     }
 
     [Fact]
@@ -122,7 +125,7 @@ public class GuidedTourTests : PageTestContext
         cut.Find(".wec-tour__btn--primary").Click();
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-tour")));
-        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "wecLocalStorage.set" && (string?)i.Arguments[0] == "wec.tour.done");
+        Assert.Equal("1", Storage.GetAsync("wec.tour.done").GetAwaiter().GetResult());
     }
 
     [Fact]
@@ -137,6 +140,19 @@ public class GuidedTourTests : PageTestContext
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-tour")));
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "wecTour.clear");
+    }
+
+    [Fact]
+    public void AnsweredTour_IsRememberedByANewStoreOnTheSameFile()
+    {
+        var cut = RenderTour();
+        cut.WaitForAssertion(() => Assert.Contains("Hi Rex", cut.Markup));
+        cut.Find(".wec-tour__btn--ghost").Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wec-tour")));
+
+        // A new launch reads the same file, whatever port the server ends up on.
+        var nextLaunch = new MulticlassRace.Services.Browser.BrowserStorage(Path.Combine(UploadsRoot, "preferences.json"));
+        Assert.Equal("1", nextLaunch.GetAsync("wec.tour.done").GetAwaiter().GetResult());
     }
 
     [Fact]

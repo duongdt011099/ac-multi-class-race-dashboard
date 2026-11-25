@@ -54,13 +54,16 @@ public class PageTestContext : TestContext
         Services.AddSingleton<ILuaResultImportService>(new FakeLuaResultImportService());
         Services.AddSingleton<RaceSessionChangeNotifier>();
         Services.AddSingleton<LuaResultImportState>();
-        Services.AddScoped<BrowserStorage>();
+        Storage = new BrowserStorage(Path.Combine(UploadsRoot, "preferences.json"));
+        Services.AddSingleton(Storage);
         Services.AddScoped<ToastService>();
     }
 
     protected TestDb Db { get; }
 
     protected string UploadsRoot { get; }
+
+    protected BrowserStorage Storage { get; }
 
     protected FakeDriverService DriverService { get; }
 

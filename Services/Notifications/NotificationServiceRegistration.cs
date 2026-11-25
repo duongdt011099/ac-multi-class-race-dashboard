@@ -8,7 +8,7 @@ public static class NotificationServiceRegistration
     public static IServiceCollection AddNotificationServices(this IServiceCollection services)
     {
         services.AddScoped<ToastService>();
-        services.AddScoped<BrowserStorage>();
+        services.AddSingleton(_ => new BrowserStorage(BrowserStorage.DefaultFilePath));
         services.AddScoped<UserGuideRequest>();
         services.AddScoped<SafetyCarPanelRequest>();
 
