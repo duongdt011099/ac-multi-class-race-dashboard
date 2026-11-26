@@ -72,7 +72,7 @@ end
 -- interface the media player offers (play/pause/currentTime/duration/ended/...) so the timing logic
 -- below works with either. FMOD events have no pause, so pause = stop and remember the position.
 -- The event loops (a non-looping file event becomes invalid after one play); the wrapper stops it
--- itself when the position wraps back to the start, which is reported as ended().
+-- itself once the song length has played (or the timeline wraps), which is reported as ended().
 local function newSpeakerPlayer(pos, dir)
   local ev = ac.AudioEvent.fromFile({
     filename = filePath(),
@@ -87,28 +87,33 @@ local function newSpeakerPlayer(pos, dir)
   ev.cameraTrackMultiplier = 1
   ev:setPosition(pos, dir, vec3(0, 1, 0), vec3())
 
-  local w = { playingNow = false, endedNow = false, heldAt = 0.0, lastPos = 0.0 }
+  -- Playback position is tracked on our own clock (advanced in w:tick from M.Update): FMOD can report
+  -- -1 for the timeline of a file event, and a looping event never says it has finished, so relying
+  -- on it let the song loop on past the first class's green.
+  local w = { playingNow = false, endedNow = false, clock = 0.0, lastTimeline = -1 }
 
-  local function position()
-    local t = ev:getTimelinePosition()
-    if type(t) ~= "number" or t < 0 then return w.lastPos end
-    return t
+  local function songLength()
+    local d = ev:getDuration()
+    if type(d) == "number" and d > 1.0 then return d end
+    return DEFAULT_DURATION
   end
 
-  -- Detect the loop wrapping to the start: that is the end of the song.
-  local function poll()
-    if not w.playingNow then return end
-    local t = position()
-    local d = ev:getDuration()
-    if t < w.lastPos - 1.0 or (type(d) == "number" and d > 1.0 and t >= d - 0.05) then
-      ev:stop()
-      w.playingNow = false
-      w.endedNow = true
-      w.heldAt = 0.0
-      w.lastPos = 0.0
-      return
-    end
-    w.lastPos = t
+  local function finish()
+    U.Log(sFormat("AUDIO: rolling music ended at %.1fs", w.clock))
+    pcall(function() ev:stop() end)
+    w.playingNow = false
+    w.endedNow = true
+    w.clock = 0.0
+    w.lastTimeline = -1
+  end
+
+  function w:tick(dt)
+    if not self.playingNow then return end
+    self.clock = self.clock + (dt or 0)
+    local t = ev:getTimelinePosition()
+    local wrapped = type(t) == "number" and t >= 0 and self.lastTimeline >= 0 and t < self.lastTimeline - 1.0
+    if type(t) == "number" and t >= 0 then self.lastTimeline = t end
+    if wrapped or self.clock >= songLength() - 0.05 then finish() end
   end
 
   function w:setAutoPlay() return self end
@@ -116,27 +121,26 @@ local function newSpeakerPlayer(pos, dir)
   function w:setVolume(v) ev.volume = v return self end
   function w:hasAudio() return ev:isValid() end
   function w:duration() local d = ev:getDuration() return (type(d) == "number" and d > 0) and d or -1 end
-  function w:currentTime() poll() return self.playingNow and position() or self.heldAt end
-  function w:playing() poll() return self.playingNow end
-  function w:ended() poll() return self.endedNow end
+  function w:currentTime() return self.clock end
+  function w:playing() return self.playingNow end
+  function w:ended() return self.endedNow end
   function w:setCurrentTime(t)
-    self.heldAt = t
-    self.lastPos = t
+    self.clock = t
+    self.lastTimeline = -1
     if self.playingNow then ev:seek(t) end
     return self
   end
   function w:play()
     if self.playingNow then return self end
     ev:start()
-    if self.heldAt > 0.05 then ev:seek(self.heldAt) end
-    self.lastPos = self.heldAt
+    if self.clock > 0.05 then ev:seek(self.clock) end
+    self.lastTimeline = -1
     self.playingNow = true
     self.endedNow = false
     return self
   end
   function w:pause()
     if not self.playingNow then return self end
-    self.heldAt = position()
     ev:stop()
     self.playingNow = false
     return self
@@ -523,6 +527,7 @@ end
 function M.Update(dt)
   updateFlagSounds(dt)
   if not player then return end
+  if is3D then pcall(function() player:tick(dt) end) end
   local ok, err = pcall(function()
     if fadeLeft then
       fadeLeft = fadeLeft - dt
